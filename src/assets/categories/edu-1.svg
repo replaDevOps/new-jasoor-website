@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs>
+    <linearGradient id="bgedu1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E6F7F2"/>
+      <stop offset="100%" style="stop-color:#C8EFE3"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="240" fill="url(#bgedu1)" rx="16"/>
+  
+  <!-- blackboard / whiteboard -->
+  <rect x="50" y="40" width="300" height="160" rx="10" fill="#0A1F13" opacity=".8"/>
+  <rect x="58" y="48" width="284" height="144" rx="6" fill="#0F2E1E"/>
+  <!-- writing on board -->
+  <rect x="70" y="65" width="120" height="7" rx="3" fill="#34D399" opacity=".6"/>
+  <rect x="70" y="80" width="90" height="7" rx="3" fill="#34D399" opacity=".4"/>
+  <rect x="70" y="95" width="140" height="7" rx="3" fill="#34D399" opacity=".5"/>
+  <!-- math formula -->
+  <text x="70" y="135" font-size="18" fill="#34D399" opacity=".5" font-family="monospace">E = mc²</text>
+  <rect x="70" y="148" width="80" height="5" rx="2" fill="#008A66" opacity=".4"/>
+  <!-- diagram circle -->
+  <circle cx="260" cy="100" r="35" fill="none" stroke="#34D399" stroke-width="2" opacity=".5"/>
+  <line x1="260" y1="65" x2="260" y2="135" stroke="#34D399" stroke-width="1.5" opacity=".3"/>
+  <line x1="225" y1="100" x2="295" y2="100" stroke="#34D399" stroke-width="1.5" opacity=".3"/>
+  <!-- chalk tray -->
+  <rect x="50" y="200" width="300" height="12" rx="4" fill="#0A1F13" opacity=".5"/>
+  <rect x="70" y="202" width="20" height="8" rx="2" fill="#fff" opacity=".5"/>
+  <rect x="100" y="202" width="20" height="8" rx="2" fill="#34D399" opacity=".4"/>
+  <rect x="130" y="202" width="20" height="8" rx="2" fill="#fff" opacity=".4"/>
+
+</svg>

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs>
+    <linearGradient id="bgind3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E6F7F2"/>
+      <stop offset="100%" style="stop-color:#C8EFE3"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="240" fill="url(#bgind3)" rx="16"/>
+  
+  <!-- conveyor belt / production line -->
+  <!-- belt -->
+  <rect x="30" y="150" width="340" height="20" rx="6" fill="#0A1F13" opacity=".6"/>
+  <rect x="30" y="153" width="340" height="14" rx="4" fill="#0A1F13" opacity=".4"/>
+  <!-- belt lines -->
+  <line x1="60" y1="150" x2="60" y2="170" stroke="#34D399" stroke-width="2" opacity=".3"/>
+  <line x1="100" y1="150" x2="100" y2="170" stroke="#34D399" stroke-width="2" opacity=".3"/>
+  <line x1="140" y1="150" x2="140" y2="170" stroke="#34D399" stroke-width="2" opacity=".3"/>
+  <line x1="180" y1="150" x2="180" y2="170" stroke="#34D399" stroke-width="2" opacity=".3"/>
+  <line x1="220" y1="150" x2="220" y2="170" stroke="#34D399" stroke-width="2" opacity=".3"/>
+  <line x1="260" y1="150" x2="260" y2="170" stroke="#34D399" stroke-width="2" opacity=".3"/>
+  <line x1="300" y1="150" x2="300" y2="170" stroke="#34D399" stroke-width="2" opacity=".3"/>
+  <line x1="340" y1="150" x2="340" y2="170" stroke="#34D399" stroke-width="2" opacity=".3"/>
+  <!-- rollers -->
+  <circle cx="30" cy="160" r="16" fill="#008A66" opacity=".6"/>
+  <circle cx="30" cy="160" r="8" fill="#0A1F13" opacity=".5"/>
+  <circle cx="370" cy="160" r="16" fill="#008A66" opacity=".6"/>
+  <circle cx="370" cy="160" r="8" fill="#0A1F13" opacity=".5"/>
+  <!-- products on belt -->
+  <rect x="55" y="118" width="44" height="34" rx="5" fill="#34D399" opacity=".65"/>
+  <rect x="130" y="122" width="40" height="30" rx="5" fill="#008A66" opacity=".6"/>
+  <rect x="208" y="118" width="44" height="34" rx="5" fill="#34D399" opacity=".6"/>
+  <rect x="285" y="122" width="40" height="30" rx="5" fill="#008A66" opacity=".55"/>
+  <!-- robotic arm -->
+  <line x1="200" y1="30" x2="200" y2="90" stroke="#0A1F13" stroke-width="8" stroke-linecap="round" opacity=".6"/>
+  <line x1="200" y1="90" x2="240" y2="120" stroke="#0A1F13" stroke-width="8" stroke-linecap="round" opacity=".5"/>
+  <circle cx="200" cy="30" r="12" fill="#008A66" opacity=".6"/>
+  <circle cx="200" cy="90" r="9" fill="#34D399" opacity=".5"/>
+  <rect x="230" y="112" width="24" height="16" rx="4" fill="#0A1F13" opacity=".5"/>
+
+</svg>

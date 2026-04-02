@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs>
+    <linearGradient id="bgr1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E6F7F2"/>
+      <stop offset="100%" style="stop-color:#C8EFE3"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="240" fill="url(#bgr1)" rx="16"/>
+  
+  <!-- table surface -->
+  <ellipse cx="200" cy="140" rx="140" ry="70" fill="#fff" opacity=".6"/>
+  <!-- saucer -->
+  <ellipse cx="200" cy="145" rx="55" ry="20" fill="#C8EFE3"/>
+  <!-- cup -->
+  <rect x="170" y="100" width="60" height="50" rx="10" fill="#008A66"/>
+  <!-- cup highlight -->
+  <rect x="178" y="108" width="20" height="8" rx="4" fill="#34D399" opacity=".5"/>
+  <!-- handle -->
+  <path d="M230 115 Q250 115 250 130 Q250 145 230 145" fill="none" stroke="#008A66" stroke-width="7" stroke-linecap="round"/>
+  <!-- steam lines -->
+  <path d="M188 92 Q192 82 188 72" fill="none" stroke="#34D399" stroke-width="3" stroke-linecap="round"/>
+  <path d="M200 88 Q204 76 200 64" fill="none" stroke="#34D399" stroke-width="3" stroke-linecap="round"/>
+  <path d="M212 92 Q216 82 212 72" fill="none" stroke="#34D399" stroke-width="3" stroke-linecap="round"/>
+  <!-- pastry -->
+  <ellipse cx="290" cy="148" rx="28" ry="14" fill="#34D399" opacity=".7"/>
+  <ellipse cx="290" cy="144" rx="22" ry="10" fill="#fff" opacity=".5"/>
+  <!-- small cup -->
+  <rect x="110" y="128" width="36" height="30" rx="7" fill="#0A1F13" opacity=".7"/>
+  <path d="M146 135 Q158 135 158 145 Q158 155 146 155" fill="none" stroke="#0A1F13" stroke-width="5" stroke-linecap="round" opacity=".7"/>
+
+</svg>

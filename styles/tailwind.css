@@ -1,0 +1,22 @@
+@import 'tailwindcss' source(none);
+@source '../**/*.{js,ts,jsx,tsx}';
+
+@import 'tw-animate-css';
+
+/* ── Jusoor Brand Color Tokens ───────────────────────────────────────────────
+   Usage: bg-brand, text-brand, border-brand, bg-brand-dark, etc.
+   Replaces raw hex values like #008A66, #004E39, #10B981 scattered across files.
+   ─────────────────────────────────────────────────────────────────────────── */
+@theme {
+  --color-brand:          #008A66;
+  --color-brand-dark:     #004E39;
+  --color-brand-light:    #E6F3EF;
+  --color-brand-accent:   #10B981;
+  --color-brand-gold:     #FBAA1A;
+  --color-brand-danger:   #EF4444;
+  --color-text-primary:   #111827;
+  --color-text-secondary: #4B5563;
+  --color-text-muted:     #9CA3AF;
+  --color-bg-light:       #F9FAFB;
+  --color-bg-page:        #F5F5F7;
+}

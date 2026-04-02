@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs>
+    <linearGradient id="bgre3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E6F7F2"/>
+      <stop offset="100%" style="stop-color:#C8EFE3"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="240" fill="url(#bgre3)" rx="16"/>
+  
+  <!-- blueprint / floor plan -->
+  <rect x="40" y="30" width="320" height="200" rx="10" fill="#0A1F13" opacity=".75"/>
+  <rect x="48" y="38" width="304" height="184" rx="7" fill="#0A2E1E"/>
+  <!-- grid -->
+  <line x1="48" y1="80" x2="352" y2="80" stroke="#34D399" stroke-width=".5" opacity=".2"/>
+  <line x1="48" y1="120" x2="352" y2="120" stroke="#34D399" stroke-width=".5" opacity=".2"/>
+  <line x1="48" y1="160" x2="352" y2="160" stroke="#34D399" stroke-width=".5" opacity=".2"/>
+  <line x1="120" y1="38" x2="120" y2="222" stroke="#34D399" stroke-width=".5" opacity=".2"/>
+  <line x1="200" y1="38" x2="200" y2="222" stroke="#34D399" stroke-width=".5" opacity=".2"/>
+  <line x1="280" y1="38" x2="280" y2="222" stroke="#34D399" stroke-width=".5" opacity=".2"/>
+  <!-- floor plan walls -->
+  <rect x="70" y="55" width="260" height="150" rx="3" fill="none" stroke="#34D399" stroke-width="2.5" opacity=".7"/>
+  <!-- rooms -->
+  <line x1="70" y1="130" x2="200" y2="130" stroke="#34D399" stroke-width="2" opacity=".6"/>
+  <line x1="200" y1="55" x2="200" y2="205" stroke="#34D399" stroke-width="2" opacity=".6"/>
+  <line x1="200" y1="150" x2="330" y2="150" stroke="#34D399" stroke-width="2" opacity=".6"/>
+  <!-- door arcs -->
+  <path d="M70 130 Q90 130 90 150" fill="none" stroke="#34D399" stroke-width="1.5" opacity=".5"/>
+  <path d="M200 130 Q200 150 220 150" fill="none" stroke="#34D399" stroke-width="1.5" opacity=".5"/>
+  <!-- labels -->
+  <rect x="90" y="80" width="50" height="6" rx="2" fill="#34D399" opacity=".3"/>
+  <rect x="220" y="80" width="60" height="6" rx="2" fill="#34D399" opacity=".3"/>
+  <rect x="90" y="160" width="55" height="6" rx="2" fill="#34D399" opacity=".3"/>
+  <rect x="220" y="168" width="50" height="6" rx="2" fill="#34D399" opacity=".3"/>
+
+</svg>

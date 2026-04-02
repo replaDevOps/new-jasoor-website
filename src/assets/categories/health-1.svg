@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs>
+    <linearGradient id="bghbf1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#F0FBF7"/>
+      <stop offset="100%" style="stop-color:#C8EFE3"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="240" fill="url(#bghbf1)" rx="16"/>
+  
+  <!-- gym floor -->
+  <rect x="0" y="170" width="400" height="70" fill="#C8EFE3" opacity=".4"/>
+  <!-- treadmill -->
+  <rect x="60" y="110" width="100" height="70" rx="8" fill="#0A1F13" opacity=".6"/>
+  <rect x="70" y="90" width="80" height="25" rx="5" fill="#008A66" opacity=".7"/>
+  <rect x="80" y="95" width="60" height="12" rx="3" fill="#34D399" opacity=".4"/>
+  <ellipse cx="110" cy="175" rx="22" ry="8" fill="#0A1F13" opacity=".4"/>
+  <!-- dumbbell left -->
+  <rect x="190" y="130" width="80" height="14" rx="4" fill="#0A1F13" opacity=".6"/>
+  <rect x="184" y="118" width="22" height="38" rx="6" fill="#008A66" opacity=".7"/>
+  <rect x="254" y="118" width="22" height="38" rx="6" fill="#008A66" opacity=".7"/>
+  <!-- dumbbell small -->
+  <rect x="200" y="170" width="50" height="9" rx="3" fill="#0A1F13" opacity=".4"/>
+  <rect x="195" y="164" width="14" height="22" rx="4" fill="#34D399" opacity=".6"/>
+  <rect x="248" y="164" width="14" height="22" rx="4" fill="#34D399" opacity=".6"/>
+  <!-- yoga mat -->
+  <rect x="280" y="158" width="90" height="22" rx="8" fill="#34D399" opacity=".5"/>
+  <line x1="280" y1="169" x2="370" y2="169" stroke="#fff" stroke-width="1.5" opacity=".4"/>
+  <!-- heart rate -->
+  <path d="M50 60 Q60 40 70 60 Q80 80 100 45 Q120 10 130 60 Q140 90 150 60" fill="none" stroke="#008A66" stroke-width="3" stroke-linecap="round" opacity=".7"/>
+  <!-- sparkles -->
+  <circle cx="320" cy="80" r="6" fill="#34D399" opacity=".4"/>
+  <circle cx="340" cy="60" r="4" fill="#008A66" opacity=".3"/>
+  <circle cx="300" cy="65" r="5" fill="#34D399" opacity=".3"/>
+
+</svg>

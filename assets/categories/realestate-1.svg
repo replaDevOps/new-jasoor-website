@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs>
+    <linearGradient id="bgre1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E6F7F2"/>
+      <stop offset="100%" style="stop-color:#C8EFE3"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="240" fill="url(#bgre1)" rx="16"/>
+  
+  <!-- ground -->
+  <rect x="0" y="195" width="400" height="45" fill="#C8EFE3" opacity=".5"/>
+  <!-- building 1 tall -->
+  <rect x="50" y="70" width="80" height="130" rx="6" fill="#008A66" opacity=".75"/>
+  <!-- windows b1 -->
+  <rect x="62" y="82" width="20" height="16" rx="3" fill="#E6F7F2" opacity=".5"/>
+  <rect x="88" y="82" width="20" height="16" rx="3" fill="#E6F7F2" opacity=".5"/>
+  <rect x="62" y="104" width="20" height="16" rx="3" fill="#E6F7F2" opacity=".4"/>
+  <rect x="88" y="104" width="20" height="16" rx="3" fill="#E6F7F2" opacity=".5"/>
+  <rect x="62" y="126" width="20" height="16" rx="3" fill="#34D399" opacity=".4"/>
+  <rect x="88" y="126" width="20" height="16" rx="3" fill="#E6F7F2" opacity=".3"/>
+  <rect x="62" y="148" width="20" height="16" rx="3" fill="#E6F7F2" opacity=".4"/>
+  <rect x="88" y="148" width="20" height="16" rx="3" fill="#34D399" opacity=".5"/>
+  <!-- building 2 medium -->
+  <rect x="150" y="100" width="100" height="100" rx="6" fill="#34D399" opacity=".6"/>
+  <rect x="162" y="112" width="24" height="18" rx="3" fill="#fff" opacity=".4"/>
+  <rect x="192" y="112" width="24" height="18" rx="3" fill="#fff" opacity=".4"/>
+  <rect x="222" y="112" width="14" height="18" rx="3" fill="#fff" opacity=".3"/>
+  <rect x="162" y="136" width="24" height="18" rx="3" fill="#fff" opacity=".4"/>
+  <rect x="192" y="136" width="24" height="18" rx="3" fill="#34D399" opacity=".3"/>
+  <rect x="162" y="160" width="24" height="18" rx="3" fill="#fff" opacity=".3"/>
+  <rect x="192" y="160" width="24" height="18" rx="3" fill="#fff" opacity=".4"/>
+  <!-- building 3 -->
+  <rect x="270" y="80" width="80" height="120" rx="6" fill="#0A1F13" opacity=".55"/>
+  <rect x="280" y="92" width="18" height="14" rx="3" fill="#34D399" opacity=".4"/>
+  <rect x="302" y="92" width="18" height="14" rx="3" fill="#34D399" opacity=".4"/>
+  <rect x="280" y="112" width="18" height="14" rx="3" fill="#E6F7F2" opacity=".3"/>
+  <rect x="302" y="112" width="18" height="14" rx="3" fill="#E6F7F2" opacity=".4"/>
+  <!-- location pin -->
+  <circle cx="200" cy="46" r="16" fill="#008A66" opacity=".8"/>
+  <path d="M200 46 L200 72" stroke="#008A66" stroke-width="4" stroke-linecap="round" opacity=".8"/>
+  <circle cx="200" cy="42" r="6" fill="#fff" opacity=".6"/>
+
+</svg>

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 240" width="400" height="240">
+  <defs>
+    <linearGradient id="bgcon1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#E6F7F2"/>
+      <stop offset="100%" style="stop-color:#C8EFE3"/>
+    </linearGradient>
+  </defs>
+  <rect width="400" height="240" fill="url(#bgcon1)" rx="16"/>
+  
+  <!-- briefcase -->
+  <rect x="80" y="90" width="240" height="150" rx="14" fill="#0A1F13" opacity=".75"/>
+  <rect x="88" y="98" width="224" height="134" rx="10" fill="#008A66" opacity=".7"/>
+  <!-- handle -->
+  <path d="M155 90 L155 70 Q155 55 200 55 Q245 55 245 70 L245 90" fill="none" stroke="#0A1F13" stroke-width="8" stroke-linecap="round" opacity=".8"/>
+  <!-- middle clasp -->
+  <rect x="170" y="155" width="60" height="20" rx="6" fill="#0A1F13" opacity=".5"/>
+  <circle cx="200" cy="165" r="7" fill="#34D399" opacity=".6"/>
+  <!-- horizontal divider -->
+  <rect x="80" y="165" width="240" height="6" fill="#0A1F13" opacity=".2"/>
+  <!-- document peek -->
+  <rect x="110" y="108" width="60" height="50" rx="5" fill="#fff" opacity=".2"/>
+  <rect x="116" y="116" width="40" height="5" rx="2" fill="#fff" opacity=".3"/>
+  <rect x="116" y="126" width="30" height="5" rx="2" fill="#fff" opacity=".2"/>
+  <!-- pen -->
+  <rect x="220" y="100" width="10" height="55" rx="4" fill="#34D399" opacity=".6" transform="rotate(15,225,127)"/>
+  <polygon points="226,148 230,163 222,163" fill="#34D399" opacity=".5" transform="rotate(15,226,155)"/>
+
+</svg>
