@@ -26,7 +26,13 @@ const maskName = (name: string | null | undefined): string => {
   return parts[0] + ' ***';
 };
 
-export const OffersView = ({ onGoToDeals }: { onGoToDeals?: () => void }) => {
+export const OffersView = ({
+  onGoToDeals,
+  onNavigate,
+}: {
+  onGoToDeals?: () => void;
+  onNavigate?: (view: string, id?: string) => void;
+}) => {
   const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
 
@@ -170,7 +176,13 @@ export const OffersView = ({ onGoToDeals }: { onGoToDeals?: () => void }) => {
                 {allOffers.map((o: any) => (
                   <tr key={o.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
-                      <p className="text-sm font-bold text-[#111827]">{o.business?.businessTitle}</p>
+                      {/* F-T1: Clickable listing title → navigate to business details */}
+                      <button
+                        onClick={() => onNavigate?.('details', o.business?.id)}
+                        className="text-sm font-bold text-[#111827] hover:text-[#10B981] hover:underline text-left transition-colors"
+                      >
+                        {o.business?.businessTitle}
+                      </button>
                       <p className="text-xs text-gray-500">{fmt(o.business?.price)} {content.dashboard.offers.sar}</p>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -218,7 +230,12 @@ export const OffersView = ({ onGoToDeals }: { onGoToDeals?: () => void }) => {
               <div className="flex justify-between items-start mb-2">
                 <div>
                   <p className="text-xs text-gray-500 mb-1">{content.dashboard.offers.table.listing}</p>
-                  <p className="font-bold text-[#111827]">{selectedOffer.business?.businessTitle}</p>
+                  <button
+                    onClick={() => { setSelectedId(null); onNavigate?.('details', selectedOffer.business?.id); }}
+                    className="font-bold text-[#111827] hover:text-[#10B981] hover:underline transition-colors text-left"
+                  >
+                    {selectedOffer.business?.businessTitle}
+                  </button>
                 </div>
                 <DashBadge color={statusColor(selectedOffer.status)}>{statusLabel(selectedOffer.status)}</DashBadge>
               </div>

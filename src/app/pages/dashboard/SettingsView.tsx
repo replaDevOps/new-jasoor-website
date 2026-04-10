@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { cn } from '../../../lib/utils';
 import { useApp } from '../../../context/AppContext';
 import { toast } from 'sonner';
-import { User, CreditCard, Lock, Plus, Trash2, FileText, Upload, CheckCircle2 } from 'lucide-react';
+import { User, CreditCard, Lock, Plus, Trash2, FileText, Upload, CheckCircle2, ShieldCheck, AlertTriangle, Clock, AlertCircle } from 'lucide-react';
 import { useFileUpload } from '../../../hooks/useFileUpload';
-import { UPLOAD_DOCUMENT } from '../../../graphql/mutations/dashboard';
 import { useQuery, useMutation } from '@apollo/client';
 import {
   GET_USER_DETAILS,
@@ -15,6 +14,7 @@ import {
   CHANGE_PASSWORD,
   ADD_BANK,
   DELETE_BANK,
+  UPLOAD_IDENTITY_DOCUMENT,
 } from '../../../graphql/mutations/dashboard';
 import { SectionHeader } from './DashboardView';
 
@@ -38,7 +38,7 @@ export const SettingsView = () => {
   const [changePwd,   { loading: savingPassword }] = useMutation(CHANGE_PASSWORD,   { errorPolicy: 'all' });
   const [addBank,     { loading: addingBank     }] = useMutation(ADD_BANK,           { errorPolicy: 'all' });
   const [deleteBank                               ] = useMutation(DELETE_BANK,        { errorPolicy: 'all' });
-  const [uploadDocument                          ] = useMutation(UPLOAD_DOCUMENT,   { errorPolicy: 'all' });
+  const [uploadIdentityDocument                  ] = useMutation(UPLOAD_IDENTITY_DOCUMENT, { errorPolicy: 'all' });
   const { uploadFile, uploading: idUploading } = useFileUpload();
 
   // Profile form state
@@ -149,12 +149,12 @@ export const SettingsView = () => {
       : (isAr ? 'الهوية الوطنية' : 'National ID');
     const uploaded = await uploadFile(idDoc.file, title);
     if (!uploaded) { toast.error(isAr ? 'فشل رفع الملف' : 'Upload failed'); return; }
-    const { errors } = await uploadDocument({
+    const { errors } = await uploadIdentityDocument({
       variables: { input: { title, fileName: uploaded.fileName, filePath: uploaded.filePath, fileType: uploaded.fileType, description: idDoc.type } },
     });
     if (errors?.length) { toast.error(isAr ? 'حدث خطأ أثناء حفظ المستند' : 'Error saving document'); return; }
     setIdDoc(d => ({ ...d, uploaded: true, filePath: uploaded.filePath }));
-    toast.success(isAr ? 'تم رفع المستند بنجاح' : 'Document uploaded successfully');
+    toast.success(isAr ? 'تم إرسال وثيقتك، سيتم مراجعتها قريباً' : 'Document submitted, it will be reviewed shortly');
   };
 
   const handleDeleteBank = async (id: string) => {
@@ -173,6 +173,12 @@ export const SettingsView = () => {
     { id: 'password', label: content.dashboard.settings.tabs.password,  icon: Lock },
     { id: 'identity', label: isAr ? 'الهوية' : 'Identity',             icon: FileText },
   ];
+
+  // Determine verification status
+  const userStatus = userData?.getUserDetails?.status ?? '';
+  const isVerified = userStatus === 'VERIFIED' || userStatus === 'verified';
+  const isUnderReview = userStatus === 'UNDER_REVIEW' || userStatus === 'PENDING';
+  const isUnverified = !isVerified && !isUnderReview;
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -206,6 +212,26 @@ export const SettingsView = () => {
                   {content.dashboard.settings.sections.profile}
                 </h3>
 
+                {/* Unverified banner */}
+                {isUnverified && (
+                  <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex gap-4 items-start">
+                    <AlertTriangle size={24} className="text-amber-500 shrink-0 mt-1" />
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-amber-800 mb-3">
+                        {isAr
+                          ? 'لم يتم توثيق حسابك بعد. قم برفع هويتك لتتمكن من الوصول إلى جميع خدمات جسور.'
+                          : 'Your account hasn\'t been verified yet. Upload your ID to access all Jusoor services.'}
+                      </p>
+                      <button
+                        onClick={() => setActiveTab('identity')}
+                        className="bg-amber-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-amber-700 transition-colors"
+                      >
+                        {isAr ? 'رفع الهوية الآن' : 'Upload ID Now'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {userLoading ? (
                   <div className="space-y-6 animate-pulse">
                     <div className="flex items-center gap-6 mb-8">
@@ -227,18 +253,18 @@ export const SettingsView = () => {
                         {profileForm.name?.charAt(0)?.toUpperCase() || 'U'}
                       </div>
                       {/* Account verification status badge */}
-                      {(() => {
-                        const status = userData?.getUserDetails?.status ?? '';
-                        const verified = status === 'VERIFIED' || status === 'verified';
-                        return (
-                          <div className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold ${verified ? 'bg-[#E6F3EF] text-[#008A66]' : 'bg-amber-50 text-amber-700'}`}>
-                            <ShieldCheck size={16} />
-                            {verified
-                              ? (isAr ? 'الحساب موثق' : 'Verified')
-                              : (isAr ? 'قيد المراجعة' : 'Under Review')}
-                          </div>
-                        );
-                      })()}
+                      {isVerified && (
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-[#E6F3EF] text-[#008A66]">
+                          <ShieldCheck size={16} />
+                          {isAr ? 'موثق بالكامل' : 'Fully Verified'}
+                        </div>
+                      )}
+                      {isUnderReview && (
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-amber-50 text-amber-700">
+                          <Clock size={16} />
+                          {isAr ? 'قيد المراجعة' : 'Under Review'}
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       {[

@@ -2,24 +2,35 @@ import React from 'react';
 import { cn } from '../../../lib/utils';
 import { useApp } from '../../../context/AppContext';
 import { toast } from 'sonner';
-import { DollarSign, FileText, Wallet, Bell } from 'lucide-react';
+import { DollarSign, FileText, Wallet, Bell, ArrowRight } from 'lucide-react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_NOTIFICATIONS } from '../../../graphql/queries/dashboard';
 import { MARK_NOTIFICATION_AS_READ } from '../../../graphql/mutations/dashboard';
 import { SectionHeader } from './DashboardView';
 
-export const AlertsView = () => {
+// Maps actionType string → dashboard view key used by onNavigate
+const ACTION_TO_VIEW: Record<string, string> = {
+  VIEW_OFFERS:   'offers',
+  VIEW_DEALS:    'deals',
+  VIEW_MEETINGS: 'meetings',
+  VIEW_LISTING:  'listings',
+  VIEW_ALERTS:   'alerts',
+};
+
+interface AlertsViewProps {
+  onNavigate?: (view: string) => void;
+}
+
+export const AlertsView = ({ onNavigate }: AlertsViewProps) => {
   const { content, language, userId } = useApp();
   const isAr = language === 'ar';
 
-  // P6-FIX R-04: real notifications
   const { data, loading, refetch } = useQuery(GET_NOTIFICATIONS, {
     variables: { userId, limit: 50, offSet: 0 },
     skip: !userId,
     errorPolicy: 'all',
   });
 
-  // P3-FIX kept: Mark All Read mutation
   const [markAllRead, { loading: marking }] = useMutation(MARK_NOTIFICATION_AS_READ);
 
   const notifications: any[] = data?.getNotifications?.notifications ?? [];
@@ -38,9 +49,10 @@ export const AlertsView = () => {
   // Determine icon from notification name/type heuristic
   const iconFor = (name: string) => {
     const n = name?.toLowerCase() ?? '';
-    if (n.includes('offer') || n.includes('عرض')) return { Icon: DollarSign, bg: 'bg-orange-50 text-orange-600', bar: 'bg-orange-500' };
-    if (n.includes('payment') || n.includes('دفع')) return { Icon: Wallet,    bg: 'bg-green-50 text-green-600',  bar: 'bg-green-500' };
-    if (n.includes('meeting') || n.includes('اجتماع')) return { Icon: Bell, bg: 'bg-blue-50 text-blue-600',    bar: 'bg-blue-500'   };
+    if (n.includes('offer') || n.includes('عرض'))    return { Icon: DollarSign, bg: 'bg-orange-50 text-orange-600', bar: 'bg-orange-500' };
+    if (n.includes('payment') || n.includes('دفع'))  return { Icon: Wallet,    bg: 'bg-green-50 text-green-600',  bar: 'bg-green-500'  };
+    if (n.includes('meeting') || n.includes('اجتماع')) return { Icon: Bell,   bg: 'bg-blue-50 text-blue-600',    bar: 'bg-blue-500'   };
+    if (n.includes('deal') || n.includes('صفقة'))     return { Icon: Wallet,    bg: 'bg-purple-50 text-purple-600', bar: 'bg-purple-500' };
     return { Icon: FileText, bg: 'bg-gray-50 text-gray-500', bar: 'bg-gray-300' };
   };
 
@@ -71,6 +83,8 @@ export const AlertsView = () => {
         <div className="space-y-4">
           {notifications.map((n: any) => {
             const { Icon, bg, bar } = iconFor(n.name);
+            const targetView = n.actionType ? ACTION_TO_VIEW[n.actionType] : null;
+
             return (
               <div
                 key={n.id}
@@ -88,9 +102,20 @@ export const AlertsView = () => {
                   <p className="text-gray-500 text-sm mt-1">{n.message}</p>
                   <p className="text-xs text-gray-400 mt-2">{fmtDate(n.createdAt)}</p>
                 </div>
-                {!n.isRead && (
-                  <div className="w-2.5 h-2.5 rounded-full bg-[#10B981] shrink-0 mt-1" />
-                )}
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  {!n.isRead && (
+                    <div className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
+                  )}
+                  {targetView && onNavigate && (
+                    <button
+                      onClick={() => onNavigate(targetView)}
+                      className="flex items-center gap-1 text-xs font-bold text-[#10B981] hover:text-[#008A66] transition-colors whitespace-nowrap"
+                    >
+                      {isAr ? 'اذهب إلى' : 'Go to'}
+                      <ArrowRight size={12} />
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}

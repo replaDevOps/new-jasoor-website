@@ -113,7 +113,9 @@ export const SignIn = ({ onNavigate }: { onNavigate: (page: string) => void }) =
 
         <div className="space-y-5 md:space-y-6">
           {/* Nafath */}
-          <button className="w-full bg-[#39A997] text-white font-bold py-3.5 rounded-xl hover:bg-[#2D8D7E] transition-all flex items-center justify-center gap-3 relative overflow-hidden shadow-md">
+          <button
+            className="w-full bg-[#39A997] text-white font-bold py-3.5 rounded-xl hover:bg-[#2D8D7E] transition-all flex items-center justify-center gap-3 relative overflow-hidden shadow-md"
+          >
             <span className="text-lg">{content.auth.signIn.nafath}</span>
             <div className={`absolute top-0 bg-[#FBAA1A] text-white text-[10px] font-bold px-3 py-1 shadow-sm ${direction === 'rtl' ? 'right-0 rounded-bl-xl' : 'left-0 rounded-br-xl'}`}>
               {content.auth.signIn.soon}

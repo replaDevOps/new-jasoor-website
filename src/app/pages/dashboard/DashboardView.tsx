@@ -1,7 +1,7 @@
 import React from 'react';
 import { cn } from '../../../lib/utils';
 import { useApp } from '../../../context/AppContext';
-import { Bell, DollarSign, Calendar, CheckCircle2, ShieldCheck, Store, Users, Eye, Handshake } from 'lucide-react';
+import { Bell, DollarSign, Calendar, CheckCircle2, ShieldCheck, Store, Users, Eye, Handshake, AlertCircle } from 'lucide-react';
 import { useQuery } from '@apollo/client';
 import { GET_PROFILE_STATISTICS, GET_BUYER_STATISTICS, GET_NOTIFICATIONS, GET_USER_DETAILS } from '../../../graphql/queries/dashboard';
 
@@ -12,7 +12,7 @@ export const DashBadge = ({ children, color }: { children: React.ReactNode; colo
     yellow: 'bg-yellow-100 text-yellow-700',
     red:    'bg-red-50 text-red-600',
     gray:   'bg-gray-100 text-gray-600',
-    blue:   'bg-blue-50 text-blue-600',
+    blue:   'bg-[#E6F3EF] text-[#10B981]',
     black:  'bg-gray-900 text-white',
   };
   return (
@@ -55,11 +55,12 @@ export const DashboardView = () => {
   const isAr = language === 'ar';
 
   // P6-FIX R-04: real stats from API (both seller + buyer queries)
-  const { data: sellerData } = useQuery(GET_PROFILE_STATISTICS, { errorPolicy: 'all' });
+  const { data: sellerData, error: sellerStatsError } = useQuery(GET_PROFILE_STATISTICS, { errorPolicy: 'all' });
   const { data: userDetailsData } = useQuery(GET_USER_DETAILS, { variables: { getUserDetailsId: userId }, skip: !userId, errorPolicy: 'all' });
   const userStatus = userDetailsData?.getUserDetails?.status ?? '';
   const isVerified = userStatus === 'VERIFIED' || userStatus === 'verified';
-  const { data: buyerData }  = useQuery(GET_BUYER_STATISTICS,  { errorPolicy: 'all' });
+  const { data: buyerData, error: buyerStatsError }  = useQuery(GET_BUYER_STATISTICS,  { errorPolicy: 'all' });
+  const statsError = sellerStatsError || buyerStatsError;
   const { data: notifData, refetch: refetchNotifs } = useQuery(GET_NOTIFICATIONS, {
     skip: !userId,
     variables: { userId: String(userId), limit: 5, offSet: 0 },
@@ -88,7 +89,7 @@ export const DashboardView = () => {
       label: isAr ? 'الإدراجات النشطة' : 'Listed Businesses',
       value: ss?.listedBusinessesCount ?? '—',
       icon: Store,
-      color: 'bg-blue-50 text-blue-600',
+      color: 'bg-[#E6F3EF] text-[#10B981]',
     },
     {
       label: isAr ? 'العروض المستلمة' : 'Received Offers',
@@ -120,6 +121,13 @@ export const DashboardView = () => {
 
   return (
     <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* F-11: Error banner */}
+      {statsError && (
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-medium">
+          <AlertCircle size={18} className="shrink-0" />
+          <span>{isAr ? 'تعذر تحميل الإحصائيات، يرجى المحاولة مجدداً' : 'Could not load statistics. Please try again.'}</span>
+        </div>
+      )}
       <SectionHeader title={content.dashboard.tabs.dashboard} />
 
       {/* Stats Grid */}
@@ -143,7 +151,7 @@ export const DashboardView = () => {
         <div className="lg:col-span-2 bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-bold text-[#111827]">{content.dashboard.activity.title}</h3>
-            <button className="text-sm text-[#10B981] font-bold hover:underline">{content.dashboard.activity.viewHistory}</button>
+            <span className="text-sm text-[#10B981] font-bold">{isAr ? 'آخر الأنشطة' : 'Recent Activity'}</span>
           </div>
           <div className="space-y-6 relative before:absolute before:right-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gray-100">
             {notifications.length === 0 ? (

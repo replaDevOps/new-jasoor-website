@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { cn } from '../../../lib/utils';
 import { useApp } from '../../../context/AppContext';
-import { Calendar, ChevronLeft, ChevronRight, Video } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Video, AlertCircle } from 'lucide-react';
 import { useQuery } from '@apollo/client';
 import { GET_SENT_MEETINGS, GET_RECEIVED_MEETINGS, GET_SCHEDULED_MEETINGS } from '../../../graphql/queries/dashboard';
 import { useMutation } from '@apollo/client';
@@ -9,7 +9,36 @@ import { UPDATE_MEETING, APPROVE_MEETING, REJECT_MEETING } from '../../../graphq
 import { toast } from 'sonner';
 import { DashBadge, SectionHeader, DashModal } from './DashboardView';
 
-export const MeetingsView = () => {
+// Helper: generate time slots for given day of week
+// Sunday(0)-Thursday(4): 16:30-23:00, Friday(5)-Saturday(6): 14:00-23:00, every 30 min
+const getTimeSlots = (dateStr: string): { value: string; label: string }[] => {
+  if (!dateStr) return [];
+  const date = new Date(dateStr + 'T00:00:00');
+  const dayOfWeek = date.getDay();
+
+  let startHour = dayOfWeek >= 0 && dayOfWeek <= 4 ? 16 : 14; // Sun-Thu: 16:30, Fri-Sat: 14:00
+  const startMin = dayOfWeek >= 0 && dayOfWeek <= 4 ? 30 : 0;
+  const endHour = 23;
+
+  const slots: { value: string; label: string }[] = [];
+  for (let h = startHour; h < endHour; h++) {
+    for (let m = startMin; m < 60; m += 30) {
+      const hh = String(h).padStart(2, '0');
+      const mm = String(m).padStart(2, '0');
+      const timeStr = `${hh}:${mm}`;
+      const period = h >= 12 ? 'PM' : 'AM';
+      const displayH = h > 12 ? h - 12 : h === 0 ? 12 : h;
+      slots.push({
+        value: timeStr,
+        label: `${String(displayH).padStart(2, '0')}:${mm} ${period}`,
+      });
+    }
+    if (startMin === 30) startMin = 0; // Reset for next hour
+  }
+  return slots;
+};
+
+export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: string) => void }) => {
   const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
 
@@ -17,6 +46,9 @@ export const MeetingsView = () => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [notes, setNotes]           = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+  const [rescheduleMode, setRescheduleMode] = useState(false);
+  const [rescheduleDate, setRescheduleDate] = useState('');
+  const [rescheduleSlot, setRescheduleSlot] = useState('');
 
   // P6-FIX R-04: real meetings data
   // Admin: fetch all SCHEDULED meetings needing approval
@@ -31,8 +63,9 @@ export const MeetingsView = () => {
   // (only admin role gets non-empty results from this resolver)
   const isAdminUser = adminMeetings.length > 0;
 
-  const { data: sentData,     loading: sentLoading,     refetch: refetchSent     } = useQuery(GET_SENT_MEETINGS,     { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all' });
-  const { data: receivedData, loading: receivedLoading, refetch: refetchReceived } = useQuery(GET_RECEIVED_MEETINGS, { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all' });
+  const { data: sentData,     loading: sentLoading,     refetch: refetchSent,     error: sentError     } = useQuery(GET_SENT_MEETINGS,     { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all' });
+  const { data: receivedData, loading: receivedLoading, refetch: refetchReceived, error: receivedError } = useQuery(GET_RECEIVED_MEETINGS, { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all' });
+  const queryError = sentError || receivedError;
 
   const [updateMeeting]   = useMutation(UPDATE_MEETING,   { errorPolicy: 'all' });
   const [approveMeeting]  = useMutation(APPROVE_MEETING,  { errorPolicy: 'all' });
@@ -49,6 +82,16 @@ export const MeetingsView = () => {
   });
 
   const loading = sentLoading || receivedLoading;
+
+  // Effective status: if meeting is READY but end time has passed → show as COMPLETED
+  // Must be declared before `filtered` and table render (used in both)
+  const effectiveStatus = (m: any): string => {
+    if (m.status === 'READY' && m.requestedEndDate) {
+      const endTime = new Date(m.requestedEndDate).getTime();
+      if (Date.now() > endTime) return 'COMPLETED';
+    }
+    return m.status;
+  };
 
   const filtered = filter === 'all'
     ? rawMeetings
@@ -81,6 +124,7 @@ export const MeetingsView = () => {
   };
 
   const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isAr ? 'ar-SA-u-ca-gregory' : 'en-GB') : '—';
+  const fmtTime = (d: string) => d ? new Date(d).toLocaleTimeString(isAr ? 'ar-SA' : 'en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
 
   // ── Meeting Status Flow ────────────────────────────────────────────────────
   // PENDING    → Buyer sent request, waiting for seller/receiver to confirm
@@ -97,15 +141,28 @@ export const MeetingsView = () => {
   // ────────────────────────────────────────────────────────────────────────────
   // Receiver accepts a PENDING meeting → sets availability date → status becomes SCHEDULED
   const [acceptDate, setAcceptDate] = useState('');
+  const [acceptSlot, setAcceptSlot] = useState('');
+  const acceptTimeSlots = getTimeSlots(acceptDate);
+
   const handleAcceptMeeting = async (meetingId: string) => {
-    if (!acceptDate) { toast.error(isAr ? 'يرجى اختيار التاريخ' : 'Please select a date'); return; }
-    const iso = new Date(acceptDate).toISOString();
+    if (!acceptDate || !acceptSlot) {
+      toast.error(isAr ? 'يرجى اختيار التاريخ والوقت' : 'Please select date and time');
+      return;
+    }
+
+    // Convert slot time (HH:MM) to ISO datetime, accounting for Saudi time (UTC+3)
+    const [h, m] = acceptSlot.split(':').map(Number);
+    const dt = new Date(acceptDate + 'T00:00:00');
+    dt.setHours(h - 3, m, 0, 0); // subtract 3 for UTC+3 → UTC
+    const iso = dt.toISOString();
+
     const { errors } = await updateMeeting({
       variables: { input: { id: meetingId, receiverAvailabilityDate: iso } },
     });
     if (errors?.length) { toast.error(isAr ? 'حدث خطأ' : 'Error'); return; }
     toast.success(isAr ? 'تم قبول طلب الاجتماع — بانتظار موافقة الإدارة' : 'Meeting accepted — awaiting admin approval');
     setAcceptDate('');
+    setAcceptSlot('');
     refetch();
   };
 
@@ -116,69 +173,74 @@ export const MeetingsView = () => {
     refetch();
   };
 
+  const handleReschedule = async (meetingId: string) => {
+    if (!rescheduleDate || !rescheduleSlot) {
+      toast.error(isAr ? 'يرجى اختيار التاريخ والوقت' : 'Please select date and time');
+      return;
+    }
+
+    // Convert slot time (HH:MM) to ISO datetime, accounting for Saudi time (UTC+3)
+    const [h, m] = rescheduleSlot.split(':').map(Number);
+    const dt = new Date(rescheduleDate + 'T00:00:00');
+    dt.setHours(h - 3, m, 0, 0); // subtract 3 for UTC+3 → UTC
+    const newIso = dt.toISOString();
+
+    const { errors } = await updateMeeting({
+      variables: { input: { id: meetingId, receiverAvailabilityDate: newIso } },
+    });
+    if (errors?.length) { toast.error(isAr ? 'حدث خطأ' : 'Error'); return; }
+    toast.success(isAr ? 'تم إعادة جدولة الاجتماع' : 'Meeting rescheduled');
+    setRescheduleMode(false);
+    setRescheduleDate('');
+    setRescheduleSlot('');
+    refetch();
+  };
+
   const otherParty = (m: any) =>
     m._role === 'sent' ? (m.requestedTo?.name ?? '—') : (m.requestedBy?.name ?? '—');
 
-  // Effective status: if meeting is READY but end time has passed → show as COMPLETED
-  const effectiveStatus = (m: any): string => {
-    if (m.status === 'READY' && m.requestedEndDate) {
-      const endTime = new Date(m.requestedEndDate).getTime();
-      if (Date.now() > endTime) return 'COMPLETED';
-    }
-    return m.status;
-  };
+  const rescheduleTimeSlots = getTimeSlots(rescheduleDate);
+
+  // F-14: find READY meetings starting within 24 hours
+  const upcomingReminders = rawMeetings.filter((m: any) => {
+    if (effectiveStatus(m) !== 'READY') return false;
+    const meetingTime = new Date(m.requestedDate ?? m.receiverAvailabilityDate).getTime();
+    const now = Date.now();
+    const diff = meetingTime - now;
+    return diff > 0 && diff <= 24 * 60 * 60 * 1000; // within 24h, not yet passed
+  });
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-
-    {/* ── Admin Panel: only shown when backend returns scheduled meetings (admin role only) ── */}
-    {isAdminUser && adminMeetings.length > 0 && (
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-          <h3 className="font-bold text-amber-800 text-base">
-            {isAr ? `اجتماعات تنتظر موافقة الإدارة (${adminMeetings.length})` : `Meetings Awaiting Admin Approval (${adminMeetings.length})`}
-          </h3>
+      {/* F-11: Error banner */}
+      {queryError && (
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-medium">
+          <AlertCircle size={18} className="shrink-0" />
+          <span>{isAr ? 'تعذر تحميل الاجتماعات، يرجى المحاولة مجدداً' : 'Could not load meetings. Please try again.'}</span>
+          <button onClick={() => { refetchSent(); refetchReceived(); }} className="mr-auto ml-2 text-xs font-bold underline">{isAr ? 'إعادة المحاولة' : 'Retry'}</button>
         </div>
-        <div className="space-y-3">
-          {adminMeetings.map((m: any) => (
-            <div key={m.id} className="bg-white rounded-xl p-4 border border-amber-100 flex items-center justify-between gap-4 flex-wrap">
-              <div className="space-y-1 min-w-0">
-                <p className="font-bold text-[#111827] text-sm truncate">{m.business?.businessTitle ?? '—'}</p>
-                <p className="text-xs text-gray-500">{m.requestedBy?.name ?? '—'} → {m.requestedTo?.name ?? '—'}</p>
-                <p className="text-xs text-gray-400">{m.createdAt ? new Date(m.createdAt).toLocaleDateString(isAr ? 'ar-SA-u-ca-gregory' : 'en-GB') : '—'}</p>
-              </div>
-              <div className="flex gap-2 shrink-0">
-                <button
-                  onClick={async () => {
-                    try {
-                      await approveMeeting({ variables: { meetingId: m.id, offerId: m.offer?.id } });
-                      toast.success(isAr ? 'تمت الموافقة على الاجتماع' : 'Meeting approved');
-                      refetch();
-                    } catch { toast.error(isAr ? 'حدث خطأ' : 'Error'); }
-                  }}
-                  className="px-4 py-2 bg-[#10B981] text-white text-xs font-bold rounded-lg hover:bg-[#008A66] transition-colors"
-                >
-                  {isAr ? 'موافقة' : 'Approve'}
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      await rejectMeeting({ variables: { rejectMeetingId: m.id } });
-                      toast.success(isAr ? 'تم رفض الاجتماع' : 'Meeting rejected');
-                      refetch();
-                    } catch { toast.error(isAr ? 'حدث خطأ' : 'Error'); }
-                  }}
-                  className="px-4 py-2 bg-red-50 text-red-600 text-xs font-bold rounded-lg hover:bg-red-100 transition-colors"
-                >
-                  {isAr ? 'رفض' : 'Reject'}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    )}
+      )}
+      {/* F-14: 24h meeting reminder banners */}
+      {upcomingReminders.map((m: any) => {
+        const meetingTime = new Date(m.requestedDate ?? m.receiverAvailabilityDate);
+        const hoursLeft = Math.ceil((meetingTime.getTime() - Date.now()) / (60 * 60 * 1000));
+        return (
+          <div key={m.id} className="flex items-center gap-3 bg-amber-50 border border-amber-300 text-amber-800 px-4 py-3 rounded-xl text-sm font-medium">
+            <span className="text-lg leading-none">⏰</span>
+            <span>
+              {isAr
+                ? `تذكير: لديك اجتماع مع ${otherParty(m)} بعد ${hoursLeft} ساعة — ${fmtDate(m.requestedDate ?? m.receiverAvailabilityDate)} ${fmtTime(m.requestedDate ?? m.receiverAvailabilityDate)}`
+                : `Reminder: You have a meeting with ${otherParty(m)} in ${hoursLeft}h — ${fmtDate(m.requestedDate ?? m.receiverAvailabilityDate)} ${fmtTime(m.requestedDate ?? m.receiverAvailabilityDate)}`}
+            </span>
+            {m.meetingLink && (
+              <a href={m.meetingLink} target="_blank" rel="noopener noreferrer"
+                className="mr-auto ml-2 text-xs font-bold underline whitespace-nowrap">
+                {isAr ? 'انضم الآن' : 'Join Now'}
+              </a>
+            )}
+          </div>
+        );
+      })}
 
       <SectionHeader
         title={content.dashboard.meetings.title}
@@ -200,10 +262,9 @@ export const MeetingsView = () => {
               <thead className="bg-gray-50 border-b border-gray-100">
                 <tr>
                   <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{content.dashboard.meetings.table.otherParty}</th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{isAr ? 'الإدراج' : 'Listing'}</th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{isAr ? 'الدور' : 'Role'}</th>
+                  <th className="hidden md:table-cell px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{isAr ? 'الإدراج' : 'Listing'}</th>
                   <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{content.dashboard.meetings.table.meetingDate}</th>
-                  <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{content.dashboard.meetings.table.status}</th>
+                  <th className="hidden sm:table-cell px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{content.dashboard.meetings.table.status}</th>
                   <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{content.dashboard.meetings.table.actions}</th>
                 </tr>
               </thead>
@@ -212,24 +273,28 @@ export const MeetingsView = () => {
                   <tr key={m.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+                        <div className="w-8 h-8 rounded-full bg-[#E6F3EF] text-[#10B981] flex items-center justify-center font-bold text-xs">
                           {otherParty(m).charAt(0).toUpperCase()}
                         </div>
                         <span className="text-sm font-bold text-[#111827]">{otherParty(m)}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className="text-sm text-gray-600">{m.business?.businessTitle}</span>
+                    <td className="hidden md:table-cell px-6 py-4">
+                      {/* F-T1: Clickable listing title → navigate to business details */}
+                      <button
+                        onClick={() => onNavigate?.('details', m.business?.id)}
+                        className="text-sm text-gray-600 hover:text-[#10B981] hover:underline transition-colors font-medium text-left"
+                      >
+                        {m.business?.businessTitle}
+                      </button>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={cn('text-xs font-bold px-2 py-1 rounded-full', m._role === 'sent' ? 'bg-blue-50 text-blue-600' : 'bg-amber-50 text-amber-700')}>
-                        {m._role === 'sent' ? (isAr ? 'مُرسل' : 'Sent') : (isAr ? 'مستلم' : 'Received')}
-                      </span>
+                      <div className="flex flex-col text-sm">
+                        <span className="font-bold text-[#111827]">{fmtDate(m.requestedDate ?? m.receiverAvailabilityDate)}</span>
+                        <span className="text-xs text-gray-500">{fmtTime(m.requestedDate ?? m.receiverAvailabilityDate)}</span>
+                      </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-bold text-[#111827]">{fmtDate(m.requestedDate ?? m.receiverAvailabilityDate)}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
+                    <td className="hidden sm:table-cell px-6 py-4 whitespace-nowrap">
                       <DashBadge color={statusColor(effectiveStatus(m))}>{statusLabel(effectiveStatus(m))}</DashBadge>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -249,7 +314,7 @@ export const MeetingsView = () => {
         )}
       </div>
 
-      <DashModal isOpen={!!selected} onClose={() => setSelectedId(null)} title={content.dashboard.meetings.actions.viewDetails}>
+      <DashModal isOpen={!!selected} onClose={() => { setSelectedId(null); setRescheduleMode(false); }} title={content.dashboard.meetings.actions.viewDetails}>
         {selected && (
           <div className="space-y-6">
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center gap-4">
@@ -264,26 +329,99 @@ export const MeetingsView = () => {
             <div className="space-y-4">
               <div className="flex justify-between items-center py-3 border-b border-gray-50">
                 <span className="text-gray-500 font-medium">{content.dashboard.meetings.table.meetingDate}</span>
-                <span className="font-bold text-[#111827]">{fmtDate(selected.requestedDate ?? selected.receiverAvailabilityDate)}</span>
+                <div className="text-right">
+                  <div className="font-bold text-[#111827]">{fmtDate(selected.requestedDate ?? selected.receiverAvailabilityDate)}</div>
+                  <div className="text-sm text-gray-500">{fmtTime(selected.requestedDate ?? selected.receiverAvailabilityDate)}</div>
+                </div>
               </div>
               <div className="flex justify-between items-center py-3 border-b border-gray-50">
                 <span className="text-gray-500 font-medium">{content.dashboard.meetings.table.status}</span>
-                <DashBadge color={statusColor(selected.status)}>{statusLabel(selected.status)}</DashBadge>
+                <DashBadge color={statusColor(effectiveStatus(selected))}>{statusLabel(effectiveStatus(selected))}</DashBadge>
               </div>
+              {/* F-13: Rejection reason */}
+              {effectiveStatus(selected) === 'REJECTED' && selected.rejectionReason && (
+                <div className="flex justify-between items-start py-3 border-b border-gray-50">
+                  <span className="text-gray-500 font-medium shrink-0">{isAr ? 'سبب الرفض' : 'Rejection Reason'}</span>
+                  <span className="text-red-600 text-sm font-medium text-right max-w-[60%]">{selected.rejectionReason}</span>
+                </div>
+              )}
               {selected.meetingLink && (
                 <div className="flex justify-between items-center py-3 border-b border-gray-50">
                   <span className="text-gray-500 font-medium">{content.dashboard.meetings.table.meetingLink}</span>
-                  <a href={selected.meetingLink} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline flex items-center gap-1 text-sm font-bold">
+                  <a href={selected.meetingLink} target="_blank" rel="noopener noreferrer" className="text-[#10B981] hover:underline flex items-center gap-1 text-sm font-bold">
                     <Video size={16} />Zoom Link
                   </a>
                 </div>
               )}
             </div>
+
+            {/* Action buttons based on status */}
+            {effectiveStatus(selected) === 'READY' && selected.meetingLink && (
+              <button
+                onClick={() => window.open(selected.meetingLink, '_blank')}
+                className="w-full py-3 rounded-xl bg-[#10B981] text-white font-bold hover:bg-[#008A66] flex items-center justify-center gap-2"
+              >
+                <Video size={18} />{isAr ? 'دخول الاجتماع' : 'Join Meeting'}
+              </button>
+            )}
+
+            {(effectiveStatus(selected) === 'SCHEDULED' || effectiveStatus(selected) === 'READY') && !rescheduleMode && (
+              <button
+                onClick={() => setRescheduleMode(true)}
+                className="w-full py-3 rounded-xl border border-gray-300 text-[#111827] font-bold hover:bg-gray-50 flex items-center justify-center gap-2"
+              >
+                <Calendar size={18} />{isAr ? 'إعادة الجدولة' : 'Reschedule'}
+              </button>
+            )}
+
+            {/* Reschedule form */}
+            {rescheduleMode && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+                <p className="text-sm font-bold text-amber-800">{isAr ? 'اختر التاريخ والوقت الجديد' : 'Select new date and time'}</p>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">{isAr ? 'التاريخ' : 'Date'}</label>
+                  <input
+                    type="date"
+                    value={rescheduleDate}
+                    onChange={e => { setRescheduleDate(e.target.value); setRescheduleSlot(''); }}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-3 rounded-xl border border-amber-300 focus:outline-none focus:border-[#10B981]"
+                  />
+                </div>
+                {rescheduleDate && (
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">{isAr ? 'الوقت' : 'Time'}</label>
+                    <select value={rescheduleSlot} onChange={e => setRescheduleSlot(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-amber-300 focus:outline-none focus:border-[#10B981]">
+                      <option value="">{isAr ? 'اختر الوقت' : 'Select time'}</option>
+                      {rescheduleTimeSlots.map(slot => (
+                        <option key={slot.value} value={slot.value}>{slot.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => { setRescheduleMode(false); setRescheduleDate(''); setRescheduleSlot(''); }}
+                    className="flex-1 py-3 rounded-xl border border-amber-300 text-amber-800 font-bold hover:bg-amber-100"
+                  >
+                    {isAr ? 'إلغاء' : 'Cancel'}
+                  </button>
+                  <button
+                    onClick={() => handleReschedule(selected.id)}
+                    disabled={!rescheduleDate || !rescheduleSlot}
+                    className="flex-1 py-3 rounded-xl bg-[#10B981] text-white font-bold hover:bg-[#008A66] disabled:opacity-50"
+                  >
+                    {isAr ? 'تأكيد' : 'Confirm'}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Sent PENDING — awaiting the other party's response */}
             {selected._role === 'sent' && selected.status === 'PENDING' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3 items-start">
-                <span className="text-blue-500 font-bold text-lg leading-none">⏳</span>
-                <p className="text-sm text-blue-700 font-medium">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 items-start">
+                <span className="text-amber-500 font-bold text-lg leading-none">⏳</span>
+                <p className="text-sm text-amber-700 font-medium">
                   {isAr ? 'في انتظار رد الطرف الآخر على طلب الاجتماع.' : 'Waiting for the other party to respond to your meeting request.'}
                 </p>
               </div>
@@ -298,14 +436,25 @@ export const MeetingsView = () => {
                 <input
                   type="date"
                   value={acceptDate}
-                  onChange={e => setAcceptDate(e.target.value)}
+                  onChange={e => { setAcceptDate(e.target.value); setAcceptSlot(''); }}
                   min={new Date().toISOString().split('T')[0]}
                   className="w-full px-4 py-3 rounded-xl border border-amber-300 focus:outline-none focus:border-[#10B981] text-sm bg-white"
                 />
+                {acceptDate && (
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 mb-2">{isAr ? 'الوقت' : 'Time'}</label>
+                    <select value={acceptSlot} onChange={e => setAcceptSlot(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-amber-300 focus:outline-none focus:border-[#10B981]">
+                      <option value="">{isAr ? 'اختر الوقت' : 'Select time'}</option>
+                      {acceptTimeSlots.map(slot => (
+                        <option key={slot.value} value={slot.value}>{slot.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex gap-3">
                   <button
                     onClick={() => handleAcceptMeeting(selected.id)}
-                    disabled={!acceptDate}
+                    disabled={!acceptDate || !acceptSlot}
                     className="flex-1 bg-[#10B981] text-white py-3 rounded-xl font-bold hover:bg-[#008A66] transition-colors disabled:opacity-50"
                   >
                     {isAr ? 'قبول الاجتماع' : 'Accept Meeting'}
@@ -320,11 +469,43 @@ export const MeetingsView = () => {
               </div>
             )}
 
+            {/* Admin approval buttons */}
+            {isAdminUser && effectiveStatus(selected) === 'SCHEDULED' && (
+              <div className="flex gap-3">
+                <button
+                  onClick={async () => {
+                    try {
+                      await approveMeeting({ variables: { meetingId: selected.id, offerId: selected.offer?.id } });
+                      toast.success(isAr ? 'تمت الموافقة على الاجتماع' : 'Meeting approved');
+                      refetch();
+                      setSelectedId(null);
+                    } catch { toast.error(isAr ? 'حدث خطأ' : 'Error'); }
+                  }}
+                  className="flex-1 px-4 py-3 bg-[#10B981] text-white font-bold rounded-xl hover:bg-[#008A66] transition-colors"
+                >
+                  {isAr ? 'موافقة' : 'Approve'}
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await rejectMeeting({ variables: { rejectMeetingId: selected.id } });
+                      toast.success(isAr ? 'تم رفض الاجتماع' : 'Meeting rejected');
+                      refetch();
+                      setSelectedId(null);
+                    } catch { toast.error(isAr ? 'حدث خطأ' : 'Error'); }
+                  }}
+                  className="flex-1 px-4 py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-100 transition-colors"
+                >
+                  {isAr ? 'رفض' : 'Reject'}
+                </button>
+              </div>
+            )}
+
             {/* Admin approval notice for SCHEDULED meetings */}
-            {selected.status === 'SCHEDULED' && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex gap-3 items-start">
-                <span className="text-blue-500 font-bold text-lg leading-none">ⓘ</span>
-                <p className="text-sm text-blue-700 font-medium">
+            {!isAdminUser && selected.status === 'SCHEDULED' && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex gap-3 items-start">
+                <span className="text-amber-500 font-bold text-lg leading-none">ⓘ</span>
+                <p className="text-sm text-amber-700 font-medium">
                   {isAr
                     ? 'تم تأكيد الاجتماع من الطرفين — بانتظار موافقة الإدارة لتحديد الرابط.'
                     : 'Both parties confirmed — awaiting admin approval to schedule the meeting link.'}

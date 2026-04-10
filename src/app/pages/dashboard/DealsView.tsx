@@ -6,7 +6,7 @@ import { useQuery } from '@apollo/client';
 import { GET_BUYER_INPROGRESS_DEALS, GET_SELLER_INPROGRESS_DEALS, GET_BUYER_COMPLETED_DEALS, GET_SELLER_COMPLETED_DEALS } from '../../../graphql/queries/dashboard';
 import { DashBadge, SectionHeader } from './DashboardView';
 
-export const DealsView = () => {
+export const DealsView = ({ onNavigate }: { onNavigate?: (view: string, id?: string) => void }) => {
   const { content, language, direction } = useApp();
   const isAr = language === 'ar';
 
@@ -143,7 +143,13 @@ export const DealsView = () => {
                     {completed ? content.dashboard.deals.status.completed : content.dashboard.deals.status.inProgress}
                   </DashBadge>
                 </div>
-                <h3 className="text-lg font-black text-[#111827] mb-2">{deal.business?.businessTitle}</h3>
+                {/* F-T1: Clickable listing title — stop propagation so the card click still goes to deal detail */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); onNavigate?.('details', deal.business?.id); }}
+                  className="text-lg font-black text-[#111827] hover:text-[#10B981] hover:underline transition-colors text-left mb-2 block"
+                >
+                  {deal.business?.businessTitle}
+                </button>
                 <p className="text-gray-500 text-sm mb-4">{content.dashboard.deals.labels.buyer}: {deal.buyer?.name}</p>
                 <div className="space-y-3">
                   <div className="flex justify-between text-xs font-bold">

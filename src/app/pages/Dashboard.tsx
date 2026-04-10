@@ -15,12 +15,6 @@ import { toast } from 'sonner';
 import { Navbar } from '../components/Navbar';
 import { Footer } from '../components/Footer';
 import { ListingWizard } from './ListingWizard';
-import { ListingsView }  from './dashboard/ListingsView';
-import { OffersView }    from './dashboard/OffersView';
-import { DealsView }     from './dashboard/DealsView';
-import { MeetingsView }  from './dashboard/MeetingsView';
-import { AlertsView }    from './dashboard/AlertsView';
-import { SettingsView }  from './dashboard/SettingsView';
 import { Card } from '../components/Card';
 import { Badge as UiBadge } from '../components/Badge';
 import { Modal } from '../components/ui/Modal';
@@ -93,7 +87,7 @@ const DashBadge = ({ children, color }: { children: React.ReactNode, color: stri
     yellow: 'bg-yellow-100 text-yellow-700',
     red: 'bg-red-50 text-red-600',
     gray: 'bg-gray-100 text-gray-600',
-    blue: 'bg-blue-50 text-blue-600',
+    blue: 'bg-[#E6F3EF] text-[#10B981]',
     black: 'bg-gray-900 text-white'
   };
   return (
@@ -119,30 +113,58 @@ const SectionHeader = ({ title, action }: { title: string, action?: React.ReactN
 // --- Sub-Views ---
 
 const DashboardView = () => {
-  const { content, language } = useApp();
+  const { content, language, userId } = useApp();
   const isAr = language === 'ar';
 
   // P6-FIX R-04: real stats from API
   const { data: sellerData } = useQuery(GET_PROFILE_STATISTICS, { errorPolicy: 'all' });
   const { data: buyerData  } = useQuery(GET_BUYER_STATISTICS,   { errorPolicy: 'all' });
+  // ACTIVITY-FIX: real notifications — 5 most recent, 30s poll
+  const { data: notifData, refetch: refetchNotifs } = useQuery(GET_NOTIFICATIONS, {
+    skip: !userId,
+    variables: { userId: String(userId), limit: 5, offSet: 0 },
+    fetchPolicy: 'cache-and-network',
+    pollInterval: 30000,
+    errorPolicy: 'all',
+  });
+  // ACTIVITY-FIX: real verification status from API
+  const { data: userDetailsData } = useQuery(GET_USER_DETAILS, {
+    variables: { getUserDetailsId: userId },
+    skip: !userId,
+    errorPolicy: 'all',
+  });
+
+  React.useEffect(() => { if (userId) refetchNotifs(); }, [userId]);
+
+  const notifications: any[] = notifData?.getNotifications?.notifications ?? [];
+  const userStatus = userDetailsData?.getUserDetails?.status ?? '';
+  const isVerified    = userStatus === 'VERIFIED'     || userStatus === 'verified';
+  const isUnderReview = userStatus === 'UNDER_REVIEW' || userStatus === 'under_review';
 
   const ss = sellerData?.getProfileStatistics;
   const bs = buyerData?.getBuyerStatistics;
 
   const stats = [
     { label: isAr ? 'الصفقات المكتملة'  : 'Finalized Deals',     value: ss?.finalizedDealsCount ?? bs?.finalizedDealsCount ?? '—', icon: Handshake,    color: 'bg-[#E6F3EF] text-[#10B981]' },
-    { label: isAr ? 'الإدراجات النشطة'  : 'Listed Businesses',   value: ss?.listedBusinessesCount ?? '—',                           icon: Store,        color: 'bg-blue-50 text-blue-600' },
+    { label: isAr ? 'الإدراجات النشطة'  : 'Listed Businesses',   value: ss?.listedBusinessesCount ?? '—',                           icon: Store,        color: 'bg-[#E6F3EF] text-[#10B981]' },
     { label: isAr ? 'العروض المستلمة'   : 'Received Offers',     value: ss?.receivedOffersCount ?? '—',                            icon: DollarSign,   color: 'bg-orange-50 text-orange-600' },
     { label: isAr ? 'الاجتماعات'        : 'Meetings',            value: ss?.scheduledMeetingsCount ?? bs?.scheduledMeetingsCount ?? '—', icon: Calendar, color: 'bg-purple-50 text-purple-600' },
     { label: isAr ? 'مشاهدات الإدراجات' : 'Business Views',      value: ss?.viewedBusinessesCount ?? '—',                          icon: Eye,          color: 'bg-pink-50 text-pink-600' },
-    { label: isAr ? 'المحفوظة'          : 'Saved Businesses',    value: bs?.favouriteBusinessesCount ?? '—',                       icon: Bookmark,     color: 'bg-yellow-50 text-yellow-600' },
+    { label: isAr ? 'المفضلة'           : 'Saved Businesses',    value: bs?.favouriteBusinessesCount ?? '—',                       icon: Bookmark,     color: 'bg-yellow-50 text-yellow-600' },
   ];
 
-  const activityItems = [
-    { title: content.dashboard.activity.items.newOffer.title,         desc: content.dashboard.activity.items.newOffer.desc,         time: content.dashboard.activity.items.newOffer.time,         icon: DollarSign,   color: 'bg-orange-100 text-orange-600' },
-    { title: content.dashboard.activity.items.upcomingMeeting.title,  desc: content.dashboard.activity.items.upcomingMeeting.desc,  time: content.dashboard.activity.items.upcomingMeeting.time,  icon: Calendar,     color: 'bg-blue-100 text-blue-600' },
-    { title: content.dashboard.activity.items.listingPublished.title, desc: content.dashboard.activity.items.listingPublished.desc, time: content.dashboard.activity.items.listingPublished.time, icon: CheckCircle2, color: 'bg-green-100 text-green-600' },
-  ];
+  // ACTIVITY-FIX: type-aware icon based on notification name keywords
+  const iconFor = (name: string) => {
+    const n = (name ?? '').toLowerCase();
+    if (n.includes('offer')   || n.includes('عرض'))      return { Icon: DollarSign, color: 'bg-orange-100 text-orange-600' };
+    if (n.includes('meeting') || n.includes('اجتماع'))   return { Icon: Calendar,   color: 'bg-purple-50 text-purple-600'  };
+    if (n.includes('deal')    || n.includes('صفقة'))     return { Icon: Handshake,  color: 'bg-[#E6F3EF] text-[#10B981]'  };
+    if (n.includes('payment') || n.includes('دفع'))      return { Icon: Wallet,     color: 'bg-green-50 text-green-600'   };
+    if (n.includes('publish') || n.includes('نشر'))      return { Icon: Store,      color: 'bg-blue-50 text-blue-600'     };
+    return                                                       { Icon: Bell,       color: 'bg-gray-100 text-gray-500'    };
+  };
+
+  const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isAr ? 'ar-SA-u-ca-gregory' : 'en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
 
   return (
   <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -168,32 +190,49 @@ const DashboardView = () => {
        <div className="lg:col-span-2 bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
              <h3 className="text-xl font-bold text-[#111827]">{content.dashboard.activity.title}</h3>
-             <button className="text-sm text-[#10B981] font-bold hover:underline">{content.dashboard.activity.viewHistory}</button>
+             <span className="text-sm text-[#10B981] font-bold">{isAr ? 'آخر الأنشطة' : 'Recent Activity'}</span>
           </div>
-          <div className="space-y-8 relative before:absolute before:right-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gray-100">
-             {activityItems.map((item, i) => (
-               <div key={i} className="flex gap-4 relative">
-                  <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 ring-4 ring-white", item.color)}>
-                     <item.icon size={18} />
-                  </div>
-                  <div>
-                     <p className="font-bold text-[#111827] text-base">{item.title}</p>
-                     <p className="text-gray-500 text-sm mt-1">{item.desc}</p>
-                     <p className="text-xs text-gray-400 mt-2 font-medium">{item.time}</p>
-                  </div>
-               </div>
-             ))}
+          <div className="space-y-6 relative before:absolute before:right-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gray-100">
+             {notifications.length === 0 ? (
+               <p className="text-gray-400 text-sm text-center py-4">{isAr ? 'لا يوجد نشاط بعد' : 'No recent activity'}</p>
+             ) : notifications.map((n: any) => {
+               const { Icon, color } = iconFor(n.name ?? '');
+               return (
+                 <div key={n.id} className="flex gap-4 relative">
+                   <div className={cn('w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 ring-4 ring-white', n.isRead ? 'bg-gray-100 text-gray-400' : color)}>
+                     <Icon size={18} />
+                   </div>
+                   <div>
+                     <p className="font-bold text-[#111827] text-sm">{n.name}</p>
+                     {n.message && <p className="text-gray-500 text-sm mt-0.5">{n.message}</p>}
+                     <p className="text-xs text-gray-400 mt-1">{fmtDate(n.createdAt)}</p>
+                   </div>
+                 </div>
+               );
+             })}
           </div>
        </div>
 
        <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm flex flex-col justify-between h-fit">
           <div>
             <h3 className="text-xl font-bold text-[#111827] mb-4">{content.dashboard.accountStatus.title}</h3>
-            <div className="bg-[#E6F3EF] p-4 rounded-2xl flex items-center gap-3 mb-6">
-              <ShieldCheck className="text-[#10B981]" size={24} />
+            <div className={`p-4 rounded-2xl flex items-center gap-3 mb-6 ${isVerified ? 'bg-[#E6F3EF]' : isUnderReview ? 'bg-amber-50' : 'bg-red-50'}`}>
+              <ShieldCheck className={isVerified ? 'text-[#10B981]' : isUnderReview ? 'text-amber-500' : 'text-red-400'} size={24} />
               <div>
-                <p className="font-bold text-[#004E39]">{content.dashboard.accountStatus.verified}</p>
-                <p className="text-xs text-[#004E39]/70">{content.dashboard.accountStatus.verifiedDesc}</p>
+                <p className={`font-bold ${isVerified ? 'text-[#004E39]' : isUnderReview ? 'text-amber-800' : 'text-red-700'}`}>
+                  {isVerified
+                    ? content.dashboard.accountStatus.verified
+                    : isUnderReview
+                      ? (isAr ? 'قيد المراجعة' : 'Under Review')
+                      : (isAr ? 'غير موثق' : 'Unverified')}
+                </p>
+                <p className={`text-xs ${isVerified ? 'text-[#004E39]/70' : isUnderReview ? 'text-amber-700' : 'text-red-500'}`}>
+                  {isVerified
+                    ? content.dashboard.accountStatus.verifiedDesc
+                    : isUnderReview
+                      ? (isAr ? 'يتم مراجعة حسابك حالياً' : 'Your account is being reviewed')
+                      : (isAr ? 'يرجى رفع وثيقة الهوية' : 'Please upload your ID document')}
+                </p>
               </div>
             </div>
             <p className="text-gray-500 text-sm leading-relaxed mb-6">{content.dashboard.accountStatus.message}</p>
@@ -204,10 +243,1234 @@ const DashboardView = () => {
   );
 };
 
+const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavigate }: { isFavorites?: boolean; onAddListing?: () => void; onEditListing?: (id: number) => void; onNavigate?: (page: string, id?: number) => void }) => {
+  const { content, language, direction } = useApp();
+  const isAr = language === 'ar';
+  const [filter, setFilter] = useState<'all' | 'sold'>('all');
+
+  // P6-FIX R-04: real data
+  const { data: sellerData, loading: sellerLoading } = useQuery(GET_SELLER_BUSINESSES,   { skip: isFavorites,  errorPolicy: 'all' });
+  // G-09: seller sold businesses tab
+  const { data: soldData, loading: soldLoading } = useQuery(GET_SELLER_SOLD_BUSINESSES, { variables: { limit: 50, offSet: 0 }, errorPolicy: 'all' });
+  const { data: favData,    loading: favLoading    } = useQuery(GET_FAVORITE_BUSINESSES, { skip: !isFavorites, errorPolicy: 'all' });
+
+  const rawListings = isFavorites
+    ? (favData?.getFavoritBusiness?.businesses ?? [])
+    : (sellerData?.getAllSellerBusinesses?.businesses ?? []);
+  const loading = isFavorites ? favLoading : sellerLoading;
+  const filtered = filter === 'sold'
+    ? (soldData?.getAllSellerSoldBusinesses?.businesses ?? [])
+    : rawListings.filter((b: any) => b.businessStatus !== 'SOLD');
+
+  const statusLabel = (s: string) => {
+    if (s === 'ACTIVE') return { text: content.dashboard.listings.status.active,      variant: 'success'  as const };
+    if (s === 'SOLD')   return { text: content.dashboard.listings.status.sold,        variant: 'neutral'  as const };
+    return                    { text: content.dashboard.listings.status.underReview,  variant: 'warning'  as const };
+  };
+  const fmt = (n: number) => Number(n).toLocaleString();
+
+  const labels = isFavorites
+    ? { revenue: isAr?'الإيرادات':'Revenue', profit: isAr?'الأرباح':'Profit', recovery: isAr?'الاسترداد':'Recovery', askingPrice: isAr?'السعر':'Price', currency: isAr?'ر.س':'SAR', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' }
+    : { revenue: isAr?'المشاهدات':'Views',   profit: isAr?'العروض':'Offers',   recovery: isAr?'المفضلة':'Favorites', askingPrice: isAr?'السعر':'Price', currency: isAr?'ر.س':'SAR', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' };
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <SectionHeader
+        title={isFavorites ? content.dashboard.tabs.favorites : content.dashboard.listings.title}
+        action={!isFavorites && (
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            <div className="flex bg-white rounded-xl border border-gray-200 p-1">
+              <button onClick={() => setFilter('all')}  className={cn("flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all", filter==='all'  ? "bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{content.dashboard.listings.filters.all}</button>
+              <button onClick={() => setFilter('sold')} className={cn("flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all", filter==='sold' ? "bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{content.dashboard.listings.filters.sold}</button>
+            </div>
+            <button onClick={onAddListing} className="bg-[#10B981] text-white px-6 py-2.5 rounded-xl font-bold hover:bg-[#008A66] flex items-center justify-center gap-2">
+              <Plus size={18} />{content.dashboard.listings.addNew}
+            </button>
+          </div>
+        )}
+      />
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{[1,2,3].map(i=><div key={i} className="rounded-[24px] border border-gray-100 bg-white animate-pulse h-64"/>)}</div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center text-gray-400">{isAr?'لا توجد إدراجات بعد':'No listings yet'}</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filtered.map((b: any) => {
+            const sl = statusLabel(b.businessStatus);
+            return (
+              <Card key={b.id} variant="listing" title={b.businessTitle} number={fmt(b.price)}
+                badge={<UiBadge variant={sl.variant} className="backdrop-blur-md bg-white/90 shadow-sm">{sl.text}</UiBadge>}
+                hideFavorite={!isFavorites}
+                listingData={{ category: isAr?b.category?.arabicName:b.category?.name, revenue: isFavorites?fmt(b.revenue):(b.offerCount??0).toString(), profit: isFavorites?fmt(b.profit):'—', recovery:'—', refNumber:b.reference?`#${b.reference}`:'' }}
+                labels={labels}
+                footer={!isFavorites ? (
+                  <div className="flex gap-2 w-full">
+                    {b.businessStatus !== 'SOLD' && (
+                      <button onClick={e=>{e.stopPropagation();onEditListing?.(Number(b.id));}} className="flex-1 bg-[#F3F4F6] text-[#111827] py-2 rounded-lg text-xs font-bold hover:bg-gray-200">{content.dashboard.listings.actions.edit}</button>
+                    )}
+                    <button onClick={e=>{e.stopPropagation();onNavigate?.('details', Number(b.id));}} className="flex-1 bg-[#10B981] text-white py-2 rounded-lg text-xs font-bold hover:bg-[#008A66] flex items-center justify-center gap-1">
+                      {content.dashboard.listings.actions.view}{direction==='rtl'?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}
+                    </button>
+                  </div>
+                ) : undefined}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
 
 
+const OffersView = () => {
+  const { content, language } = useApp();
+  const isAr = language === 'ar';
+  const [directionFilter, setDirectionFilter] = useState<'received'|'sent'>('received');
+  const [selectedId, setSelectedId] = useState<string|null>(null);
+  const [actionMode, setActionMode] = useState<'details'|'counter'|'meeting'>('details');
+  const [counterPrice, setCounterPrice] = useState('');
+  const [meetingDate, setMeetingDate] = useState('');
+  const [meetingTime, setMeetingTime] = useState('');
+
+  // P6-FIX R-04: real offers
+  const { data: buyerData,  loading: buyerLoading,  refetch: refetchBuyer  } = useQuery(GET_OFFERS_BY_USER,    { errorPolicy: 'all' });
+  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_OFFERS_BY_SELLER,  { errorPolicy: 'all' });
+  const [updateStatus] = useMutation(UPDATE_OFFER_STATUS, { errorPolicy: 'all' });
+  const [doCounter]    = useMutation(COUNTER_OFFER,       { errorPolicy: 'all' });
+  const [reqMeeting]   = useMutation(REQUEST_MEETING,     { errorPolicy: 'all' });
+
+  // BUG-FIX: getOffersByUser returns { offers: [], count } — must access .offers, not the wrapper object
+  const allOffers = directionFilter === 'sent' ? (buyerData?.getOffersByUser?.offers??[]) : (sellerData?.getOffersBySeller??[]);
+  const loading   = directionFilter === 'sent' ? buyerLoading : sellerLoading;
+  const refetch   = directionFilter === 'sent' ? refetchBuyer  : refetchSeller;
+  const selectedOffer = allOffers.find((o: any) => o.id === selectedId);
+
+  const statusColor = (s: string) => s==='ACCEPTED'?'green':s==='REJECTED'?'red':s==='PENDING'?'yellow':'blue';
+  const statusLabel = (s: string) => ({ACCEPTED:content.dashboard.offers.status.accepted, REJECTED:content.dashboard.offers.status.rejected, PENDING:content.dashboard.offers.status.pending, MEETING:content.dashboard.offers.status.sent, COUNTERED:isAr?'عرض مضاد':'Countered'})[s]??s;
+  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB'):'—';
+  const fmt = (n: number) => Number(n).toLocaleString();
+
+  const handleAccept = async () => {
+    if (!selectedOffer) return;
+    const { errors } = await updateStatus({ variables: { input: { id: selectedOffer.id, status: 'ACCEPTED' } } });
+    if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
+    toast.success(isAr?'تم قبول العرض':'Offer accepted'); setSelectedId(null); refetch();
+  };
+
+  // P11 F-07: buyer withdraws their own sent offer
+  const handleCancelOffer = async () => {
+    if (!selectedOffer) return;
+    const { errors } = await updateStatus({ variables: { input: { id: selectedOffer.id, status: 'CANCELLED' } } });
+    if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
+    toast.success(isAr?'تم سحب العرض':'Offer withdrawn'); setSelectedId(null); refetch();
+  };
+
+  const handleCounter = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOffer||!counterPrice) return;
+    // BUG-FIX: CounterOfferInput uses parentOfferId not offerId
+    const { errors } = await doCounter({ variables: { input: { parentOfferId: selectedOffer.id, price: parseFloat(counterPrice) } } });
+    if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
+    toast.success(content.dashboard.offers.actions.successCounter); setSelectedId(null); refetch();
+  };
+
+  const handleMeeting = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOffer||!meetingDate) return;
+    const iso = `${meetingDate}T${meetingTime||'09:00'}:00.000Z`;
+    // BUG-FIX: requestedEndDate was identical to requestedDate (0-duration). Add 1 hour.
+    const endDate = new Date(iso);
+    endDate.setHours(endDate.getHours() + 1);
+    const endIso = endDate.toISOString();
+    const { errors } = await reqMeeting({ variables: { input: { businessId: selectedOffer.business.id, requestedDate: iso, requestedEndDate: endIso } } });
+    if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
+    toast.success(content.dashboard.offers.actions.successMeeting); setSelectedId(null);
+  };
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <SectionHeader title={content.dashboard.offers.title} action={
+        <div className="flex bg-white rounded-xl border border-gray-200 p-1 w-full sm:w-auto">
+          <button onClick={() => setDirectionFilter('received')} className={cn("flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 whitespace-nowrap", directionFilter==='received'?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>
+            <ArrowDownLeft size={16}/>{content.dashboard.offers.filters.received}
+          </button>
+          <button onClick={() => setDirectionFilter('sent')} className={cn("flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all flex items-center justify-center gap-2 whitespace-nowrap", directionFilter==='sent'?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>
+            <ArrowUpRight size={16}/>{content.dashboard.offers.filters.sent}
+          </button>
+        </div>
+      }/>
+      <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+        {loading ? <div className="p-8 text-center text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div> : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50 border-b border-gray-100">
+                <tr>
+                  {[content.dashboard.offers.table.listing, content.dashboard.offers.table.offerAmount, content.dashboard.offers.table.date, content.dashboard.offers.table.status, content.dashboard.offers.table.actions].map(h=>(
+                    <th key={h} className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {allOffers.map((o: any) => (
+                  <tr key={o.id} className="hover:bg-gray-50">
+                    <td className="px-6 py-4"><p className="text-sm font-bold text-[#111827]">{o.business?.businessTitle}</p><p className="text-xs text-gray-500">{fmt(o.business?.price)} {content.dashboard.offers.sar}</p></td>
+                    <td className="px-6 py-4 whitespace-nowrap"><span className="text-sm font-black text-[#10B981]">{fmt(o.price)} {content.dashboard.offers.sar}</span></td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{fmtDate(o.createdAt)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap"><DashBadge color={statusColor(o.status)}>{statusLabel(o.status)}</DashBadge></td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button onClick={() => { setSelectedId(o.id); setActionMode('details'); }} className="text-[#10B981] hover:text-[#008A66] font-bold text-sm flex items-center gap-1">
+                        {content.dashboard.offers.actions.viewDetails}
+                        {direction==='rtl'?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {allOffers.length === 0 && <div className="p-8 text-center text-gray-400">{content.dashboard.meetings.empty}</div>}
+          </div>
+        )}
+      </div>
+
+      <Modal isOpen={!!selectedOffer} onClose={() => { setSelectedId(null); setActionMode('details'); }}
+        title={actionMode==='details'?content.dashboard.offers.actions.viewDetails:actionMode==='counter'?content.dashboard.offers.actions.counterOffer:content.dashboard.offers.actions.scheduleMeeting}>
+        {selectedOffer && (
+          <div className="space-y-6">
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
+              <div className="flex justify-between items-start mb-2">
+                <div><p className="text-xs text-gray-500 mb-1">{content.dashboard.offers.table.listing}</p><p className="font-bold text-[#111827]">{selectedOffer.business?.businessTitle}</p></div>
+                <DashBadge color={statusColor(selectedOffer.status)}>{statusLabel(selectedOffer.status)}</DashBadge>
+              </div>
+              {actionMode==='details' && (
+                <div className="flex justify-between mt-4 pt-4 border-t border-gray-200">
+                  <div><p className="text-xs text-gray-500 mb-1">{content.dashboard.offers.table.salePrice}</p><p className="font-bold text-gray-900">{fmt(selectedOffer.business?.price)} {content.dashboard.offers.sar}</p></div>
+                  <div><p className="text-xs text-gray-500 mb-1">{content.dashboard.offers.table.offerAmount}</p><p className="font-black text-[#10B981]">{fmt(selectedOffer.price)} {content.dashboard.offers.sar}</p></div>
+                </div>
+              )}
+            </div>
+            {actionMode==='details' && (
+              <>
+                <div className="space-y-4">
+                  <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-gray-500">{content.dashboard.offers.table.date}</span><span className="font-bold text-[#111827]">{fmtDate(selectedOffer.createdAt)}</span></div>
+                  <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-gray-500">{directionFilter==='sent'?content.dashboard.offers.table.seller:content.dashboard.offers.table.buyer}</span><span className="font-bold text-[#111827]">{selectedOffer.buyer?.name??'—'}</span></div>
+                  <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-gray-500">{content.dashboard.offers.table.offerNumber}</span><span className="font-bold text-[#111827]">#{selectedOffer.id}</span></div>
+                </div>
+                {selectedOffer.status==='PENDING' && directionFilter==='received' && (
+                  <div className="flex flex-col gap-3 mt-6">
+                    <div className="grid grid-cols-2 gap-3">
+                      <button onClick={() => setActionMode('counter')} className="py-3 rounded-xl border border-gray-300 text-[#111827] font-bold hover:bg-gray-50 flex items-center justify-center gap-2"><DollarSign size={18}/>{content.dashboard.offers.actions.counterOffer}</button>
+                      <button onClick={() => setActionMode('meeting')} className="py-3 rounded-xl bg-[#111827] text-white font-bold hover:bg-black flex items-center justify-center gap-2"><Calendar size={18}/>{content.dashboard.offers.actions.scheduleMeeting}</button>
+                    </div>
+                    <button onClick={handleAccept} className="w-full py-3 rounded-xl bg-[#10B981] text-white font-bold hover:bg-[#008A66] flex items-center justify-center gap-2"><CheckCircle2 size={18}/>{content.dashboard.offers.actions.accept}</button>
+                  </div>
+                )}
+                {/* P11 F-07: Buyer can cancel/withdraw a sent PENDING offer */}
+                {selectedOffer.status==='PENDING' && directionFilter==='sent' && (
+                  <div className="mt-6">
+                    <button onClick={handleCancelOffer}
+                      className="w-full py-3 rounded-xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2">
+                      <Ban size={18}/>{isAr?'سحب العرض':'Withdraw Offer'}
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+            {actionMode==='counter' && (
+              <form onSubmit={handleCounter} className="space-y-4">
+                <div><label className="block text-sm font-bold text-gray-700 mb-2">{content.dashboard.offers.actions.amount}</label>
+                  <input type="number" value={counterPrice} onChange={e=>setCounterPrice(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981]"/></div>
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setActionMode('details')} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50">{content.dashboard.offers.actions.cancel}</button>
+                  <button type="submit" className="flex-1 py-3 rounded-xl bg-[#10B981] text-white font-bold">{content.dashboard.offers.actions.submit}</button>
+                </div>
+              </form>
+            )}
+            {actionMode==='meeting' && (
+              <form onSubmit={handleMeeting} className="space-y-4">
+                <div><label className="block text-sm font-bold text-gray-700 mb-2">{content.dashboard.offers.actions.meetingDate}</label>
+                  <input type="date" value={meetingDate} onChange={e=>setMeetingDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981]"/></div>
+                <div><label className="block text-sm font-bold text-gray-700 mb-2">{content.dashboard.offers.actions.meetingTime}</label>
+                  <input type="time" value={meetingTime} onChange={e=>setMeetingTime(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981]"/></div>
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setActionMode('details')} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50">{content.dashboard.offers.actions.cancel}</button>
+                  <button type="submit" className="flex-1 py-3 rounded-xl bg-[#111827] text-white font-bold hover:bg-black">{content.dashboard.offers.actions.submit}</button>
+                </div>
+              </form>
+            )}
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+};
 
 
+const DealsView = () => {
+  const { content, language, direction, userId } = useApp();
+  const isAr = language === 'ar';
+  const [tab, setTab]       = useState<'buyer'|'seller'>('buyer');
+  const [filter, setFilter] = useState<'in-progress'|'completed'>('in-progress');
+  const [selectedId, setSelectedId] = useState<string|null>(null);
+
+  // P9: deal list queries
+  const { data: buyerData,  loading: buyerLoading,  refetch: refetchBuyer  } = useQuery(GET_BUYER_INPROGRESS_DEALS,  { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_SELLER_INPROGRESS_DEALS, { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+  // P9: completed deals (separate queries, different endpoints)
+  const { data: buyerCompData,  loading: buyerCompLoading  } = useQuery(GET_BUYER_COMPLETED_DEALS,  { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+  const { data: sellerCompData, loading: sellerCompLoading } = useQuery(GET_SELLER_COMPLETED_DEALS, { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+
+  // P9: single deal detail query — only fires when a deal is selected
+  const { data: dealDetailData, loading: dealDetailLoading, refetch: refetchDeal } = useQuery(GET_DEAL, {
+    variables: { getDealId: selectedId },
+    skip: !selectedId,
+    fetchPolicy: 'network-only',
+    errorPolicy: 'all',
+  });
+  const deal = dealDetailData?.getDeal ?? null;
+
+  // P9: bank queries — only fire when deal is selected
+  const { data: banksForDealData } = useQuery(GET_BANKS_FOR_DEAL, {
+    variables: { dealId: selectedId },
+    skip: !selectedId,
+    errorPolicy: 'all',
+  });
+  const { data: adminBankData } = useQuery(GET_ACTIVE_ADMIN_BANK, {
+    skip: !selectedId,
+    errorPolicy: 'all',
+  });
+  const { data: userBankData } = useQuery(GET_USER_ACTIVE_BANK, {
+    variables: { getUserActiveBanksId: userId },
+    skip: !selectedId || !userId,
+    errorPolicy: 'all',
+  });
+
+  // P9: deal mutations
+  const [updateDeal,       { loading: updatingDeal }]  = useMutation(UPDATE_DEAL,       { errorPolicy: 'all' });
+  const [uploadDocument,   { loading: uploadingDoc }]  = useMutation(UPLOAD_DOCUMENT,   { errorPolicy: 'all' });
+  const [sendBankToBuyer,  { loading: sendingBank }]   = useMutation(SEND_BANK_TO_BUYER,{ errorPolicy: 'all' });
+
+  // P9: use correct query based on both tab and filter
+  const rawDeals = filter==='in-progress'
+    ? (tab==='buyer' ? (buyerData?.getBuyerInprogressDeals?.deals??[]) : (sellerData?.getSellerInprogressDeals?.deals??[]))
+    : (tab==='buyer' ? (buyerCompData?.getBuyerCompletedDeals?.deals??[])  : (sellerCompData?.getSellerCompletedDeals?.deals??[]));
+  const loading = filter==='in-progress'
+    ? (tab==='buyer' ? buyerLoading : sellerLoading)
+    : (tab==='buyer' ? buyerCompLoading : sellerCompLoading);
+  const filtered = rawDeals;
+
+  const refetch = () => { tab==='buyer' ? refetchBuyer() : refetchSeller(); if (selectedId) refetchDeal(); };
+  const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB') : '—';
+
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+  const isBuyer  = deal ? deal.buyer?.id === userId : false;
+  const isSeller = deal ? deal.business?.seller?.id === userId : false;
+
+  const adminBank  = adminBankData?.getActiveAdminBank ?? null;
+  const userBank   = userBankData?.getUserActiveBanks   ?? null;
+  const dealBanks  = banksForDealData?.getBankDetailsByDealId ?? [];
+
+  // ── Buyer step actions ──────────────────────────────────────────────────────
+  const handleBuyerSignNDA = async () => {
+    if (!deal) return;
+    try {
+      // BUG-FIX: errorPolicy:'all' means GraphQL errors won't throw — must check errors in result
+      const { errors } = await updateDeal({ variables: { input: { id: deal.id, isDsaBuyer: true } } });
+      if (errors?.length) { toast.error(errors[0]?.message ?? (isAr ? 'حدث خطأ' : 'Something went wrong')); return; }
+      toast.success(isAr ? 'تم توقيع اتفاقية NDA' : 'NDA signed');
+      refetch();
+    } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
+  };
+
+  const handlePayCommission = async () => {
+    if (!deal || !adminBank) return;
+    toast.info(isAr ? `يرجى التحويل إلى: ${adminBank.bankName} — IBAN: ${adminBank.iban}` : `Transfer to: ${adminBank.bankName} — IBAN: ${adminBank.iban}`, { duration: 8000 });
+  };
+
+  const handleUploadPaymentProof = async (file: File) => {
+    if (!deal) return;
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(import.meta.env.VITE_UPLOAD_URL || 'https://verify.jusoor-sa.co/upload', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Upload failed');
+      const data = await res.json();
+      await uploadDocument({ variables: { input: { dealId: deal.id, filePath: data.fileUrl, type: 'PAYMENT_PROOF' } } });
+      await updateDeal({ variables: { input: { id: deal.id, isCommissionUploaded: true } } });
+      toast.success(isAr ? 'تم رفع إثبات الدفع' : 'Payment proof uploaded');
+      refetch();
+    } catch { toast.error(isAr ? 'فشل رفع الملف' : 'Upload failed'); }
+  };
+
+  const handleBuyerComplete = async () => {
+    if (!deal) return;
+    try {
+      const { errors } = await updateDeal({ variables: { input: { id: deal.id, isBuyerCompleted: true } } });
+      if (errors?.length) { toast.error(errors[0]?.message ?? (isAr ? 'حدث خطأ' : 'Something went wrong')); return; }
+      toast.success(isAr ? 'تم تأكيد إتمام الصفقة' : 'Deal marked complete');
+      refetch();
+    } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
+  };
+
+  // ── Seller step actions ─────────────────────────────────────────────────────
+  const handleSellerSignNDA = async () => {
+    if (!deal) return;
+    try {
+      const { errors } = await updateDeal({ variables: { input: { id: deal.id, isDsaSeller: true } } });
+      if (errors?.length) { toast.error(errors[0]?.message ?? (isAr ? 'حدث خطأ' : 'Something went wrong')); return; }
+      toast.success(isAr ? 'تم توقيع اتفاقية NDA' : 'NDA signed');
+      refetch();
+    } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
+  };
+
+  const handleSellerSendBank = async () => {
+    if (!deal || !userBank) return;
+    try {
+      const { errors } = await sendBankToBuyer({ variables: { dealId: deal.id, bankId: userBank.id } });
+      if (errors?.length) { toast.error(errors[0]?.message ?? (isAr ? 'حدث خطأ' : 'Something went wrong')); return; }
+      toast.success(isAr ? 'تم إرسال تفاصيل البنك للمشتري' : 'Bank details sent to buyer');
+      refetch();
+    } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
+  };
+
+  const handleSellerConfirmDocs = async () => {
+    if (!deal) return;
+    try {
+      const { errors } = await updateDeal({ variables: { input: { id: deal.id, isDocVedifiedSeller: true } } });
+      if (errors?.length) { toast.error(errors[0]?.message ?? (isAr ? 'حدث خطأ' : 'Something went wrong')); return; }
+      toast.success(isAr ? 'تم تأكيد المستندات' : 'Documents confirmed');
+      refetch();
+    } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
+  };
+
+  const handleSellerComplete = async () => {
+    if (!deal) return;
+    try {
+      const { errors } = await updateDeal({ variables: { input: { id: deal.id, isSellerCompleted: true } } });
+      if (errors?.length) { toast.error(errors[0]?.message ?? (isAr ? 'حدث خطأ' : 'Something went wrong')); return; }
+      toast.success(isAr ? 'تم تأكيد إتمام الصفقة' : 'Deal marked complete');
+      refetch();
+    } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
+  };
+
+  // ── Step definitions ─────────────────────────────────────────────────────────
+  const getBuyerSteps = (d: any) => [
+    {
+      id: 1,
+      title: isAr ? 'توقيع اتفاقية NDA' : 'Sign NDA Agreement',
+      desc:  isAr ? 'وقّع على اتفاقية عدم الإفصاح لبدء الصفقة' : 'Sign the non-disclosure agreement to begin the deal',
+      done:  d.isDsaBuyer,
+      action: !d.isDsaBuyer ? handleBuyerSignNDA : null,
+      actionLabel: isAr ? 'توقيع الاتفاقية' : 'Sign Agreement',
+      loading: updatingDeal,
+      ndaPath: d.ndaPdfPath,
+    },
+    {
+      id: 2,
+      title: isAr ? 'دفع العمولة' : 'Pay Commission',
+      desc:  isAr ? `قم بتحويل العمولة إلى حساب جسور${adminBank ? ` — ${adminBank.bankName} / IBAN: ${adminBank.iban}` : ''}` : `Transfer commission to Jusoor${adminBank ? ` — ${adminBank.bankName} / IBAN: ${adminBank.iban}` : ''}`,
+      done:  d.isCommissionVerified,
+      action: !d.isCommissionVerified && !d.isCommissionUploaded && d.isDsaBuyer ? handlePayCommission : null,
+      actionLabel: isAr ? 'عرض تفاصيل الدفع' : 'View Payment Details',
+      loading: false,
+      uploadProof: !d.isCommissionVerified && d.isDsaBuyer && !d.isCommissionUploaded,
+    },
+    {
+      id: 3,
+      title: isAr ? 'التحقق من المستندات' : 'Documents Verified',
+      desc:  isAr ? 'سيقوم فريق جسور بمراجعة مستنداتك' : 'The Jusoor team will review your documents',
+      done:  d.isDocVedifiedBuyer && d.isDocVedifiedAdmin,
+      action: null,
+      actionLabel: '',
+      loading: false,
+    },
+    {
+      id: 4,
+      title: isAr ? 'إتمام الصفقة' : 'Complete Deal',
+      desc:  isAr ? 'أكّد إتمام الصفقة بعد استلام جميع المستندات' : 'Confirm deal completion after receiving all documents',
+      done:  d.isBuyerCompleted,
+      action: !d.isBuyerCompleted && d.isDocVedifiedBuyer && d.isDocVedifiedAdmin ? handleBuyerComplete : null,
+      actionLabel: isAr ? 'تأكيد الإتمام' : 'Confirm Completion',
+      loading: updatingDeal,
+    },
+  ];
+
+  const getSellerSteps = (d: any) => [
+    {
+      id: 1,
+      title: isAr ? 'توقيع اتفاقية NDA' : 'Sign NDA Agreement',
+      desc:  isAr ? 'وقّع على اتفاقية عدم الإفصاح لبدء الصفقة' : 'Sign the non-disclosure agreement to begin',
+      done:  d.isDsaSeller,
+      action: !d.isDsaSeller ? handleSellerSignNDA : null,
+      actionLabel: isAr ? 'توقيع الاتفاقية' : 'Sign Agreement',
+      loading: updatingDeal,
+      ndaPath: d.arabicNdaPdfPath || d.ndaPdfPath,
+    },
+    {
+      id: 2,
+      title: isAr ? 'إرسال تفاصيل البنك' : 'Send Bank Details',
+      desc:  isAr
+        ? (dealBanks.length > 0 ? `تم الإرسال — ${dealBanks[0]?.bank?.bankName ?? ''}` : (userBank ? `${userBank.bankName} — IBAN: ${userBank.iban}` : 'أضف حساباً بنكياً أولاً'))
+        : (dealBanks.length > 0 ? `Sent — ${dealBanks[0]?.bank?.bankName ?? ''}` : (userBank ? `${userBank.bankName} — IBAN: ${userBank.iban}` : 'Add a bank account first')),
+      done:  dealBanks.some((b: any) => b.isSend),
+      action: !dealBanks.some((b: any) => b.isSend) && userBank && d.isDsaSeller ? handleSellerSendBank : null,
+      actionLabel: isAr ? 'إرسال تفاصيل البنك' : 'Send Bank Details',
+      loading: sendingBank,
+    },
+    {
+      id: 3,
+      title: isAr ? 'تأكيد المستندات' : 'Confirm Documents',
+      desc:  isAr ? 'راجع وثائق المشتري وأكّد صحتها' : 'Review buyer documents and confirm they are valid',
+      done:  d.isDocVedifiedSeller,
+      action: !d.isDocVedifiedSeller && d.isDsaSeller ? handleSellerConfirmDocs : null,
+      actionLabel: isAr ? 'تأكيد المستندات' : 'Confirm Documents',
+      loading: updatingDeal,
+    },
+    {
+      id: 4,
+      title: isAr ? 'إتمام الصفقة' : 'Complete Deal',
+      desc:  isAr ? 'أكّد إتمام الصفقة من طرفك' : 'Confirm deal completion from your side',
+      done:  d.isSellerCompleted,
+      action: !d.isSellerCompleted && d.isDocVedifiedSeller ? handleSellerComplete : null,
+      actionLabel: isAr ? 'تأكيد الإتمام' : 'Confirm Completion',
+      loading: updatingDeal,
+    },
+  ];
+
+  const getGenericSteps = (d: any) => [
+    { id:1, title: isAr?'توقيع اتفاقية NDA':'NDA Signed',         done: d.isDsaBuyer&&d.isDsaSeller },
+    { id:2, title: isAr?'التحقق من الوثائق':'Documents Verified',  done: d.isDocVedifiedBuyer&&d.isDocVedifiedSeller },
+    { id:3, title: isAr?'دفع العمولة':'Commission Paid',           done: d.isCommissionVerified },
+    { id:4, title: isAr?'إتمام الصفقة':'Deal Completed',           done: d.isBuyerCompleted&&d.isSellerCompleted },
+  ];
+
+  const getProgress = (d: any) => { const steps=getGenericSteps(d); return Math.round((steps.filter(s=>s.done).length/steps.length)*100); };
+
+  // ── Deal Detail View ─────────────────────────────────────────────────────────
+  if (selectedId) {
+    if (dealDetailLoading) return (
+      <div className="flex items-center justify-center p-16 text-gray-400">{isAr?'جارٍ التحميل...':'Loading deal...'}</div>
+    );
+
+    if (!deal) return (
+      <div className="space-y-4">
+        <button onClick={() => setSelectedId(null)} className="flex items-center gap-2 text-gray-500 hover:text-[#111827] font-bold text-sm">
+          {direction==='rtl'?<ArrowRight size={18}/>:<ArrowRight size={18} className="rotate-180"/>}{content.dashboard.deals.labels.backToDeals}
+        </button>
+        <div className="bg-white p-8 rounded-3xl border border-red-100 text-center text-red-500">{isAr?'تعذر تحميل تفاصيل الصفقة':'Could not load deal details'}</div>
+      </div>
+    );
+
+    const steps = isBuyer ? getBuyerSteps(deal) : isSeller ? getSellerSteps(deal) : getGenericSteps(deal).map(s => ({...s, desc:'', action:null, actionLabel:'', loading:false}));
+    const progress = getProgress(deal);
+    const allDone = deal.isBuyerCompleted && deal.isSellerCompleted;
+
+    return (
+      <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
+        <button onClick={() => setSelectedId(null)} className="flex items-center gap-2 text-gray-500 hover:text-[#111827] font-bold text-sm mb-2">
+          {direction==='rtl'?<ArrowRight size={18}/>:<ArrowRight size={18} className="rotate-180"/>}{content.dashboard.deals.labels.backToDeals}
+        </button>
+
+        {/* Deal header */}
+        <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-200 shadow-sm">
+          <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
+            <div>
+              <h2 className="text-xl md:text-2xl font-black text-[#111827] mb-1">{deal.business?.businessTitle}</h2>
+              <p className="text-sm text-gray-500">{content.dashboard.deals.labels.buyer}: <span className="text-[#111827] font-bold">{deal.buyer?.name}</span></p>
+              <p className="text-sm text-gray-500">{isAr?'البائع':'Seller'}: <span className="text-[#111827] font-bold">{deal.business?.seller?.name}</span></p>
+            </div>
+            <DashBadge color={allDone?'gray':'green'}>{allDone?(isAr?'مكتملة':'Completed'):(isAr?'قيد التنفيذ':'In Progress')}</DashBadge>
+          </div>
+          <p className="text-3xl font-black text-[#10B981] mb-5">{Number(deal.price ?? deal.offer?.price ?? 0).toLocaleString()} SAR</p>
+          {deal.offer?.commission && (
+            <p className="text-sm text-gray-500 mb-4">{isAr?'العمولة':'Commission'}: <span className="font-bold text-[#111827]">{Number(deal.offer.commission).toLocaleString()} SAR</span></p>
+          )}
+          <div className="space-y-2">
+            <div className="flex justify-between text-sm font-bold">
+              <span className="text-gray-500">{content.dashboard.deals.labels.progress}</span>
+              <span className="text-[#10B981]">{progress}%</span>
+            </div>
+            <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-[#10B981] rounded-full transition-all duration-500" style={{width:`${progress}%`}}/>
+            </div>
+            <p className="text-xs text-gray-400">{content.dashboard.deals.labels.start}: {fmtDate(deal.createdAt)}</p>
+          </div>
+        </div>
+
+        {/* NDA documents */}
+        {(deal.ndaPdfPath || deal.arabicNdaPdfPath) && (
+          <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+            <h4 className="font-bold text-[#111827] mb-3 flex items-center gap-2"><FileCheck size={18} className="text-[#10B981]"/>{isAr?'مستندات NDA':'NDA Documents'}</h4>
+            <div className="flex flex-wrap gap-3">
+              {deal.ndaPdfPath && (
+                <a href={deal.ndaPdfPath} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-[#111827] hover:bg-gray-100 transition-colors">
+                  <Download size={16}/>{isAr?'اتفاقية NDA (EN)':'NDA Agreement (EN)'}
+                </a>
+              )}
+              {deal.arabicNdaPdfPath && (
+                <a href={deal.arabicNdaPdfPath} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-[#111827] hover:bg-gray-100 transition-colors">
+                  <Download size={16}/>{isAr?'اتفاقية NDA (AR)':'NDA Agreement (AR)'}
+                </a>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Steps */}
+        <div className="space-y-3">
+          {steps.map((step: any, idx: number) => {
+            const isActive = !step.done && steps.slice(0,idx).every((s: any) => s.done);
+            return (
+              <div key={step.id} className={cn("bg-white p-5 rounded-3xl border shadow-sm", isActive?"border-[#10B981]/30 bg-[#F0FDF4]":"border-gray-100")}>
+                <div className="flex items-start gap-4">
+                  <div className={cn("w-11 h-11 rounded-full flex items-center justify-center font-bold text-base shrink-0 mt-0.5",
+                    step.done?"bg-[#E6F3EF] text-[#10B981]":isActive?"bg-orange-50 text-orange-500":"bg-gray-100 text-gray-400")}>
+                    {step.done?<CheckCircle2 size={22}/>:step.id}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                      <h4 className="font-bold text-lg text-[#111827]">{step.title}</h4>
+                      <DashBadge color={step.done?'green':isActive?'yellow':'gray'}>
+                        {step.done?(isAr?'مكتمل':'Done'):isActive?(isAr?'جارٍ':'Active'):(isAr?'انتظار':'Pending')}
+                      </DashBadge>
+                    </div>
+                    {step.desc && <p className="text-sm text-gray-500 mb-3">{step.desc}</p>}
+
+                    {/* NDA download link in step */}
+                    {step.ndaPath && !step.done && (
+                      <a href={step.ndaPath} target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-sm text-[#10B981] hover:underline mb-3">
+                        <Download size={14}/>{isAr?'تنزيل للمراجعة':'Download to review'}
+                      </a>
+                    )}
+
+                    {/* Upload payment proof */}
+                    {step.uploadProof && isActive && (
+                      <label className="mt-2 flex items-center gap-2 cursor-pointer">
+                        <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) handleUploadPaymentProof(f); }} />
+                        <span className={cn("inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-colors",
+                          uploadingDoc?"bg-gray-100 text-gray-400 cursor-wait":"bg-[#E6F3EF] text-[#10B981] hover:bg-[#d0ebe5]")}>
+                          <Upload size={16}/>{uploadingDoc?(isAr?'جارٍ الرفع...':'Uploading...'):(isAr?'رفع إثبات الدفع':'Upload Payment Proof')}
+                        </span>
+                      </label>
+                    )}
+
+                    {/* Action button */}
+                    {step.action && isActive && (
+                      <button onClick={step.action} disabled={step.loading}
+                        className={cn("mt-2 px-5 py-2.5 rounded-xl font-bold text-sm transition-colors",
+                          step.loading?"bg-gray-100 text-gray-400 cursor-wait":"bg-[#111827] text-white hover:bg-[#1f2937]")}>
+                        {step.loading?(isAr?'جارٍ...':'Processing...'):step.actionLabel}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Business docs */}
+        {deal.business?.documents?.length > 0 && (
+          <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+            <h4 className="font-bold text-[#111827] mb-3 flex items-center gap-2"><FileText size={18} className="text-[#10B981]"/>{isAr?'مستندات الأعمال':'Business Documents'}</h4>
+            <div className="space-y-2">
+              {deal.business.documents.map((doc: any) => (
+                <a key={doc.id} href={doc.filePath} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                  <File size={16} className="text-gray-400 shrink-0"/>
+                  <span className="text-sm font-bold text-[#111827]">{doc.title}</span>
+                  <Download size={14} className="text-gray-400 ml-auto"/>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Deal List View ───────────────────────────────────────────────────────────
+  return (
+    <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <SectionHeader title={content.dashboard.deals.title} action={
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          <div className="flex bg-white rounded-xl border border-gray-200 p-1">
+            <button onClick={() => setTab('buyer')}  className={cn("flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", tab==='buyer' ?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{isAr?'كمشترٍ':'As Buyer'}</button>
+            <button onClick={() => setTab('seller')} className={cn("flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", tab==='seller'?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{isAr?'كبائعٍ':'As Seller'}</button>
+          </div>
+          <div className="flex bg-white rounded-xl border border-gray-200 p-1">
+            <button onClick={() => setFilter('in-progress')} className={cn("flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", filter==='in-progress'?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{content.dashboard.deals.filters.inProgress}</button>
+            <button onClick={() => setFilter('completed')}   className={cn("flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", filter==='completed'  ?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{content.dashboard.deals.filters.completed}</button>
+          </div>
+        </div>
+      }/>
+      {loading ? (
+        <div className="text-center p-8 text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div>
+      ) : filtered.length===0 ? (
+        <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center text-gray-400">{isAr?'لا توجد صفقات بعد':'No deals yet'}</div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {filtered.map((d: any) => {
+            const progress=getProgress(d); const completed=d.isBuyerCompleted&&d.isSellerCompleted;
+            return (
+              <div key={d.id} className="bg-white rounded-3xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group" onClick={() => setSelectedId(d.id)}>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="w-12 h-12 rounded-full bg-[#E6F3EF] flex items-center justify-center text-[#10B981]"><Handshake size={24}/></div>
+                  <DashBadge color={completed?'gray':'green'}>{completed?content.dashboard.deals.status.completed:content.dashboard.deals.status.inProgress}</DashBadge>
+                </div>
+                <h3 className="text-lg font-black text-[#111827] mb-1">{d.business?.businessTitle}</h3>
+                <p className="text-gray-500 text-sm mb-4">{content.dashboard.deals.labels.buyer}: {d.buyer?.name}</p>
+                <div className="space-y-2">
+                  <div className="flex justify-between text-xs font-bold">
+                    <span className="text-gray-500">{content.dashboard.deals.labels.progress}</span>
+                    <span className={cn(completed?'text-gray-600':'text-[#10B981]')}>{progress}%</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className={cn("h-full rounded-full",completed?"bg-gray-600":"bg-[#10B981]")} style={{width:`${progress}%`}}/>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400 mt-3">{fmtDate(d.createdAt)}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const MeetingsView = () => {
+  const { content, language, direction, userId } = useApp();
+  const isAr = language === 'ar';
+
+  // tabs: 'all' | 'upcoming' | 'past' (matching Figma)
+  const [tab, setTab]         = useState<'all'|'upcoming'|'past'>('all');
+  const [filter, setFilter]   = useState<'all'|'pending'|'past'>('all');
+  const [selectedId, setSelectedId] = useState<string|null>(null);
+  const [availDate, setAvailDate]   = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+
+  // Queries
+  const { data: sentData,     loading: sentLoading,     refetch: refetchSent     } = useQuery(GET_SENT_MEETINGS,     { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+  const { data: receivedData, loading: receivedLoading, refetch: refetchReceived } = useQuery(GET_RECEIVED_MEETINGS, { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+  // P10: ready-for-scheduling + confirmed/scheduled meetings
+  const { data: readyData,     loading: readyLoading,     refetch: refetchReady     } = useQuery(GET_READY_SCHEDULED_MEETINGS, { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+  const { data: scheduledData, loading: scheduledLoading, refetch: refetchScheduled } = useQuery(GET_SCHEDULED_MEETINGS,       { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+
+  // Mutations
+  const [approveMeeting, { loading: approving }]  = useMutation(APPROVE_MEETING, { errorPolicy: 'all' });
+  const [rejectMeeting,  { loading: rejecting }]  = useMutation(REJECT_MEETING,  { errorPolicy: 'all' });
+  const [updateMeeting,  { loading: updatingM }]  = useMutation(UPDATE_MEETING,  { errorPolicy: 'all' });
+
+  // Data selectors
+  // Merge all meeting sources into one list
+  const allMeetings = [
+    ...(sentData?.getMySentMeetingRequests?.items ?? []),
+    ...(receivedData?.getReceivedMeetingRequests?.items ?? []),
+    ...(readyData?.getMeetingsReadyForScheduling?.items ?? []),
+    ...(scheduledData?.getScheduledMeetings?.items ?? []),
+  ].filter((m: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === m.id) === i); // dedupe
+
+  const loading = sentLoading || receivedLoading || readyLoading || scheduledLoading;
+
+  const now = new Date();
+  const rawMeetings =
+    tab === 'upcoming' ? allMeetings.filter((m: any) => {
+      const d = m.adminAvailabilityDate ?? m.receiverAvailabilityDate ?? m.requestedDate;
+      return d ? new Date(d) >= now : true;
+    })
+    : tab === 'past' ? allMeetings.filter((m: any) => {
+      const d = m.adminAvailabilityDate ?? m.receiverAvailabilityDate ?? m.requestedDate;
+      return d ? new Date(d) < now : false;
+    })
+    : allMeetings;
+
+  const filtered = rawMeetings;
+
+  const selected = rawMeetings.find((m:any) => m.id === selectedId);
+
+  // Helpers
+  const statusColor = (s: string) => s==='SCHEDULED'?'blue':['READY'].includes(s)?'green':s==='PENDING'?'yellow':s==='REJECTED'?'red':'gray';
+  const statusLabel = (s: string) => ({
+    SCHEDULED: isAr?'مجدول':'Scheduled',
+    PENDING:   isAr?'قيد الانتظار':'Pending',
+    READY:     isAr?'جاهز للجدولة':'Ready',
+    COMPLETED: isAr?'مكتمل':'Completed',
+    REJECTED:  isAr?'مرفوض':'Rejected',
+  })[s] ?? s;
+  const fmtDate   = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB') : '—';
+  const otherParty = (m: any) =>
+    (m.requestedTo?.name && m.requestedBy?.name)
+      ? `${m.requestedTo?.name ?? ''} / ${m.requestedBy?.name ?? ''}`
+      : (m.requestedTo?.name ?? m.requestedBy?.name ?? '—');
+
+  // Actions
+  const refetchAll = () => {
+    refetchSent(); refetchReceived(); refetchReady(); refetchScheduled();
+  };
+
+  const handleApprove = async (id: string) => {
+    try {
+      // BUG-FIX: mutation defines $meetingId not $approveMeetingId
+      await approveMeeting({ variables: { meetingId: id } });
+      toast.success(isAr ? 'تمت الموافقة على الاجتماع' : 'Meeting approved');
+      refetchAll(); setSelectedId(null);
+    } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
+  };
+
+  const handleReject = async (id: string) => {
+    try {
+      await rejectMeeting({ variables: { rejectMeetingId: id } });
+      toast.success(isAr ? 'تم رفض الاجتماع' : 'Meeting rejected');
+      refetchAll(); setSelectedId(null);
+    } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
+  };
+
+  const handleSetAvailability = async (id: string) => {
+    if (!availDate) { toast.error(isAr ? 'اختر تاريخاً' : 'Please select a date'); return; }
+    try {
+      await updateMeeting({ variables: { input: { id, receiverAvailabilityDate: new Date(availDate).toISOString() } } });
+      toast.success(isAr ? 'تم تحديد تاريخ توفرك' : 'Availability date set');
+      setAvailDate(''); setShowDatePicker(false);
+      refetchAll(); setSelectedId(null);
+    } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
+  };
+
+  const tabs = [
+    { value: 'all',      label: isAr?'الكل':'All'          },
+    { value: 'upcoming', label: isAr?'القادمة':'Upcoming'  },
+    { value: 'past',     label: isAr?'السابقة':'Past'      },
+  ];
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <SectionHeader title={content.dashboard.meetings.title} action={
+        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+          {/* Tab switcher */}
+          <div className="flex bg-white rounded-xl border border-gray-200 p-1 flex-wrap gap-1">
+            {tabs.map(t => (
+              <button key={t.value} onClick={() => { setTab(t.value as any); setFilter('all'); }}
+                className={cn("px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
+                  tab===t.value?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+        </div>
+      }/>
+
+      {/* Scheduled meetings — show Zoom links prominently */}
+      {(tab==='all'||tab==='upcoming') && !loading && rawMeetings.filter((m:any)=>m.status==='SCHEDULED').length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* BUG-FIX: was rawMeetings.map — now filters to only SCHEDULED meetings */}
+          {rawMeetings.filter((m:any)=>m.status==='SCHEDULED').map((m: any) => (
+            <div key={m.id} className="bg-white p-5 rounded-3xl border border-blue-100 shadow-sm">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <p className="font-bold text-[#111827]">{m.business?.businessTitle}</p>
+                  <p className="text-sm text-gray-500">{isAr?'مع':'with'} {m.requestedBy?.name ?? m.requestedTo?.name}</p>
+                </div>
+                <DashBadge color="blue">{isAr?'مجدول':'Scheduled'}</DashBadge>
+              </div>
+              <div className="space-y-1 text-sm mb-4">
+                <p className="text-gray-500">{isAr?'التاريخ':'Date'}: <span className="font-bold text-[#111827]">{fmtDate(m.adminAvailabilityDate)}</span></p>
+              </div>
+              {m.meetingLink ? (
+                <a href={m.meetingLink} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center gap-2 px-4 py-2.5 bg-[#008A66] text-white rounded-xl font-bold text-sm hover:bg-[#007053] transition-colors w-fit">
+                  <Video size={16}/>{isAr?'انضم إلى الاجتماع':'Join Meeting'}
+                </a>
+              ) : (
+                <p className="text-sm text-gray-400 italic">{isAr?'رابط الاجتماع سيُرسل قريباً':'Meeting link will be sent soon'}</p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Ready-for-scheduling tab — admin scheduling queue */}
+      {tab==='ready' && !loading && rawMeetings.length > 0 && (
+        <div className="bg-[#F0FDF4] rounded-3xl border border-[#10B981]/20 p-5 mb-2">
+          <p className="text-sm text-[#008A66] font-bold flex items-center gap-2">
+            <CheckCircle2 size={16}/>{isAr?'هذه الاجتماعات معتمدة وتنتظر تحديد موعد من الإدارة':'These meetings are approved and awaiting admin scheduling'}
+          </p>
+        </div>
+      )}
+
+      {/* Main table (all tabs except scheduled cards above) */}
+      {(
+        <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+          {loading ? <div className="p-8 text-center text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div> : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    {[content.dashboard.meetings.table.otherParty, isAr?'الإدراج':'Listing',
+                      content.dashboard.meetings.table.meetingDate, content.dashboard.meetings.table.status,
+                      content.dashboard.meetings.table.actions].map(h => (
+                      <th key={h} className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {filtered.map((m: any) => (
+                    <tr key={m.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-[#E6F3EF] text-[#10B981] flex items-center justify-center font-bold text-xs">
+                            {otherParty(m).charAt(0).toUpperCase()}
+                          </div>
+                          <span className="text-sm font-bold text-[#111827]">{otherParty(m)}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4"><span className="text-sm text-gray-600">{m.business?.businessTitle}</span></td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-bold text-[#111827]">
+                          {fmtDate(m.adminAvailabilityDate ?? m.receiverAvailabilityDate ?? m.requestedDate)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap"><DashBadge color={statusColor(m.status)}>{statusLabel(m.status)}</DashBadge></td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button onClick={() => { setSelectedId(m.id); setShowDatePicker(false); setAvailDate(''); }}
+                          className="text-[#10B981] hover:text-[#008A66] font-bold text-sm flex items-center gap-1">
+                          {content.dashboard.meetings.actions.viewDetails}
+                          {direction==='rtl'?<ChevronLeft size={16}/>:<ChevronRight size={16}/>}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {filtered.length===0 && <div className="p-8 text-center text-gray-400">{content.dashboard.meetings.empty}</div>}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Detail Modal */}
+      <Modal isOpen={!!selected} onClose={() => { setSelectedId(null); setShowDatePicker(false); setAvailDate(''); }}
+        title={content.dashboard.meetings.actions.viewDetails}>
+        {selected && (
+          <div className="space-y-5">
+            {/* Header */}
+            <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-[#111827] text-white flex items-center justify-center font-bold text-xl">
+                {otherParty(selected).charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <h4 className="font-bold text-[#111827] text-lg">{otherParty(selected)}</h4>
+                <p className="text-gray-500 text-sm">{selected.business?.businessTitle}</p>
+              </div>
+            </div>
+
+            {/* Details */}
+            <div className="space-y-3">
+              <div className="flex justify-between py-2.5 border-b border-gray-50">
+                <span className="text-gray-500">{content.dashboard.meetings.table.status}</span>
+                <DashBadge color={statusColor(selected.status)}>{statusLabel(selected.status)}</DashBadge>
+              </div>
+              {selected.requestedDate && (
+                <div className="flex justify-between py-2.5 border-b border-gray-50">
+                  <span className="text-gray-500">{isAr?'التاريخ المطلوب':'Requested Date'}</span>
+                  <span className="font-bold text-[#111827]">{fmtDate(selected.requestedDate)}</span>
+                </div>
+              )}
+              {selected.receiverAvailabilityDate && (
+                <div className="flex justify-between py-2.5 border-b border-gray-50">
+                  <span className="text-gray-500">{isAr?'تاريخ التوفر':'Availability Date'}</span>
+                  <span className="font-bold text-[#111827]">{fmtDate(selected.receiverAvailabilityDate)}</span>
+                </div>
+              )}
+              {selected.adminAvailabilityDate && (
+                <div className="flex justify-between py-2.5 border-b border-gray-50">
+                  <span className="text-gray-500">{isAr?'تاريخ الاجتماع':'Meeting Date'}</span>
+                  <span className="font-bold text-[#111827]">{fmtDate(selected.adminAvailabilityDate)}</span>
+                </div>
+              )}
+              {selected.meetingLink && (
+                <div className="flex justify-between py-2.5 border-b border-gray-50">
+                  <span className="text-gray-500">{content.dashboard.meetings.table.meetingLink}</span>
+                  <a href={selected.meetingLink} target="_blank" rel="noopener noreferrer"
+                    className="text-[#10B981] hover:underline flex items-center gap-1 text-sm font-bold">
+                    <Video size={16}/>Zoom Link
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* M-05: Seller sets availability date for received PENDING meetings */}
+            {/* BUG-FIX: tab==='received' was always false — tab is 'all'|'upcoming'|'past'.
+                Check requestedBy.id instead: if user is NOT the one who sent, they are the receiver */}
+            {selected.status==='PENDING' && userId && String(selected.requestedBy?.id) !== String(userId) && (
+              <div className="space-y-3 pt-1">
+                {!showDatePicker ? (
+                  <button onClick={() => setShowDatePicker(true)}
+                    className="w-full py-2.5 rounded-xl border border-[#10B981] text-[#10B981] font-bold text-sm hover:bg-[#F0FDF4] transition-colors flex items-center justify-center gap-2">
+                    <CalendarDays size={16}/>{isAr?'تحديد تاريخ توفرك':'Set Your Availability'}
+                  </button>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm font-bold text-gray-700">{isAr?'اختر تاريخ توفرك':'Select your availability date'}</p>
+                    <input type="datetime-local" value={availDate} onChange={e => setAvailDate(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-bold text-[#111827] focus:outline-none focus:ring-2 focus:ring-[#10B981]"/>
+                    <div className="flex gap-2">
+                      <button onClick={() => handleSetAvailability(selected.id)} disabled={updatingM}
+                        className="flex-1 bg-[#10B981] text-white py-2.5 rounded-xl font-bold text-sm hover:bg-[#008A66] disabled:opacity-50 transition-colors">
+                        {updatingM?(isAr?'جارٍ...':'Saving...'):(isAr?'تأكيد':'Confirm')}
+                      </button>
+                      <button onClick={() => { setShowDatePicker(false); setAvailDate(''); }}
+                        className="flex-1 bg-gray-100 text-gray-600 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors">
+                        {isAr?'إلغاء':'Cancel'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <div className="flex gap-3">
+                  <button onClick={() => handleApprove(selected.id)} disabled={approving||rejecting}
+                    className="flex-1 bg-[#008A66] text-white py-2.5 rounded-xl font-bold hover:bg-[#007053] transition-colors disabled:opacity-50">
+                    {approving?(isAr?'جارٍ...':'...'):(isAr?'موافقة':'Approve')}
+                  </button>
+                  <button onClick={() => handleReject(selected.id)} disabled={approving||rejecting}
+                    className="flex-1 bg-red-50 text-red-600 py-2.5 rounded-xl font-bold hover:bg-red-100 transition-colors disabled:opacity-50">
+                    {rejecting?(isAr?'جارٍ...':'...'):(isAr?'رفض':'Reject')}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
+    </div>
+  );
+};
+
+const AlertsView = () => {
+  const { content, language, userId } = useApp();
+  const isAr = language === 'ar';
+
+  // P6-FIX R-04: real notifications
+  const { data, loading, refetch } = useQuery(GET_NOTIFICATIONS, {
+    variables: { userId, limit:50, offSet:0 },
+    skip: !userId,
+    errorPolicy: 'all',
+  });
+  const [markAllRead, { loading: marking }] = useMutation(MARK_NOTIFICATION_AS_READ);
+
+  const notifications: any[] = data?.getNotifications?.notifications??[];
+
+  const handleMarkAllRead = async () => {
+    if (!userId) return;
+    try {
+      await markAllRead({ variables: { userId } });
+      toast.success(isAr?'تم تحديد جميع الإشعارات كمقروءة':'All notifications marked as read');
+      refetch();
+    } catch { toast.error(isAr?'حدث خطأ':'Something went wrong'); }
+  };
+
+  const iconFor = (name: string) => {
+    const n = name?.toLowerCase()??'';
+    if (n.includes('offer')||n.includes('عرض'))    return { Icon:DollarSign, bg:'bg-orange-50 text-orange-600', bar:'bg-orange-500' };
+    if (n.includes('payment')||n.includes('دفع'))  return { Icon:Wallet,     bg:'bg-green-50 text-green-600',  bar:'bg-green-500'  };
+    return                                                 { Icon:FileText,   bg:'bg-[#E6F3EF] text-[#10B981]',    bar:'bg-[#10B981]'   };
+  };
+  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB'):'';
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <SectionHeader title={content.dashboard.alerts.title} action={
+        <button onClick={handleMarkAllRead} disabled={marking||!userId} className="text-sm font-bold text-[#10B981] hover:underline disabled:opacity-50">
+          {content.dashboard.alerts.markAllRead}
+        </button>
+      }/>
+      {loading ? (
+        <div className="text-center p-8 text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div>
+      ) : notifications.length===0 ? (
+        <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center text-gray-400">{isAr?'لا توجد إشعارات':'No notifications yet'}</div>
+      ) : (
+        <div className="space-y-4">
+          {notifications.map((n: any) => {
+            const { Icon, bg, bar } = iconFor(n.name);
+            return (
+              <div key={n.id} className={cn("bg-white p-4 rounded-2xl border shadow-sm hover:shadow-md transition-all flex gap-4 items-start relative overflow-hidden", n.isRead?'border-gray-100':'border-[#10B981]/30')}>
+                <div className={cn("w-2 h-full absolute right-0 top-0 bottom-0", bar)}/>
+                <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shrink-0", bg)}><Icon size={20}/></div>
+                <div className="flex-1">
+                  <h4 className="font-bold text-[#111827] text-lg">{n.name}</h4>
+                  <p className="text-gray-500 text-sm mt-1">{n.message}</p>
+                  <p className="text-xs text-gray-400 mt-2">{fmtDate(n.createdAt)}</p>
+                </div>
+                {!n.isRead && <div className="w-2.5 h-2.5 rounded-full bg-[#10B981] shrink-0 mt-1"/>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+const SettingsView = () => {
+  const { content, language, userId } = useApp();
+  const isAr = language === 'ar';
+  const [activeTab, setActiveTab] = useState('profile');
+  const [profileForm, setProfileForm] = useState({ name:'', email:'', phone:'', city:'', region:'' });
+  const [pwdForm, setPwdForm] = useState({ current:'', new:'', confirm:'' });
+  const [bankForm, setBankForm] = useState({ bankName:'', accountNumber:'', accountTitle:'', iban:'' });
+
+  // P6-FIX R-04: real user + banks data
+  const { data: userData, loading: userLoading } = useQuery(GET_USER_DETAILS, {
+    variables: { getUserDetailsId: userId }, skip: !userId, errorPolicy: 'all',
+  });
+  const { data: banksData, loading: banksLoading, refetch: refetchBanks } = useQuery(GET_USER_BANKS, { errorPolicy: 'all' });
+  const [updateUser,  { loading: savingProfile  }] = useMutation(UPDATE_USER,     { errorPolicy: 'all' });
+  const [changePwd,   { loading: savingPassword }] = useMutation(CHANGE_PASSWORD, { errorPolicy: 'all' });
+  const [addBank,     { loading: addingBank     }] = useMutation(ADD_BANK,         { errorPolicy: 'all' });
+  const [deleteBank                               ] = useMutation(DELETE_BANK,      { errorPolicy: 'all' });
+
+  React.useEffect(() => {
+    const u = userData?.getUserDetails;
+    if (u) setProfileForm({ name:u.name??'', email:u.email??'', phone:u.phone??'', city:u.city??'', region:u.district??'' });
+  }, [userData]);
+
+  const handleSaveProfile = async () => {
+    const { errors } = await updateUser({ variables: { input: { name:profileForm.name, email:profileForm.email, phone:profileForm.phone, city:profileForm.city, district:profileForm.region } } });
+    if (errors?.length) { toast.error(isAr?'حدث خطأ أثناء الحفظ':'Error saving'); return; }
+    toast.success(isAr?'تم حفظ التغييرات بنجاح':'Changes saved');
+  };
+
+  const handleChangePassword = async () => {
+    if (!pwdForm.current||!pwdForm.new) { toast.error(isAr?'يرجى تعبئة جميع الحقول':'Fill all fields'); return; }
+    if (pwdForm.new!==pwdForm.confirm) { toast.error(isAr?'كلمتا المرور غير متطابقتين':'Passwords do not match'); return; }
+    const { errors } = await changePwd({ variables: { adminChangePasswordId: userId, oldPassword: pwdForm.current, newPassword: pwdForm.new } });
+    if (errors?.length) { toast.error(isAr?'كلمة المرور الحالية غير صحيحة':'Current password incorrect'); return; }
+    toast.success(isAr?'تم تغيير كلمة المرور':'Password updated');
+    setPwdForm({ current:'', new:'', confirm:'' });
+  };
+
+  const handleAddBank = async () => {
+    if (!bankForm.bankName||!bankForm.accountNumber||!bankForm.accountTitle) { toast.error(isAr?'يرجى تعبئة الحقول المطلوبة':'Fill required fields'); return; }
+    const { errors } = await addBank({ variables: { input: { bankName:bankForm.bankName, accountNumber:bankForm.accountNumber, accountTitle:bankForm.accountTitle, iban:bankForm.iban } } });
+    if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
+    toast.success(isAr?'تم إضافة الحساب المصرفي':'Bank account added');
+    setBankForm({ bankName:'', accountNumber:'', accountTitle:'', iban:'' });
+    refetchBanks();
+  };
+
+  const handleDeleteBank = async (id: string) => {
+    const { errors } = await deleteBank({ variables: { deleteBankId: id } });
+    if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
+    toast.success(isAr?'تم حذف الحساب':'Account removed');
+    refetchBanks();
+  };
+
+  const tabs = [
+    { id:'profile',  label:content.dashboard.settings.tabs.profile,  icon:User },
+    { id:'wallet',   label:content.dashboard.settings.tabs.wallet,    icon:CreditCard },
+    { id:'password', label:content.dashboard.settings.tabs.password,  icon:Lock },
+  ];
+
+  return (
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <SectionHeader title={content.dashboard.settings.title}/>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <div className="md:col-span-1">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-2">
+            {tabs.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className={cn("w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all mb-1", activeTab===tab.id?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>
+                <tab.icon size={18}/>{tab.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="md:col-span-3">
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-8">
+            {activeTab==='profile' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
+                <h3 className="text-xl font-bold text-[#111827] mb-6 border-b border-gray-100 pb-4">{content.dashboard.settings.sections.profile}</h3>
+                {userLoading ? <div className="text-gray-400 text-center py-8">{isAr?'جارٍ التحميل...':'Loading...'}</div> : (
+                  <>
+                    <div className="flex items-center gap-6 mb-8">
+                      <div className="w-24 h-24 rounded-full bg-[#111827] text-white flex items-center justify-center text-3xl font-bold">
+                        {profileForm.name?.charAt(0)?.toUpperCase()||'U'}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {[{key:'name',label:content.dashboard.settings.profile.name,type:'text'},{key:'email',label:content.dashboard.settings.profile.email,type:'email'},{key:'phone',label:content.dashboard.settings.profile.phone,type:'tel'},{key:'city',label:content.dashboard.settings.profile.city,type:'text'},{key:'region',label:content.dashboard.settings.profile.region,type:'text'}].map(f=>(
+                        <div key={f.key} className="space-y-2">
+                          <label className="text-sm font-bold text-gray-700">{f.label}</label>
+                          <input type={f.type} value={(profileForm as any)[f.key]} onChange={e=>setProfileForm(p=>({...p,[f.key]:e.target.value}))} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]/20 focus:border-[#10B981]"/>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="pt-6 border-t border-gray-100 flex justify-end">
+                      <button onClick={handleSaveProfile} disabled={savingProfile} className="bg-[#10B981] text-white px-8 py-3 rounded-xl font-bold hover:bg-[#008A66] disabled:opacity-60">
+                        {savingProfile?(isAr?'جارٍ الحفظ...':'Saving...'):content.dashboard.settings.profile.saveChanges}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            {activeTab==='wallet' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
+                <h3 className="text-xl font-bold text-[#111827] mb-6 border-b border-gray-100 pb-4">{content.dashboard.settings.wallet.title}</h3>
+                {banksLoading ? <div className="text-gray-400 text-center py-8">{isAr?'جارٍ التحميل...':'Loading...'}</div> : (
+                  <div className="space-y-4">
+                    {(banksData?.getUserBanks??[]).map((b:any) => (
+                      <div key={b.id} className="p-4 rounded-xl border border-gray-200 flex justify-between items-center">
+                        <div><p className="font-bold text-[#111827]">{b.bankName}</p><p className="text-sm text-gray-500 mt-1">{b.iban||b.accountNumber}</p></div>
+                        <button onClick={() => handleDeleteBank(b.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg"><Trash2 size={18}/></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div className="border-t border-gray-100 pt-6">
+                  <h4 className="text-base font-bold text-[#111827] mb-4 flex items-center gap-2"><Plus size={18} className="text-[#10B981]"/>{content.dashboard.settings.wallet.addAccount}</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {[{key:'bankName',label:isAr?'اسم البنك':'Bank Name',req:true},{key:'accountTitle',label:isAr?'اسم الحساب':'Account Title',req:true},{key:'accountNumber',label:isAr?'رقم الحساب':'Account Number',req:true},{key:'iban',label:'IBAN',req:false}].map(f=>(
+                      <div key={f.key} className="space-y-2">
+                        <label className="text-sm font-bold text-gray-700">{f.label}{f.req&&<span className="text-red-500"> *</span>}</label>
+                        <input value={(bankForm as any)[f.key]} onChange={e=>setBankForm(b=>({...b,[f.key]:e.target.value}))} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]/20 focus:border-[#10B981]"/>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-end mt-4">
+                    <button onClick={handleAddBank} disabled={addingBank} className="bg-[#10B981] text-white px-6 py-3 rounded-xl font-bold hover:bg-[#008A66] disabled:opacity-60">
+                      {addingBank?(isAr?'جارٍ الإضافة...':'Adding...'):(isAr?'إضافة الحساب':'Add Account')}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+            {activeTab==='password' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
+                <h3 className="text-xl font-bold text-[#111827] mb-6 border-b border-gray-100 pb-4">{content.dashboard.settings.password.updatePassword}</h3>
+                <div className="space-y-4 max-w-md">
+                  {[{key:'current',label:content.dashboard.settings.password.currentPassword},{key:'new',label:content.dashboard.settings.password.newPassword},{key:'confirm',label:content.dashboard.settings.password.confirmPassword}].map(f=>(
+                    <div key={f.key} className="space-y-2">
+                      <label className="text-sm font-bold text-gray-700">{f.label}</label>
+                      <input type="password" value={(pwdForm as any)[f.key]} onChange={e=>setPwdForm(p=>({...p,[f.key]:e.target.value}))} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#10B981]/20 focus:border-[#10B981]"/>
+                    </div>
+                  ))}
+                  <div className="pt-4">
+                    <button onClick={handleChangePassword} disabled={savingPassword} className="bg-[#111827] text-white px-8 py-3 rounded-xl font-bold hover:bg-black w-full disabled:opacity-60">
+                      {savingPassword?(isAr?'جارٍ التحديث...':'Updating...'):content.dashboard.settings.password.updatePassword}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 
 export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
@@ -235,8 +1498,9 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
     skip: !userId,
     errorPolicy: 'all',
   });
+  const isAr = language === 'ar';
   const navUser = navUserData?.getUserDetails;
-  const displayName = navUser?.name || (language === 'ar' ? 'المستخدم' : 'User');
+  const displayName = navUser?.name || (isAr ? 'المستخدم' : 'User');
   const avatarLetter = displayName.charAt(0).toUpperCase();
 
   const tabs = [
@@ -251,6 +1515,18 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
   ];
 
   const handleAddListing = () => {
+    if (!isVerified) {
+      toast.error(
+        isAr ? 'يجب التحقق من هويتك قبل إضافة إدراج' : 'You must verify your identity before listing a business',
+        {
+          action: {
+            label: isAr ? 'تحقق الآن' : 'Verify Now',
+            onClick: () => { setActiveTab('settings'); window.scrollTo(0, 0); },
+          },
+        }
+      );
+      return;
+    }
     setViewMode('create-listing');
     window.scrollTo(0, 0);
   };
@@ -298,7 +1574,32 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
       {/* BUG-20 FIX: useLightLogo was not passed — dark background needs dark logo (false = dark) */}
       <Navbar onNavigate={onNavigate} useLightLogo={false} />
       
-      <main className="flex-grow pt-24 pb-16">
+      {/* F-08: Mobile bottom navigation bar — visible on screens < lg only */}
+      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
+        <div className="flex items-center justify-around px-2 py-2">
+          {[
+            { id: 'dashboard', icon: LayoutDashboard, label: isAr ? 'الرئيسية' : 'Home' },
+            { id: 'offers',    icon: FileText,        label: isAr ? 'العروض'   : 'Offers' },
+            { id: 'deals',     icon: Handshake,       label: isAr ? 'الصفقات'  : 'Deals' },
+            { id: 'meetings',  icon: Video,           label: isAr ? 'الاجتماعات' : 'Meetings' },
+            { id: 'settings',  icon: Settings,        label: isAr ? 'الإعدادات' : 'Settings' },
+          ].map(({ id, icon: Icon, label }) => (
+            <button
+              key={id}
+              onClick={() => { setActiveTab(id as TabType); window.scrollTo(0, 0); }}
+              className={cn(
+                'flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all min-w-[56px]',
+                activeTab === id ? 'text-[#008A66]' : 'text-gray-400 hover:text-gray-600'
+              )}
+            >
+              <Icon size={22} className={activeTab === id ? 'stroke-[2.5]' : 'stroke-2'} />
+              <span className="text-[10px] font-bold leading-tight">{label}</span>
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <main className="flex-grow pt-24 pb-32 lg:pb-16">
         <div className="container mx-auto px-4 max-w-7xl">
           {/* Header Profile Section */}
           <div className="bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-gray-100 mb-8">
@@ -352,13 +1653,13 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
                       onClick={() => setActiveTab(tab.id as TabType)}
                       className={cn(
                         "flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap",
-                        activeTab === tab.id 
-                          ? "bg-[#111827] text-white shadow-md" 
+                        activeTab === tab.id
+                          ? "bg-[#111827] text-white shadow-md"
                           : "bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-gray-200"
                       )}
                     >
-                      <tab.icon size={18} />
-                      {tab.label}
+                      <tab.icon size={18} className="shrink-0" />
+                      <span>{tab.label}</span>
                     </button>
                   ))}
                 </div>

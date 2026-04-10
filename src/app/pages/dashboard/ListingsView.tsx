@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { cn } from '../../../lib/utils';
 import { useApp } from '../../../context/AppContext';
 import { toast } from 'sonner';
-import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, AlertCircle, Eye, Heart, MessageCircle } from 'lucide-react';
 import { Card } from '../../components/Card';
 import { Badge as UiBadge } from '../../components/Badge';
 import { useQuery, useMutation, useApolloClient } from '@apollo/client';
@@ -14,10 +14,12 @@ export const ListingsView = ({
   isFavorites = false,
   onAddListing,
   onEditListing,
+  onNavigate,
 }: {
   isFavorites?: boolean;
   onAddListing?: () => void;
   onEditListing?: (id: number) => void;
+  onNavigate?: (page: string, id?: number) => void;
 }) => {
   const { content, language, direction, userId } = useApp();
   const apolloClient = useApolloClient();
@@ -26,9 +28,10 @@ export const ListingsView = ({
   const [filter, setFilter] = useState<'all' | 'sold'>('all');
 
   // Load active + sold listings separately (backend splits them)
-  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_SELLER_BUSINESSES,      { skip: isFavorites, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
-  const { data: soldData,   loading: soldLoading,   refetch: refetchSold   } = useQuery(GET_SELLER_SOLD_BUSINESSES, { skip: isFavorites, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
-  const { data: favData,    loading: favLoading,    refetch: refetchFav    } = useQuery(GET_FAVORITE_BUSINESSES,    { skip: !isFavorites, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all' });
+  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller, error: sellerError } = useQuery(GET_SELLER_BUSINESSES,      { skip: isFavorites, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: soldData,   loading: soldLoading,   refetch: refetchSold,   error: soldError   } = useQuery(GET_SELLER_SOLD_BUSINESSES, { skip: isFavorites, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: favData,    loading: favLoading,    refetch: refetchFav,    error: favError    } = useQuery(GET_FAVORITE_BUSINESSES,    { skip: !isFavorites, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all' });
+  const queryError = isFavorites ? favError : (sellerError || soldError);
 
   // Force fresh fetch: evict cached listings and refetch when userId is available
   useEffect(() => {
@@ -89,6 +92,14 @@ export const ListingsView = ({
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* F-11: Error banner */}
+      {queryError && (
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm font-medium">
+          <AlertCircle size={18} className="shrink-0" />
+          <span>{isAr ? 'تعذر تحميل القوائم، يرجى المحاولة مجدداً' : 'Could not load listings. Please try again.'}</span>
+          <button onClick={() => isFavorites ? refetchFav() : refetchSeller()} className="mr-auto ml-2 text-xs font-bold underline">{isAr ? 'إعادة المحاولة' : 'Retry'}</button>
+        </div>
+      )}
       <SectionHeader
         title={isFavorites ? content.dashboard.tabs.favorites : content.dashboard.listings.title}
         action={!isFavorites && (
@@ -151,18 +162,34 @@ export const ListingsView = ({
                 }}
                 labels={labels}
                 footer={
-                  <div className="flex gap-2 w-full">
-                    {!isFavorites && b.businessStatus !== 'SOLD' && (
-                      <button onClick={e => { e.stopPropagation(); onEditListing?.(Number(b.id)); }} className="flex-1 bg-[#F3F4F6] text-[#111827] py-2 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors">
-                        {content.dashboard.listings.actions.edit}
-                      </button>
+                  <div className="flex flex-col gap-2 w-full">
+                    {/* F-05: listing analytics */}
+                    {!isFavorites && (b.viewCount != null || b.saveCount != null || b.offerCount != null) && (
+                      <div className="flex items-center justify-around text-xs text-gray-500 font-medium border-t border-gray-100 pt-2 pb-1">
+                        {b.viewCount != null && (
+                          <span className="flex items-center gap-1"><Eye size={12} className="text-gray-400" />{b.viewCount}</span>
+                        )}
+                        {b.saveCount != null && (
+                          <span className="flex items-center gap-1"><Heart size={12} className="text-gray-400" />{b.saveCount}</span>
+                        )}
+                        {b.offerCount != null && (
+                          <span className="flex items-center gap-1"><MessageCircle size={12} className="text-gray-400" />{b.offerCount} {isAr ? 'عرض' : 'offers'}</span>
+                        )}
+                      </div>
                     )}
-                    <button
-                      onClick={e => { e.stopPropagation(); onNavigate?.('details', Number(b.id)); }}
-                      className="flex-1 bg-[#008A66] text-white py-2 rounded-lg text-xs font-bold hover:bg-[#007053] transition-colors flex items-center justify-center gap-1">
-                      {content.dashboard.listings.actions.view}
-                      {direction === 'rtl' ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
-                    </button>
+                    <div className="flex gap-2 w-full">
+                      {!isFavorites && b.businessStatus !== 'SOLD' && (
+                        <button onClick={e => { e.stopPropagation(); onEditListing?.(Number(b.id)); }} className="flex-1 bg-[#F3F4F6] text-[#111827] py-2 rounded-lg text-xs font-bold hover:bg-gray-200 transition-colors">
+                          {content.dashboard.listings.actions.edit}
+                        </button>
+                      )}
+                      <button
+                        onClick={e => { e.stopPropagation(); onNavigate?.('details', Number(b.id)); }}
+                        className="flex-1 bg-[#008A66] text-white py-2 rounded-lg text-xs font-bold hover:bg-[#007053] transition-colors flex items-center justify-center gap-1">
+                        {content.dashboard.listings.actions.view}
+                        {direction === 'rtl' ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+                      </button>
+                    </div>
                   </div>
                 }
               />

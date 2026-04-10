@@ -15,12 +15,11 @@ import { Card } from '../components/Card';
 import { useApp } from '../../context/AppContext';
 // P5-FIX: use real hooks instead of mock data
 import { useBusinessDetail } from '../../hooks/useBusinessDetail';
-import { useRandomBusinesses } from '../../hooks/useRandomBusinesses';
 // Offer/meeting mutations wired through modals — keep Apollo for offer submission
 import { useMutation, useQuery } from '@apollo/client';
 import { CREATE_OFFER, REQUEST_MEETING, CREATE_ENDA, VIEW_BUSINESS } from '../../graphql/mutations/business';
 import { GET_USER_DETAILS } from '../../graphql/queries/dashboard';
-import { GET_SIMILAR_BUSINESS_PROFIT_GRAPH } from '../../graphql/queries/business';
+import { GET_SIMILAR_BUSINESS_PROFIT_GRAPH, GET_SUGGESTED_LISTINGS } from '../../graphql/queries/business';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,8 +47,13 @@ export const BusinessDetails = ({
   // P5-FIX R-01: real data via useBusinessDetail hook
   const { business, loading, error, toggleSave } = useBusinessDetail(businessId);
 
-  // P5-FIX R-02: similar businesses via useRandomBusinesses with current business id
-  const { businesses: similarBusinesses, loading: similarLoading } = useRandomBusinesses(userId);
+  // F-SL: Replace random businesses with getSuggestedListings — real category/city/price matching
+  const { data: suggestedData, loading: similarLoading } = useQuery(GET_SUGGESTED_LISTINGS, {
+    variables: { businessId, limit: 6 },
+    skip: !businessId,
+    errorPolicy: 'all',
+  });
+  const similarBusinesses: any[] = suggestedData?.getSuggestedListings ?? [];
 
   const [modalOpen, setModalOpen] = useState<'offer' | 'meeting' | 'enda' | null>(null);
   const [isSaved, setIsSaved] = useState(false);
