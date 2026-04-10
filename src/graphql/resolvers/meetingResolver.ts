@@ -562,6 +562,32 @@ const meetingResolver = {
     ) => {
       const ctxUser = await authenticate(context);
 
+      // ── Meeting time window validation ──────────────────────────────────────
+      // Saudi time = UTC+3
+      // Sun–Fri (day 0–5): 4:30 PM – 11:00 PM
+      // Sat   (day 6):     2:00 PM – 11:00 PM
+      if (input.requestedDate) {
+        const meetingUtc = new Date(input.requestedDate);
+        // Shift to Saudi local time (UTC+3) for day-of-week and clock check
+        const saudiMs   = meetingUtc.getTime() + 3 * 60 * 60 * 1000;
+        const saudiLocal = new Date(saudiMs);
+        const saudiDay   = saudiLocal.getUTCDay();  // 0=Sun … 6=Sat
+        const saudiH     = saudiLocal.getUTCHours();
+        const saudiM     = saudiLocal.getUTCMinutes();
+        const totalMin   = saudiH * 60 + saudiM;
+
+        const isSat    = saudiDay === 6;
+        const minAllow = isSat ? 14 * 60 : 16 * 60 + 30; // 2:00 PM or 4:30 PM
+        const maxAllow = 23 * 60;                          // 11:00 PM
+
+        if (totalMin < minAllow || totalMin > maxAllow) {
+          throw new Error(
+            "MEETING_TIME_INVALID: Selected time is outside the allowed meeting hours. | الوقت المحدد خارج نطاق أوقات الاجتماعات المسموح بها."
+          );
+        }
+      }
+      // ────────────────────────────────────────────────────────────────────────
+
       // find business
       const business = await businessRepo.findOne({
         where: { id: input.businessId },
