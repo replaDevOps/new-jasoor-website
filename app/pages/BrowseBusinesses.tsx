@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+// motion/AnimatePresence removed — filter panel uses plain CSS transitions
 import { ChevronDown, SlidersHorizontal, ArrowLeft, ArrowRight, X, Check } from 'lucide-react';
 import { Card } from '../components/Card';
 import { cn } from '../../lib/utils';
@@ -8,11 +8,13 @@ import { useApp } from '../../context/AppContext';
 import { useListings } from '../../hooks/useListings';
 import type { BusinessListItem } from '../../types/api';
 // R-05 FIX: real categories from API instead of local string IDs
-import { useQuery } from '@apollo/client';
+import { useQuery, useMutation } from '@apollo/client';
+import { CREATE_SAVE_BUSINESS } from '../../../graphql/mutations/dashboard';
 import { GET_CATEGORIES } from '../../graphql/queries/business';
 
 export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
-  const { direction, language, content } = useApp();
+  const [saveBusiness] = useMutation(CREATE_SAVE_BUSINESS, { errorPolicy: 'all' });
+  const { direction, language, content , isLoggedIn } = useApp();
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isDesktopFilterOpen, setIsDesktopFilterOpen] = useState(false);
 
@@ -168,43 +170,25 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
 
   const FilterContent = () => (
     <div className="space-y-6">
-      {/* Region Filter */}
+      {/* City / Region Filter — single select, Arabic values match what Saudi sellers enter */}
       <div>
         <h4 className="text-sm font-bold text-gray-900 mb-3">{t.region}</h4>
         <div className="relative">
-            <select
-                value={selectedRegion}
-                onChange={(e) => setSelectedRegion(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#008A66] transition-colors appearance-none text-gray-700"
-              >
-                <option value="all">{t.all}</option>
-                <option value="riyadh">{t.riyadh}</option>
-                <option value="jeddah">{t.jeddah}</option>
-                <option value="khobar">{t.khobar}</option>
-                <option value="dammam">{t.dammam}</option>
-                <option value="makkah">{t.makkah}</option>
-                <option value="qassim">{t.qassim}</option>
-              </select>
-            <ChevronDown className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none", direction === 'rtl' ? "left-3" : "right-3")} />
-        </div>
-      </div>
-
-      {/* City Filter */}
-      <div>
-        <h4 className="text-sm font-bold text-gray-900 mb-3">{t.city}</h4>
-        <div className="relative">
-            <select
-                value={selectedRegion}
-                onChange={(e) => setSelectedRegion(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#008A66] transition-colors appearance-none text-gray-700"
-              >
-                <option value="all">{t.all}</option>
-                <option value="riyadh">{t.riyadh}</option>
-                <option value="jeddah">{t.jeddah}</option>
-                <option value="khobar">{t.khobar}</option>
-                <option value="qassim">{t.qassim}</option>
-              </select>
-            <ChevronDown className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none", direction === 'rtl' ? "left-3" : "right-3")} />
+          <select
+            value={selectedRegion}
+            onChange={(e) => setSelectedRegion(e.target.value)}
+            className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#008A66] transition-colors appearance-none text-gray-700"
+          >
+            <option value="all">{t.all}</option>
+            <option value="الرياض">{t.riyadh}</option>
+            <option value="جدة">{t.jeddah}</option>
+            <option value="مكة المكرمة">{t.makkah}</option>
+            <option value="الدمام">{t.dammam}</option>
+            <option value="الخبر">{t.khobar}</option>
+            <option value="القصيم">{t.qassim}</option>
+            <option value="الشرقية">{t.eastern}</option>
+          </select>
+          <ChevronDown className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none", direction === 'rtl' ? "left-3" : "right-3")} />
         </div>
       </div>
 
@@ -310,70 +294,53 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
         <div className="flex flex-col lg:flex-row gap-8 items-start">
           
           {/* Desktop Sidebar Filters */}
-          <AnimatePresence>
-            {isDesktopFilterOpen && (
-              <motion.div 
-                initial={{ opacity: 0, width: 0 }}
-                animate={{ opacity: 1, width: '25%' }}
-                exit={{ opacity: 0, width: 0 }}
-                transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-                className="hidden lg:block w-1/4 flex-shrink-0 overflow-hidden sticky top-24"
-              >
-                <div className="bg-white rounded-[24px] shadow-sm border border-gray-100 min-w-[280px]">
-                  <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-[#008A66] font-bold">
-                      <SlidersHorizontal size={20} />
-                      <span>{t.filterTitle}</span>
-                    </div>
+          {isDesktopFilterOpen && (
+            <div className="hidden lg:block w-72 flex-shrink-0 sticky top-24">
+              <div className="bg-white rounded-[24px] shadow-sm border border-gray-100">
+                <div className="p-5 border-b border-gray-100 flex items-center gap-2 text-[#008A66] font-bold">
+                  <SlidersHorizontal size={18} />
+                  <span>{t.filterTitle}</span>
+                </div>
+                <div className="p-5">
+                  <FilterContent />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Filter Sheet */}
+          {isFilterOpen && (
+            <>
+              {/* Backdrop */}
+              <div
+                onClick={() => setIsFilterOpen(false)}
+                className="fixed inset-0 bg-black/40 z-50 lg:hidden"
+              />
+              {/* Sheet */}
+              <div className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-[28px] lg:hidden max-h-[85vh] overflow-y-auto">
+                <div className="sticky top-0 bg-white rounded-t-[28px] border-b border-gray-100 px-5 pt-3 pb-4">
+                  <div className="flex justify-center mb-3">
+                    <div className="w-8 h-1 rounded-full bg-gray-200" />
                   </div>
-                  <div className="p-5">
-                    <FilterContent />
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-base font-bold text-gray-900">{t.filterTitle}</h3>
+                    <button
+                      onClick={() => setIsFilterOpen(false)}
+                      className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors"
+                    >
+                      <X size={16} />
+                    </button>
                   </div>
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Mobile Filter Modal/Sheet */}
-          <AnimatePresence>
-            {isFilterOpen && (
-              <>
-                 {/* Backdrop */}
-                 <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => setIsFilterOpen(false)}
-                    className="fixed inset-0 bg-black/50 z-50 lg:hidden backdrop-blur-sm"
-                 />
-                 
-                 {/* Sheet */}
-                 <motion.div 
-                    initial={{ y: "100%" }}
-                    animate={{ y: 0 }}
-                    exit={{ y: "100%" }}
-                    transition={{ type: "spring", damping: 25, stiffness: 300 }}
-                    className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-[32px] lg:hidden max-h-[90vh] overflow-y-auto"
-                 >
-                    <div className="flex justify-center pt-3 pb-1">
-                       <div className="w-10 h-1 rounded-full bg-gray-300" />
-                    </div>
-                    <div className="sticky top-0 bg-white z-10 border-b border-gray-100 px-6 py-4 flex items-center justify-between">
-                       <h3 className="text-lg font-bold text-gray-900">{t.filterTitle}</h3>
-                       <button onClick={() => setIsFilterOpen(false)} className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-700 hover:bg-red-50 hover:text-red-500 transition-colors font-bold shadow-sm">
-                          <X size={20} strokeWidth={2.5} />
-                       </button>
-                    </div>
-                    <div className="p-6 pb-16">
-                       <FilterContent />
-                    </div>
-                 </motion.div>
-              </>
-            )}
-          </AnimatePresence>
+                <div className="p-5 pb-12">
+                  <FilterContent />
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Listings Area */}
-          <motion.div layout className="flex-1 w-full">
+          <div className="flex-1 w-full min-w-0">
             
             {/* Controls Bar */}
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
@@ -413,7 +380,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
 
             {/* Grid */}
             <div className={cn(
-              "grid gap-6 transition-all",
+              "grid gap-6 transition-all items-stretch",
               isDesktopFilterOpen ? "grid-cols-1 lg:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
             )}>
               {/* BUG-09 FIX: show loading skeletons while API fetches */}
@@ -453,6 +420,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                   description={listing.description}
                   image={listing.image}
                   number={String(listing.price)}
+                  isSaved={listing.isSaved ?? false}
                   badge={renderBadge(listing.isByTakbeer ? 'taqbeel' : 'acquisition')}
                   labels={{
                      revenue: t.revenueLabel,
@@ -471,9 +439,16 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                     recovery: listing.capitalRecovery ? String(listing.capitalRecovery) + ' ' + t.month : '-',
                     refNumber: listing.reference ? `#${listing.reference}` : ''
                   }}
-                  onClick={() => onNavigate?.('details', Number(listing.id))}
+                  onClick={() => onNavigate?.('details', listing.id)}
+                  onSave={async (e) => {
+                    e.stopPropagation();
+                    if (!isLoggedIn) { onNavigate?.('signin'); return; }
+                    await saveBusiness({ variables: { saveBusinessId: listing.id } });
+                  }}
                   footer={
-                    <button className="bg-[#008A66] text-white text-xs font-bold px-5 py-2.5 rounded-full hover:bg-[#007053] transition-colors shadow-md hover:shadow-lg flex items-center gap-2">
+                    <button
+                      onClick={e => { e.stopPropagation(); onNavigate?.('details', listing.id); }}
+                      className="bg-[#008A66] text-white text-xs font-bold px-5 py-2.5 rounded-full hover:bg-[#007053] transition-colors shadow-md hover:shadow-lg flex items-center gap-2">
                        <span>{t.details}</span>
                        {direction === 'rtl' ? <ArrowLeft size={14} /> : <ArrowLeft size={14} className="rotate-180" />}
                      </button>
@@ -519,7 +494,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
               </div>
             )}
 
-          </motion.div>
+          </div>
         </div>
       </div>
     </div>
