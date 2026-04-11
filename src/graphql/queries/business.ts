@@ -1,4 +1,4 @@
-import { gql } from '@apollo/client';
+import { gql } from "@apollo/client";
 
 export const GET_CATEGORIES = gql`
   query GetAllCategories($limit: Int, $offSet: Int) {
@@ -21,12 +21,20 @@ export const GET_ALL_BUSINESSES = gql`
     $filter: BusinessFilterInput
     $sort: BusinessSortInput
   ) {
-    getAllBusinesses(limit: $limit, offSet: $offSet, filter: $filter, sort: $sort) {
+    getAllBusinesses(
+      limit: $limit
+      offSet: $offSet
+      filter: $filter
+      sort: $sort
+    ) {
       businesses {
         isByTakbeer
         isSaved
         id
-        category { name arabicName }
+        category {
+          name
+          arabicName
+        }
         businessStatus
         businessTitle
         description
@@ -37,7 +45,9 @@ export const GET_ALL_BUSINESSES = gql`
         city
         district
         reference
-        savedBy { id }
+        savedBy {
+          id
+        }
       }
       totalCount
     }
@@ -73,8 +83,13 @@ export const GET_BUSINESS_BY_CATEGORY = gql`
         district
         reference
         multiple
-        savedBy { id }
-        category { name arabicName }
+        savedBy {
+          id
+        }
+        category {
+          name
+          arabicName
+        }
       }
       totalCount
     }
@@ -114,13 +129,49 @@ export const GET_BUSINESS = gql`
         businessStatus
         url
         isStatsVerified
-        category { id name arabicName }
-        savedBy { id }
-        seller { id }
-        assets { id isActive name price purchaseYear quantity }
-        liabilities { id isActive name price purchaseYear quantity }
-        inventoryItems { id isActive name price purchaseYear quantity }
-        documents { id title fileName fileType filePath description }
+        category {
+          id
+          name
+          arabicName
+        }
+        savedBy {
+          id
+        }
+        seller {
+          id
+        }
+        assets {
+          id
+          isActive
+          name
+          price
+          purchaseYear
+          quantity
+        }
+        liabilities {
+          id
+          isActive
+          name
+          price
+          purchaseYear
+          quantity
+        }
+        inventoryItems {
+          id
+          isActive
+          name
+          price
+          purchaseYear
+          quantity
+        }
+        documents {
+          id
+          title
+          fileName
+          fileType
+          filePath
+          description
+        }
       }
     }
   }
@@ -130,7 +181,10 @@ export const GET_RANDOM_BUSINESSES = gql`
   query GetRandomBusinesses($userId: ID) {
     getRandomBusinesses(userId: $userId) {
       id
-      category { name arabicName }
+      category {
+        name
+        arabicName
+      }
       reference
       businessTitle
       description
@@ -248,12 +302,36 @@ export const GET_PRIVACY_POLICY = gql`
 `;
 
 export const GET_BUSINESSES_BY_CITY = gql`
-  query GetAllBusinessesByCity($city: String!, $limit: Int, $offSet: Int, $sort: BusinessSortInput) {
-    getAllBusinessesByCity(city: $city, limit: $limit, offSet: $offSet, sort: $sort) {
+  query GetAllBusinessesByCity(
+    $city: String!
+    $limit: Int
+    $offSet: Int
+    $sort: BusinessSortInput
+  ) {
+    getAllBusinessesByCity(
+      city: $city
+      limit: $limit
+      offSet: $offSet
+      sort: $sort
+    ) {
       businesses {
-        id businessTitle description revenue profit price capitalRecovery isByTakbeer isSaved multiple
-        savedBy { id }
-        category { name arabicName }
+        id
+        businessTitle
+        description
+        revenue
+        profit
+        price
+        capitalRecovery
+        isByTakbeer
+        isSaved
+        multiple
+        savedBy {
+          id
+        }
+        category {
+          name
+          arabicName
+        }
       }
       totalCount
     }
@@ -261,12 +339,36 @@ export const GET_BUSINESSES_BY_CITY = gql`
 `;
 
 export const GET_BUSINESSES_BY_DISTRICT = gql`
-  query GetAllBusinessesByDistrict($district: String!, $limit: Int, $offSet: Int, $sort: BusinessSortInput) {
-    getAllBusinessesByDistrict(district: $district, limit: $limit, offSet: $offSet, sort: $sort) {
+  query GetAllBusinessesByDistrict(
+    $district: String!
+    $limit: Int
+    $offSet: Int
+    $sort: BusinessSortInput
+  ) {
+    getAllBusinessesByDistrict(
+      district: $district
+      limit: $limit
+      offSet: $offSet
+      sort: $sort
+    ) {
       businesses {
-        id businessTitle description revenue profit price capitalRecovery isByTakbeer isSaved multiple
-        savedBy { id }
-        category { name arabicName }
+        id
+        businessTitle
+        description
+        revenue
+        profit
+        price
+        capitalRecovery
+        isByTakbeer
+        isSaved
+        multiple
+        savedBy {
+          id
+        }
+        category {
+          name
+          arabicName
+        }
       }
       totalCount
     }
@@ -274,12 +376,36 @@ export const GET_BUSINESSES_BY_DISTRICT = gql`
 `;
 
 export const GET_BUSINESSES_BY_PROFIT = gql`
-  query GetAllBusinessesByProfit($profit: [Float]!, $limit: Int, $offSet: Int, $sort: BusinessSortInput) {
-    getAllBusinessesByProfit(profit: $profit, limit: $limit, offSet: $offSet, sort: $sort) {
+  query GetAllBusinessesByProfit(
+    $profit: [Float]!
+    $limit: Int
+    $offSet: Int
+    $sort: BusinessSortInput
+  ) {
+    getAllBusinessesByProfit(
+      profit: $profit
+      limit: $limit
+      offSet: $offSet
+      sort: $sort
+    ) {
       businesses {
-        id businessTitle description revenue profit price capitalRecovery isByTakbeer isSaved multiple
-        savedBy { id }
-        category { name arabicName }
+        id
+        businessTitle
+        description
+        revenue
+        profit
+        price
+        capitalRecovery
+        isByTakbeer
+        isSaved
+        multiple
+        savedBy {
+          id
+        }
+        category {
+          name
+          arabicName
+        }
       }
       totalCount
     }
@@ -287,12 +413,36 @@ export const GET_BUSINESSES_BY_PROFIT = gql`
 `;
 
 export const GET_BUSINESSES_BY_REVENUE = gql`
-  query GetAllBusinessesByRevenue($revenue: [Float]!, $limit: Int, $offSet: Int, $sort: BusinessSortInput) {
-    getAllBusinessesByRevenue(revenue: $revenue, limit: $limit, offSet: $offSet, sort: $sort) {
+  query GetAllBusinessesByRevenue(
+    $revenue: [Float]!
+    $limit: Int
+    $offSet: Int
+    $sort: BusinessSortInput
+  ) {
+    getAllBusinessesByRevenue(
+      revenue: $revenue
+      limit: $limit
+      offSet: $offSet
+      sort: $sort
+    ) {
       businesses {
-        id businessTitle description revenue profit price capitalRecovery isByTakbeer isSaved multiple
-        savedBy { id }
-        category { name arabicName }
+        id
+        businessTitle
+        description
+        revenue
+        profit
+        price
+        capitalRecovery
+        isByTakbeer
+        isSaved
+        multiple
+        savedBy {
+          id
+        }
+        category {
+          name
+          arabicName
+        }
       }
       totalCount
     }
@@ -306,6 +456,32 @@ export const GET_SIMILAR_BUSINESS_PROFIT_GRAPH = gql`
       graph {
         profit
         year
+      }
+    }
+  }
+`;
+
+export const GET_SUGGESTED_LISTINGS = gql`
+  query GetSuggestedListings($businessId: ID!, $limit: Int) {
+    getSuggestedListings(businessId: $businessId, limit: $limit) {
+      id
+      businessTitle
+      description
+      price
+      profit
+      revenue
+      isSaved
+      isByTakbeer
+      capitalRecovery
+      city
+      district
+      reference
+      category {
+        name
+        arabicName
+      }
+      savedBy {
+        id
       }
     }
   }
