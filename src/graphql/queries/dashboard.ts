@@ -58,10 +58,13 @@ export const GET_SELLER_BUSINESSES = gql`
       businesses {
         id
         offerCount
+        viewCount
+        saveCount
         businessStatus
         isByTakbeer
         businessTitle
         description
+        image
         revenue
         profit
         price
@@ -92,6 +95,7 @@ export const GET_FAVORITE_BUSINESSES = gql`
         isByTakbeer
         businessTitle
         description
+        image
         revenue
         profit
         isSaved
@@ -365,6 +369,9 @@ export const GET_NOTIFICATIONS = gql`
         isRead
         name
         message
+        entityType
+        entityId
+        actionType
         user {
           id
           name
@@ -513,6 +520,10 @@ export const GET_SELLER_SOLD_BUSINESSES = gql`
         isByTakbeer
         businessTitle
         description
+        image
+        viewCount
+        saveCount
+        offerCount
         revenue
         profit
         price
