@@ -1638,7 +1638,7 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
                       )}
                    </button>
                    
-                   <button onClick={() => { logout(); onNavigate?.('home'); }} aria-label={language === 'ar' ? 'تسجيل الخروج' : 'Logout'} className="w-10 h-10 rounded-full bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 transition-colors">
+                   <button onClick={async () => { await logout(); onNavigate?.('home'); }} aria-label={language === 'ar' ? 'تسجيل الخروج' : 'Logout'} className="w-10 h-10 rounded-full bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 transition-colors">
                       <LogOut size={20} />
                    </button>
                 </div>
