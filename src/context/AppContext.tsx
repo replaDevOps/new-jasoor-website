@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { CONTENT } from '../constants/content';
-import { useMutation } from '@apollo/client';
+import { useMutation, useApolloClient } from '@apollo/client';
 import { LOGOUT } from '../graphql/mutations/auth';
 import { getUserId, clearAuthTokens } from '../utils/tokenManager';
 
@@ -66,9 +66,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   // BUG-7 FIX: call server LOGOUT mutation before clearing local state
+  const apolloClient = useApolloClient();
   const [logoutMutation] = useMutation(LOGOUT, { errorPolicy: 'all' });
   const logout = async () => {
     try { await logoutMutation(); } catch { /* proceed even if server call fails */ }
+    // Clear all cached Apollo queries so stale user data doesn't persist after logout
+    try { await apolloClient.clearStore(); } catch {}
     setIsLoggedIn(false);
     setUserId(null);
     try { localStorage.removeItem('jusoor_logged_in'); } catch {}
