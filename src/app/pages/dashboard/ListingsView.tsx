@@ -140,7 +140,6 @@ export const ListingsView = ({
               <Card
                 key={b.id}
                 variant="listing"
-              direction={direction}
                 title={b.businessTitle}
                 description={b.description}
                 image={b.image}
@@ -150,6 +149,8 @@ export const ListingsView = ({
                 onSave={async (e) => {
                   e.stopPropagation();
                   await saveBusiness({ variables: { saveBusinessId: b.id } });
+                  // Refetch so saved state updates immediately
+                  if (isFavorites) refetchFav(); else { refetchSeller(); refetchSold(); }
                 }}
                 badge={<UiBadge variant={sl.variant} className="backdrop-blur-md bg-white/90 shadow-sm">{sl.text}</UiBadge>}
                 listingData={{
@@ -163,18 +164,22 @@ export const ListingsView = ({
                 labels={labels}
                 footer={
                   <div className="flex flex-col gap-2 w-full">
-                    {/* F-05: listing analytics */}
-                    {!isFavorites && (b.viewCount != null || b.saveCount != null || b.offerCount != null) && (
-                      <div className="flex items-center justify-around text-xs text-gray-500 font-medium border-t border-gray-100 pt-2 pb-1">
-                        {b.viewCount != null && (
-                          <span className="flex items-center gap-1"><Eye size={12} className="text-gray-400" />{b.viewCount}</span>
-                        )}
-                        {b.saveCount != null && (
-                          <span className="flex items-center gap-1"><Heart size={12} className="text-gray-400" />{b.saveCount}</span>
-                        )}
-                        {b.offerCount != null && (
-                          <span className="flex items-center gap-1"><MessageCircle size={12} className="text-gray-400" />{b.offerCount} {isAr ? 'عرض' : 'offers'}</span>
-                        )}
+                    {/* Status row — always visible below card image */}
+                    {!isFavorites && (
+                      <div className="flex items-center justify-between px-1 pb-1">
+                        <UiBadge variant={sl.variant}>{sl.text}</UiBadge>
+                        {/* Listing analytics */}
+                        <div className="flex items-center gap-3 text-xs text-gray-400">
+                          {b.viewCount != null && (
+                            <span className="flex items-center gap-1"><Eye size={11} />{b.viewCount}</span>
+                          )}
+                          {b.saveCount != null && (
+                            <span className="flex items-center gap-1"><Heart size={11} />{b.saveCount}</span>
+                          )}
+                          {b.offerCount != null && (
+                            <span className="flex items-center gap-1"><MessageCircle size={11} />{b.offerCount}</span>
+                          )}
+                        </div>
                       </div>
                     )}
                     <div className="flex gap-2 w-full">

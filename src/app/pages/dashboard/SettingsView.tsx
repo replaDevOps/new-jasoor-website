@@ -23,10 +23,12 @@ export const SettingsView = () => {
   const isAr = language === 'ar';
   const [activeTab, setActiveTab] = useState('profile');
 
-  // P6-FIX R-04: real user data
-  const { data: userData, loading: userLoading } = useQuery(GET_USER_DETAILS, {
+  // Always fetch fresh — admin can change verification status at any time
+  const { data: userData, loading: userLoading, refetch: refetchUser } = useQuery(GET_USER_DETAILS, {
     variables: { getUserDetailsId: userId },
     skip: !userId,
+    fetchPolicy: 'cache-and-network',
+    pollInterval: 60000,   // re-check every 60s so unverified status reflects without hard refresh
     errorPolicy: 'all',
   });
 

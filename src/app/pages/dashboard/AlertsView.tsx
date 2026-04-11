@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { cn } from '../../../lib/utils';
 import { useApp } from '../../../context/AppContext';
 import { toast } from 'sonner';
@@ -28,8 +28,14 @@ export const AlertsView = ({ onNavigate }: AlertsViewProps) => {
   const { data, loading, refetch } = useQuery(GET_NOTIFICATIONS, {
     variables: { userId, limit: 50, offSet: 0 },
     skip: !userId,
+    fetchPolicy: 'cache-and-network',
     errorPolicy: 'all',
   });
+
+  // Refetch when userId first becomes available (delayed cookie read)
+  useEffect(() => {
+    if (userId) refetch();
+  }, [userId]);
 
   const [markAllRead, { loading: marking }] = useMutation(MARK_NOTIFICATION_AS_READ);
 
