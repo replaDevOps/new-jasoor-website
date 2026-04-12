@@ -218,6 +218,11 @@ export const GET_BUYER_INPROGRESS_DEALS = gql`
             name
           }
         }
+        offer {
+          id
+          commission
+          commissionBracketId
+        }
         isDsaBuyer
         isDsaSeller
         isBuyerCompleted
@@ -252,6 +257,11 @@ export const GET_SELLER_INPROGRESS_DEALS = gql`
         business {
           id
           businessTitle
+        }
+        offer {
+          id
+          commission
+          commissionBracketId
         }
         isDsaBuyer
         isDsaSeller
