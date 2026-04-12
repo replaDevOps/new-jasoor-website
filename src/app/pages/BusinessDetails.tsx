@@ -148,40 +148,63 @@ export const BusinessDetails = ({
 
   const handleOfferSubmit = async (amount: string) => {
     if (!business?.id) return;
-    try {
-      await createOffer({
-        variables: {
-          input: {
-            businessId: business.id,
-            price: parseFloat(amount),
-            message: '',
-            status: 'PENDING',
-            isProceedToPay: false,
-          },
+    // C8/C11/C12: use errorPolicy 'all' result, check errors array
+    const result = await createOffer({
+      variables: {
+        input: {
+          businessId: business.id,
+          price: parseFloat(amount),
+          message: '',
+          status: 'PENDING',
+          isProceedToPay: false,
         },
-      });
+      },
+    });
+    const errors = result?.errors ?? [];
+    if (errors.length) {
+      const msg = errors[0]?.message ?? '';
+      if (msg.includes('OFFER_ALREADY_EXISTS')) {
+        // C11/C12: bilingual duplicate offer error
+        toast.error(isAr
+          ? 'لديك عرض نشط بالفعل على هذا الإعلان'
+          : 'You already have an active offer on this listing');
+      } else {
+        toast.error(t.errGeneric);
+      }
+    } else {
       toast.success(t.offerSent);
-    } catch {
-      toast.error(t.errGeneric);
     }
     setModalOpen(null);
   };
 
   const handleMeetingSubmit = async (data: { date: string; startTime: string; endTime: string }) => {
     if (!business?.id) return;
-    try {
-      await requestMeeting({
-        variables: {
-          input: {
-            businessId: business.id,
-            requestedDate: data.date ? `${data.date}T${data.startTime || '00:00'}:00.000Z` : new Date().toISOString(),
-            requestedEndDate: data.date ? `${data.date}T${data.endTime || '00:00'}:00.000Z` : new Date().toISOString(),
-          },
+    // C8: check errors array from errorPolicy 'all' mutation
+    const result = await requestMeeting({
+      variables: {
+        input: {
+          businessId: business.id,
+          requestedDate: data.date ? `${data.date}T${data.startTime || '00:00'}:00.000Z` : new Date().toISOString(),
+          requestedEndDate: data.date ? `${data.date}T${data.endTime || '00:00'}:00.000Z` : new Date().toISOString(),
         },
-      });
+      },
+    });
+    const errors = result?.errors ?? [];
+    if (errors.length) {
+      const msg = errors[0]?.message ?? '';
+      if (msg.includes('MEETING_REQUEST_OUTSIDE_ALLOWED_HOURS') || msg.includes('MEETING_TIME_INVALID')) {
+        toast.error(isAr
+          ? 'الوقت المحدد خارج نطاق أوقات الاجتماعات المسموح بها'
+          : 'Selected time is outside the allowed meeting hours');
+      } else if (msg.includes('NDA_NOT_SIGNED')) {
+        toast.error(isAr
+          ? 'يجب توقيع اتفاقية السرية (NDA) لهذا الإعلان أولاً'
+          : 'You must sign the NDA for this listing before requesting a meeting');
+      } else {
+        toast.error(t.errGeneric);
+      }
+    } else {
       toast.success(t.meetingSent);
-    } catch {
-      toast.error(t.errGeneric);
     }
     setModalOpen(null);
   };

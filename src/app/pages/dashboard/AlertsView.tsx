@@ -9,16 +9,19 @@ import { MARK_NOTIFICATION_AS_READ } from '../../../graphql/mutations/dashboard'
 import { SectionHeader } from './DashboardView';
 
 // Maps actionType string → dashboard view key used by onNavigate
+// C20/C21: map actionType to the dashboard view key used by onNavigate
+// 'details' views require entityId to be passed as second arg
 const ACTION_TO_VIEW: Record<string, string> = {
-  VIEW_OFFERS:   'offers',
-  VIEW_DEALS:    'deals',
-  VIEW_MEETINGS: 'meetings',
-  VIEW_LISTING:  'listings',
-  VIEW_ALERTS:   'alerts',
+  VIEW_OFFERS:        'offers',
+  VIEW_DEALS:         'deals',
+  VIEW_MEETINGS:      'meetings',
+  VIEW_LISTING:       'details',   // deep-links to a specific listing — needs entityId
+  VIEW_LISTINGS:      'listings',
+  VIEW_ALERTS:        'alerts',
 };
 
 interface AlertsViewProps {
-  onNavigate?: (view: string) => void;
+  onNavigate?: (view: string, id?: string) => void;
 }
 
 export const AlertsView = ({ onNavigate }: AlertsViewProps) => {
@@ -113,8 +116,9 @@ export const AlertsView = ({ onNavigate }: AlertsViewProps) => {
                     <div className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
                   )}
                   {targetView && onNavigate && (
+                    // C20/C21: pass entityId so navigation deep-links to the specific item
                     <button
-                      onClick={() => onNavigate(targetView)}
+                      onClick={() => onNavigate(targetView, n.entityId ?? undefined)}
                       className="flex items-center gap-1 text-xs font-bold text-[#10B981] hover:text-[#008A66] transition-colors whitespace-nowrap"
                     >
                       {isAr ? 'اذهب إلى' : 'Go to'}

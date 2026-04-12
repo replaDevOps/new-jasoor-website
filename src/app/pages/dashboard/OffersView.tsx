@@ -7,13 +7,11 @@ import { useQuery, useMutation } from '@apollo/client';
 import {
   GET_OFFERS_BY_USER,
   GET_OFFERS_BY_SELLER,
-  GET_BUYER_INPROGRESS_DEALS,
-  GET_SELLER_INPROGRESS_DEALS,
 } from '../../../graphql/queries/dashboard';
 import {
   UPDATE_OFFER_STATUS,
   COUNTER_OFFER,
-  CREATE_DEAL,
+  // CREATE_DEAL removed: C13 — deal is now auto-created server-side on offer acceptance
 } from '../../../graphql/mutations/dashboard';
 import { REQUEST_MEETING } from '../../../graphql/mutations/business';
 import { DashBadge, SectionHeader, DashModal } from './DashboardView';
@@ -76,14 +74,7 @@ export const OffersView = ({
   const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_OFFERS_BY_SELLER, { errorPolicy: 'all' });
   const [updateStatus] = useMutation(UPDATE_OFFER_STATUS, { errorPolicy: 'all' });
   const [counterOffer]  = useMutation(COUNTER_OFFER,       { errorPolicy: 'all' });
-  const [createDeal]    = useMutation(CREATE_DEAL, {
-    errorPolicy: 'all',
-    refetchQueries: [
-      { query: GET_BUYER_INPROGRESS_DEALS,  variables: { limit: 50, offset: 0 } },
-      { query: GET_SELLER_INPROGRESS_DEALS, variables: { limit: 50, offset: 0 } },
-    ],
-    awaitRefetchQueries: true,
-  });
+  // C13: createDeal hook removed — server auto-creates deal on ACCEPTED
   const [reqMeeting] = useMutation(REQUEST_MEETING, { errorPolicy: 'all' });
 
   // Merge all offers — deduplicate by id
@@ -133,35 +124,25 @@ export const OffersView = ({
   const fmt = (n: number) => Number(n).toLocaleString();
 
   const handleAccept = async (offer?: any) => {
+    // C13: deal is auto-created server-side when offer is ACCEPTED — no explicit createDeal call needed
     const o = offer ?? selectedOffer;
     if (!o) return;
     const { errors } = await updateStatus({ variables: { input: { id: o.id, status: 'ACCEPTED' } } });
-    if (errors?.length) { toast.error(isAr ? 'حدث خطأ' : 'Error'); return; }
-    let dealErrors: any[] = [];
-    try {
-      const result = await createDeal({ variables: { input: {
-        offerId:    o.id,
-        businessId: o.business.id,
-        meetingId:  o.meeting?.id ?? undefined,
-        buyerId:    o.buyer.id,
-        price:      o.price,
-      }}});
-      dealErrors = result.errors ?? [];
-    } catch (e: any) {
-      console.error('createDeal exception:', e);
-      dealErrors = [{ message: e?.message ?? 'Unknown error' }];
+    if (errors?.length) {
+      const errMsg = errors[0]?.message ?? '';
+      if (errMsg.includes('NDA_NOT_SIGNED')) {
+        // C14/C15: NDA not signed — redirect to offers with message
+        toast.error(isAr
+          ? 'يجب توقيع اتفاقية السرية (NDA) أولاً قبل قبول العرض'
+          : 'You must sign the NDA for this listing before accepting the offer');
+        onNavigate?.('offers');
+      } else {
+        toast.error(isAr ? 'حدث خطأ' : 'Error');
+      }
+      return;
     }
-    if (!dealErrors?.length) {
-      toast.success(isAr ? 'تم قبول العرض وإنشاء الصفقة ✓' : 'Offer accepted & deal created ✓');
-      setTimeout(() => onGoToDeals?.(), 1000);
-    } else {
-      console.error('createDeal failed:', dealErrors);
-      const errMsg = dealErrors[0]?.message ?? '';
-      toast.error(isAr
-        ? `تم قبول العرض لكن فشل إنشاء الصفقة: ${errMsg}`
-        : `Offer accepted but deal creation failed: ${errMsg}`
-      );
-    }
+    toast.success(isAr ? 'تم قبول العرض وإنشاء الصفقة ✓' : 'Offer accepted & deal created ✓');
+    setTimeout(() => onGoToDeals?.(), 1000);
     setSelectedId(null);
     refetch();
   };
@@ -235,12 +216,19 @@ export const OffersView = ({
     const { errors } = await reqMeeting({ variables: { input: { businessId: selectedOffer.business.id, offerId: selectedOffer.id, requestedDate: startIso, requestedEndDate: endIso } } });
     if (errors?.length) {
       const msg = errors[0]?.message ?? '';
-      if (msg.includes('MEETING_TIME_INVALID')) {
+      if (msg.includes('MEETING_REQUEST_OUTSIDE_ALLOWED_HOURS') || msg.includes('MEETING_TIME_INVALID')) {
+        // C4: server-side time window validation error
         const localMsg = isAr
           ? 'الوقت المحدد خارج نطاق أوقات الاجتماعات المسموح بها.'
           : 'Selected time is outside the allowed meeting hours.';
         setTimeError(localMsg);
         toast.error(localMsg);
+      } else if (msg.includes('NDA_NOT_SIGNED')) {
+        // C15: NDA gate — user must sign NDA first
+        toast.error(isAr
+          ? 'يجب توقيع اتفاقية السرية (NDA) لهذا الإعلان أولاً'
+          : 'You must sign the NDA for this listing before requesting a meeting');
+        onNavigate?.('offers');
       } else {
         toast.error(isAr ? 'حدث خطأ' : 'Error');
       }

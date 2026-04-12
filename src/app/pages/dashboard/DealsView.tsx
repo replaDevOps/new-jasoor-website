@@ -34,9 +34,10 @@ export const DealsView = ({ onNavigate }: { onNavigate?: (view: string, id?: str
 
   const loading = buyerLoading || sellerLoading || buyerDoneLoading || sellerDoneLoading;
 
+  // C16: align filtering with all 14 DealStatus enum states
   const filtered = filter === 'in-progress'
-    ? rawDeals.filter((d: any) => !['COMPLETED', 'REJECTED'].includes(d.status))
-    : rawDeals.filter((d: any) =>  ['COMPLETED'].includes(d.status));
+    ? rawDeals.filter((d: any) => !['COMPLETED', 'CANCEL'].includes(d.status))
+    : rawDeals.filter((d: any) =>  ['COMPLETED', 'CANCEL'].includes(d.status));
 
   // Map API deal flags to progress steps
   const getSteps = (d: any) => [
@@ -72,7 +73,21 @@ export const DealsView = ({ onNavigate }: { onNavigate?: (view: string, id?: str
           <p className="text-sm text-gray-500 font-medium mb-6">
             {content.dashboard.deals.labels.buyer}: <span className="text-[#111827] font-bold">{selectedDeal.buyer?.name}</span>
           </p>
-          <p className="text-2xl md:text-4xl font-black text-[#10B981] mb-6">{Number(selectedDeal.price).toLocaleString()} SAR</p>
+          <p className="text-2xl md:text-4xl font-black text-[#10B981] mb-2">{Number(selectedDeal.price).toLocaleString()} SAR</p>
+          {/* C17: show bracket-based commission from offer snapshot */}
+          {selectedDeal.offer?.commission != null && (
+            <p className="text-sm font-medium text-gray-500 mb-6">
+              {isAr ? 'العمولة' : 'Commission'}:{' '}
+              <span className={`font-bold ${selectedDeal.offer.commissionBracketId ? 'text-[#008A66]' : 'text-gray-700'}`}>
+                {Number(selectedDeal.offer.commission).toLocaleString()} SAR
+              </span>
+              {selectedDeal.offer.commissionBracketId && (
+                <span className="ml-2 text-xs text-[#008A66] bg-[#E6F3EF] px-2 py-0.5 rounded-full font-bold">
+                  {isAr ? 'شريحة مخصصة' : 'Bracket Rate'}
+                </span>
+              )}
+            </p>
+          )}
           <div className="space-y-2">
             <div className="flex justify-between text-sm font-bold">
               <span className="text-gray-500">{content.dashboard.deals.labels.progress}</span>
@@ -127,7 +142,43 @@ export const DealsView = ({ onNavigate }: { onNavigate?: (view: string, id?: str
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filtered.map((deal: any) => {
             const progress = getProgress(deal);
-            const completed = deal.isBuyerCompleted && deal.isSellerCompleted;
+            // C16: map all DealStatus values to badge color + label
+            const dealStatusBadge = (status: string): { color: string; label: string } => {
+              switch (status) {
+                case 'COMPLETED':
+                  return { color: 'gray',   label: isAr ? 'مكتملة'     : 'Completed' };
+                case 'CANCEL':
+                  return { color: 'red',    label: isAr ? 'ملغاة'      : 'Cancelled' };
+                case 'COMMISSION_TRANSFER_FROM_BUYER_PENDING':
+                  return { color: 'yellow', label: isAr ? 'في انتظار تحويل العمولة' : 'Awaiting Commission Transfer' };
+                case 'COMMISSION_VERIFICATION_PENDING':
+                  return { color: 'yellow', label: isAr ? 'التحقق من العمولة'       : 'Commission Verification' };
+                case 'COMMISSION_VERIFIED':
+                  return { color: 'green',  label: isAr ? 'تم التحقق من العمولة'    : 'Commission Verified' };
+                case 'DSA_FROM_SELLER_PENDING':
+                case 'DSA_FROM_BUYER_PENDING':
+                  return { color: 'yellow', label: isAr ? 'في انتظار NDA'            : 'Awaiting NDA' };
+                case 'BANK_DETAILS_FROM_SELLER_PENDING':
+                  return { color: 'yellow', label: isAr ? 'في انتظار بيانات البنك'   : 'Awaiting Bank Details' };
+                case 'BUYER_PAYMENT_PENDING':
+                  return { color: 'yellow', label: isAr ? 'في انتظار دفع المشتري'   : 'Awaiting Buyer Payment' };
+                case 'SELLER_PAYMENT_VERIFICATION_PENDING':
+                  return { color: 'yellow', label: isAr ? 'التحقق من الدفع'          : 'Payment Verification' };
+                case 'DOCUMENT_UPLOAD_PENDING':
+                  return { color: 'yellow', label: isAr ? 'في انتظار الوثائق'        : 'Awaiting Documents' };
+                case 'WAITING':
+                  return { color: 'yellow', label: isAr ? 'قيد المراجعة'              : 'Under Review' };
+                case 'BUYERCOMPLETED':
+                  return { color: 'green',  label: isAr ? 'أكمل المشتري'             : 'Buyer Completed' };
+                case 'SELLERCOMPLETED':
+                  return { color: 'green',  label: isAr ? 'أكمل البائع'              : 'Seller Completed' };
+                case 'PENDING':
+                  return { color: 'yellow', label: isAr ? 'قيد المعالجة'             : 'Pending Admin' };
+                default:
+                  return { color: 'green',  label: isAr ? 'جارية'                    : 'In Progress' };
+              }
+            };
+            const badge = dealStatusBadge(deal.status);
             return (
               <div key={deal.id} className="bg-white rounded-3xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group" onClick={() => setSelectedId(deal.id)}>
                 <div className="flex justify-between items-start mb-4">
@@ -139,9 +190,7 @@ export const DealsView = ({ onNavigate }: { onNavigate?: (view: string, id?: str
                       {deal._role === 'buyer' ? (isAr ? 'مشترٍ' : 'Buyer') : (isAr ? 'بائع' : 'Seller')}
                     </DashBadge>
                   </div>
-                  <DashBadge color={completed ? 'gray' : 'green'}>
-                    {completed ? content.dashboard.deals.status.completed : content.dashboard.deals.status.inProgress}
-                  </DashBadge>
+                  <DashBadge color={badge.color}>{badge.label}</DashBadge>
                 </div>
                 {/* F-T1: Clickable listing title — stop propagation so the card click still goes to deal detail */}
                 <button
@@ -157,7 +206,7 @@ export const DealsView = ({ onNavigate }: { onNavigate?: (view: string, id?: str
                     <span className={cn(completed ? 'text-gray-600' : 'text-[#10B981]')}>{progress}%</span>
                   </div>
                   <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className={cn('h-full rounded-full', completed ? 'bg-gray-600' : 'bg-[#10B981] group-hover:bg-[#008A66]')} style={{ width: `${progress}%` }} />
+                    <div className={cn('h-full rounded-full', deal.status === 'CANCEL' ? 'bg-red-400' : deal.status === 'COMPLETED' ? 'bg-gray-600' : 'bg-[#10B981] group-hover:bg-[#008A66]')} style={{ width: `${progress}%` }} />
                   </div>
                 </div>
               </div>
