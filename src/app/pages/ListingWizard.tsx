@@ -538,11 +538,10 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
         </div>
         <div className="col-span-2 md:col-span-1">
           <FormLabel required>{t.category}</FormLabel>
-          <select 
+          <select
             value={formData.category}
             onChange={(e) => { setFormData({...formData, category: e.target.value}); if(e.target.value) setStepErrors(p=>({...p,category:''})); }}
             className={cn(InputStyles, "bg-white", errBorder('category'))}
-            onChange={(e) => { setFormData({...formData, category: e.target.value}); if(e.target.value) setStepErrors(p=>({...p,category:''})); }}
           >
             <option value="">{t.categoryPh}</option>
             {/* BUG-9 FIX: real category IDs from API instead of hardcoded strings */}
