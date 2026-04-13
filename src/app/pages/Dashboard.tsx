@@ -203,8 +203,8 @@ const DashboardView = () => {
                      <Icon size={18} />
                    </div>
                    <div>
-                     <p className="font-bold text-[#111827] text-sm">{n.name}</p>
-                     {n.message && <p className="text-gray-500 text-sm mt-0.5">{n.message}</p>}
+                     <p className="font-bold text-[#111827] text-sm">{isAr && n.nameAr ? n.nameAr : n.name}</p>
+                     {(n.message || n.messageAr) && <p className="text-gray-500 text-sm mt-0.5">{isAr && n.messageAr ? n.messageAr : n.message}</p>}
                      <p className="text-xs text-gray-400 mt-1">{fmtDate(n.createdAt)}</p>
                    </div>
                  </div>
@@ -1247,62 +1247,89 @@ const MeetingsView = () => {
   );
 };
 
-const AlertsView = () => {
+// Map actionType → dashboard tab id
+const ACTION_TO_TAB: Record<string, string> = {
+  VIEW_OFFERS:   'offers',
+  VIEW_DEALS:    'deals',
+  VIEW_MEETINGS: 'meetings',
+  VIEW_LISTING:  'listings',
+  VIEW_LISTINGS: 'listings',
+  VIEW_ALERTS:   'alerts',
+};
+
+const AlertsView = ({ onSwitchTab }: { onSwitchTab?: (tab: string) => void }) => {
   const { content, language, userId } = useApp();
   const isAr = language === 'ar';
 
-  // P6-FIX R-04: real notifications
   const { data, loading, refetch } = useQuery(GET_NOTIFICATIONS, {
-    variables: { userId, limit:50, offSet:0 },
+    variables: { userId, limit: 50, offSet: 0 },
     skip: !userId,
     errorPolicy: 'all',
   });
   const [markAllRead, { loading: marking }] = useMutation(MARK_NOTIFICATION_AS_READ);
 
-  const notifications: any[] = data?.getNotifications?.notifications??[];
+  const notifications: any[] = data?.getNotifications?.notifications ?? [];
 
   const handleMarkAllRead = async () => {
     if (!userId) return;
     try {
       await markAllRead({ variables: { userId } });
-      toast.success(isAr?'تم تحديد جميع الإشعارات كمقروءة':'All notifications marked as read');
+      toast.success(isAr ? 'تم تحديد جميع الإشعارات كمقروءة' : 'All notifications marked as read');
       refetch();
-    } catch { toast.error(isAr?'حدث خطأ':'Something went wrong'); }
+    } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
   };
 
   const iconFor = (name: string) => {
-    const n = name?.toLowerCase()??'';
-    if (n.includes('offer')||n.includes('عرض'))    return { Icon:DollarSign, bg:'bg-orange-50 text-orange-600', bar:'bg-orange-500' };
-    if (n.includes('payment')||n.includes('دفع'))  return { Icon:Wallet,     bg:'bg-green-50 text-green-600',  bar:'bg-green-500'  };
-    return                                                 { Icon:FileText,   bg:'bg-[#E6F3EF] text-[#10B981]',    bar:'bg-[#10B981]'   };
+    const n = (name ?? '').toLowerCase();
+    if (n.includes('offer') || n.includes('عرض'))      return { Icon: DollarSign, bg: 'bg-orange-50 text-orange-600', bar: 'bg-orange-500' };
+    if (n.includes('payment') || n.includes('دفع'))    return { Icon: Wallet,     bg: 'bg-green-50 text-green-600',   bar: 'bg-green-500'  };
+    if (n.includes('meeting') || n.includes('اجتماع')) return { Icon: Video,      bg: 'bg-blue-50 text-blue-600',     bar: 'bg-blue-500'   };
+    if (n.includes('deal') || n.includes('صفقة'))      return { Icon: Handshake,  bg: 'bg-purple-50 text-purple-600', bar: 'bg-purple-500' };
+    return                                                     { Icon: FileText,   bg: 'bg-[#E6F3EF] text-[#10B981]', bar: 'bg-[#10B981]'  };
   };
-  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB'):'';
+
+  const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isAr ? 'ar-SA-u-ca-gregory' : 'en-GB') : '';
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <SectionHeader title={content.dashboard.alerts.title} action={
-        <button onClick={handleMarkAllRead} disabled={marking||!userId} className="text-sm font-bold text-[#10B981] hover:underline disabled:opacity-50">
+        <button onClick={handleMarkAllRead} disabled={marking || !userId} className="text-sm font-bold text-[#10B981] hover:underline disabled:opacity-50">
           {content.dashboard.alerts.markAllRead}
         </button>
       }/>
       {loading ? (
-        <div className="text-center p-8 text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div>
-      ) : notifications.length===0 ? (
-        <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center text-gray-400">{isAr?'لا توجد إشعارات':'No notifications yet'}</div>
+        <div className="text-center p-8 text-gray-400">{isAr ? 'جارٍ التحميل...' : 'Loading...'}</div>
+      ) : notifications.length === 0 ? (
+        <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center text-gray-400">{isAr ? 'لا توجد إشعارات' : 'No notifications yet'}</div>
       ) : (
         <div className="space-y-4">
           {notifications.map((n: any) => {
-            const { Icon, bg, bar } = iconFor(n.name);
+            const { Icon, bg, bar } = iconFor(isAr ? (n.nameAr ?? n.name) : n.name);
+            const targetTab = n.actionType ? ACTION_TO_TAB[n.actionType] : null;
+            // Display Arabic text if available and language is Arabic
+            const displayName    = isAr && n.nameAr    ? n.nameAr    : n.name;
+            const displayMessage = isAr && n.messageAr ? n.messageAr : n.message;
             return (
-              <div key={n.id} className={cn("bg-white p-4 rounded-2xl border shadow-sm hover:shadow-md transition-all flex gap-4 items-start relative overflow-hidden", n.isRead?'border-gray-100':'border-[#10B981]/30')}>
-                <div className={cn("w-2 h-full absolute right-0 top-0 bottom-0", bar)}/>
-                <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shrink-0", bg)}><Icon size={20}/></div>
-                <div className="flex-1">
-                  <h4 className="font-bold text-[#111827] text-lg">{n.name}</h4>
-                  <p className="text-gray-500 text-sm mt-1">{n.message}</p>
+              <div key={n.id} className={cn("bg-white p-4 rounded-2xl border shadow-sm hover:shadow-md transition-all flex gap-4 items-start relative overflow-hidden", n.isRead ? 'border-gray-100' : 'border-[#10B981]/30')}>
+                <div className={cn("w-2 h-full absolute right-0 top-0 bottom-0", bar)} />
+                <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shrink-0", bg)}><Icon size={20} /></div>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-[#111827] text-base">{displayName}</h4>
+                  <p className="text-gray-500 text-sm mt-1">{displayMessage}</p>
                   <p className="text-xs text-gray-400 mt-2">{fmtDate(n.createdAt)}</p>
                 </div>
-                {!n.isRead && <div className="w-2.5 h-2.5 rounded-full bg-[#10B981] shrink-0 mt-1"/>}
+                <div className="flex flex-col items-end gap-2 shrink-0">
+                  {!n.isRead && <div className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />}
+                  {targetTab && onSwitchTab && (
+                    <button
+                      onClick={() => onSwitchTab(targetTab)}
+                      className="flex items-center gap-1 text-xs font-bold text-[#10B981] hover:text-[#008A66] whitespace-nowrap bg-[#E6F3EF] px-2.5 py-1 rounded-lg transition-colors"
+                    >
+                      {isAr ? 'اذهب إلى' : 'Go to'}
+                      <ArrowRight size={12} className={isAr ? 'rotate-180' : ''} />
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
@@ -1682,7 +1709,7 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
                    {activeTab === 'deals' && <DealsView />}
                    {activeTab === 'meetings' && <MeetingsView />}
                    {activeTab === 'favorites' && <ListingsView isFavorites onNavigate={onNavigate} />}
-                   {activeTab === 'alerts' && <AlertsView />}
+                   {activeTab === 'alerts' && <AlertsView onSwitchTab={(tab) => { setActiveTab(tab as any); window.scrollTo(0,0); }} />}
                    {activeTab === 'settings' && <SettingsView />}
                 </motion.div>
              </AnimatePresence>

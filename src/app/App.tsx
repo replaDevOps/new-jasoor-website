@@ -1,26 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { AppProvider, useApp } from '../context/AppContext';
 import { Navbar } from './components/Navbar';
+import { Footer } from './components/Footer';
+import { Toaster } from 'sonner';
+
+// ── Home page sections: loaded eagerly (always visible on first paint) ──────
 import { Hero } from './components/Hero';
 import { Features } from './components/Features';
 import { HowItWorks } from './components/HowItWorks';
 import { Listings } from './components/Listings';
 import { FAQ } from './components/FAQ';
-import { Footer } from './components/Footer';
-import { BrowseBusinesses } from './pages/BrowseBusinesses';
-import { BusinessDetails } from './pages/BusinessDetails';
-import { SignUp } from './pages/auth/SignUp';
-import { SignIn } from './pages/auth/SignIn';
-import { ForgotPassword } from './pages/auth/ForgotPassword';
-import { Dashboard } from './pages/Dashboard';
-import { About } from './pages/About';
-import { Support } from './pages/Support';
-import { Terms } from './pages/Terms';
-import { PrivacyPolicy } from './pages/PrivacyPolicy';
-import { Articles } from './pages/Articles';
-// P2-FIX-BUG2: import ListingWizard so 'Sell Your Business' / 'List Your Business' has a destination
-import { ListingWizard } from './pages/ListingWizard';
-import { Toaster } from 'sonner';
+
+// ── All other pages: lazy-loaded only when the user navigates to them ───────
+// This splits each page into its own JS chunk, dramatically reducing initial bundle size.
+const BrowseBusinesses = lazy(() => import('./pages/BrowseBusinesses').then(m => ({ default: m.BrowseBusinesses })));
+const BusinessDetails   = lazy(() => import('./pages/BusinessDetails').then(m => ({ default: m.BusinessDetails })));
+const SignUp            = lazy(() => import('./pages/auth/SignUp').then(m => ({ default: m.SignUp })));
+const SignIn            = lazy(() => import('./pages/auth/SignIn').then(m => ({ default: m.SignIn })));
+const ForgotPassword    = lazy(() => import('./pages/auth/ForgotPassword').then(m => ({ default: m.ForgotPassword })));
+const Dashboard         = lazy(() => import('./pages/Dashboard').then(m => ({ default: m.Dashboard })));
+const About             = lazy(() => import('./pages/About').then(m => ({ default: m.About })));
+const Support           = lazy(() => import('./pages/Support').then(m => ({ default: m.Support })));
+const Terms             = lazy(() => import('./pages/Terms').then(m => ({ default: m.Terms })));
+const PrivacyPolicy     = lazy(() => import('./pages/PrivacyPolicy').then(m => ({ default: m.PrivacyPolicy })));
+const Articles          = lazy(() => import('./pages/Articles').then(m => ({ default: m.Articles })));
+// P2-FIX-BUG2: ListingWizard lazy-loaded — it's huge and only used by logged-in sellers
+const ListingWizard     = lazy(() => import('./pages/ListingWizard').then(m => ({ default: m.ListingWizard })));
+
+// Minimal fallback shown while a lazy chunk is downloading
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center bg-white">
+    <div className="w-8 h-8 rounded-full border-4 border-[#10B981] border-t-transparent animate-spin" />
+  </div>
+);
 
 // BUG-16: Map view names to URL paths and back
 // P2-FIX-BUG2: added 'list-business' entry
@@ -145,48 +157,50 @@ function AppContent() {
           </>
         )}
 
-        {view === 'browse' && <BrowseBusinesses onNavigate={handleNavigate} />}
+        <Suspense fallback={<PageLoader />}>
+          {view === 'browse' && <BrowseBusinesses onNavigate={handleNavigate} />}
 
-        {view === 'details' && (
-          <BusinessDetails
-            onBack={() => handleNavigate('browse')}
-            businessId={selectedBusinessId}
-            onNavigate={handleNavigate}
-          />
-        )}
+          {view === 'details' && (
+            <BusinessDetails
+              onBack={() => handleNavigate('browse')}
+              businessId={selectedBusinessId}
+              onNavigate={handleNavigate}
+            />
+          )}
 
-        {/* P2-FIX-BUG2: ListingWizard now reachable via 'list-business' */}
-        {view === 'list-business' && (
-          <ListingWizard
-            mode={selectedBusinessId ? 'edit' : 'create'}
-            initialData={selectedBusinessId ? { id: String(selectedBusinessId) } : undefined}
-            onSuccess={() => { setSelectedBusinessId(null); handleNavigate('dashboard'); }}
-            onClose={() => { setSelectedBusinessId(null); handleNavigate('dashboard'); }}
-            onCancel={() => { setSelectedBusinessId(null); handleNavigate('dashboard'); }}
-          />
-        )}
+          {/* P2-FIX-BUG2: ListingWizard now reachable via 'list-business' */}
+          {view === 'list-business' && (
+            <ListingWizard
+              mode={selectedBusinessId ? 'edit' : 'create'}
+              initialData={selectedBusinessId ? { id: String(selectedBusinessId) } : undefined}
+              onSuccess={() => { setSelectedBusinessId(null); handleNavigate('dashboard'); }}
+              onClose={() => { setSelectedBusinessId(null); handleNavigate('dashboard'); }}
+              onCancel={() => { setSelectedBusinessId(null); handleNavigate('dashboard'); }}
+            />
+          )}
 
-        {view === 'about' && <About onNavigate={handleNavigate} />}
-        {view === 'support' && <Support onNavigate={handleNavigate} />}
-        {view === 'terms' && <Terms onNavigate={handleNavigate} />}
-        {view === 'privacy' && <PrivacyPolicy onNavigate={handleNavigate} />}
-        {view === 'articles' && <Articles onNavigate={handleNavigate} />}
+          {view === 'about' && <About onNavigate={handleNavigate} />}
+          {view === 'support' && <Support onNavigate={handleNavigate} />}
+          {view === 'terms' && <Terms onNavigate={handleNavigate} />}
+          {view === 'privacy' && <PrivacyPolicy onNavigate={handleNavigate} />}
+          {view === 'articles' && <Articles onNavigate={handleNavigate} />}
 
-        {view === 'signup' && <SignUp onNavigate={handleNavigate} />}
-        {view === 'signin' && <SignIn onNavigate={handleNavigate} />}
-        {view === 'forgot-password' && <ForgotPassword onNavigate={handleNavigate} />}
+          {view === 'signup' && <SignUp onNavigate={handleNavigate} />}
+          {view === 'signin' && <SignIn onNavigate={handleNavigate} />}
+          {view === 'forgot-password' && <ForgotPassword onNavigate={handleNavigate} />}
 
-        {view === 'dashboard' && (
-          isLoggedIn
-            ? <Dashboard
-                onNavigate={handleNavigate}
-                onEditListing={(id: string | number) => {
-                  setSelectedBusinessId(id);
-                  setView('list-business');
-                }}
-              />
-            : <SignIn onNavigate={handleNavigate} />
-        )}
+          {view === 'dashboard' && (
+            isLoggedIn
+              ? <Dashboard
+                  onNavigate={handleNavigate}
+                  onEditListing={(id: string | number) => {
+                    setSelectedBusinessId(id);
+                    setView('list-business');
+                  }}
+                />
+              : <SignIn onNavigate={handleNavigate} />
+          )}
+        </Suspense>
 
         {/* BUG-15: 404 page for invalid routes */}
         {view === 'not-found' && (

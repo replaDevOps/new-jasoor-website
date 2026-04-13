@@ -378,7 +378,9 @@ export const GET_NOTIFICATIONS = gql`
         createdAt
         isRead
         name
+        nameAr
         message
+        messageAr
         entityType
         entityId
         actionType
