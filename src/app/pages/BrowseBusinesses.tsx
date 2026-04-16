@@ -12,8 +12,18 @@ import { useQuery, useMutation } from '@apollo/client';
 import { CREATE_SAVE_BUSINESS } from '../../graphql/mutations/dashboard';
 import { GET_CATEGORIES } from '../../graphql/queries/business';
 
+// Format a number using the correct locale — Arabic-Indic digits in AR, Western in EN
+const fmtNum = (n: number | string, isAr: boolean): string => {
+  const num = Number(n);
+  if (isNaN(num)) return String(n);
+  return isAr
+    ? num.toLocaleString('ar-SA-u-ca-gregory')
+    : num.toLocaleString('en-US');
+};
+
 export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
   const { direction, language, content, isLoggedIn } = useApp();
+  const isAr = language === 'ar';
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isDesktopFilterOpen, setIsDesktopFilterOpen] = useState(false);
 
@@ -455,7 +465,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                   title={language === 'ar' ? listing.businessTitle : listing.businessTitle}
                   description={listing.description}
                   image={listing.image}
-                  number={String(listing.price)}
+                  number={fmtNum(listing.price, isAr)}
                   hideFavorite={!isLoggedIn}
                   isSaved={listing.isSaved ?? false}
                   onSave={async (e) => { e.stopPropagation(); if (!isLoggedIn) { onNavigate?.('signin'); return; } await saveBusiness({ variables: { saveBusinessId: listing.id } }); }}
@@ -472,9 +482,9 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                   listingData={{
                     location: listing.city || listing.district || '',
                     category: language === 'ar' ? listing.category?.arabicName : listing.category?.name,
-                    revenue: listing.revenue ? String(listing.revenue) + ' ' + t.sar : '-',
-                    profit: listing.profit ? String(listing.profit) + ' ' + t.sar : '-',
-                    recovery: listing.capitalRecovery ? String(listing.capitalRecovery) + ' ' + t.month : '-',
+                    revenue: listing.revenue ? fmtNum(listing.revenue, isAr) + ' ' + t.sar : '-',
+                    profit: listing.profit ? fmtNum(listing.profit, isAr) + ' ' + t.sar : '-',
+                    recovery: listing.capitalRecovery ? fmtNum(listing.capitalRecovery, isAr) + ' ' + t.month : '-',
                     refNumber: listing.reference ? `#${listing.reference}` : ''
                   }}
                   onClick={() => onNavigate?.('details', listing.id)}

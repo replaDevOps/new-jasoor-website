@@ -148,8 +148,8 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
               return countryCode + digits;
             })(),
             password,
-            // BUG-18 FIX: region now captured and sent to API
-            region: selectedRegion || undefined,
+            // BUG-18 FIX: region now captured and sent to API as district (backend field name)
+            district: selectedRegion || undefined,
           }
         }
       });

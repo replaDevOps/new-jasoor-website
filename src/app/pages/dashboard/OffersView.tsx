@@ -72,8 +72,8 @@ export const OffersView = ({
   // Load both buyer and seller offers always
   const { data: buyerData,  loading: buyerLoading,  refetch: refetchBuyer  } = useQuery(GET_OFFERS_BY_USER,   { errorPolicy: 'all' });
   const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_OFFERS_BY_SELLER, { errorPolicy: 'all' });
-  const [updateStatus] = useMutation(UPDATE_OFFER_STATUS, { errorPolicy: 'all' });
-  const [counterOffer]  = useMutation(COUNTER_OFFER,       { errorPolicy: 'all' });
+  const [updateStatus] = useMutation(UPDATE_OFFER_STATUS, { errorPolicy: 'all', refetchQueries: ['GetOffersByUser', 'GetOffersBySeller'] });
+  const [counterOffer]  = useMutation(COUNTER_OFFER,       { errorPolicy: 'all', refetchQueries: ['GetOffersByUser', 'GetOffersBySeller'] });
   // C13: createDeal hook removed — server auto-creates deal on ACCEPTED
   const [reqMeeting] = useMutation(REQUEST_MEETING, { errorPolicy: 'all' });
 
@@ -136,6 +136,11 @@ export const OffersView = ({
           ? 'يجب توقيع اتفاقية السرية (NDA) أولاً قبل قبول العرض'
           : 'You must sign the NDA for this listing before accepting the offer');
         onNavigate?.('offers');
+      } else if (errMsg.includes('MULTIPLE_ACCEPTED_OFFERS')) {
+        // Guard: seller already accepted another offer for this same business
+        toast.error(isAr
+          ? 'لا يمكن قبول أكثر من عرض على نفس الإعلان'
+          : 'You cannot accept more than one offer for the same listing');
       } else {
         toast.error(isAr ? 'حدث خطأ' : 'Error');
       }
@@ -161,7 +166,15 @@ export const OffersView = ({
     e.preventDefault();
     if (!selectedOffer || !counterPrice) return;
     const { errors } = await counterOffer({ variables: { input: { parentOfferId: selectedOffer.id, price: parseFloat(counterPrice) } } });
-    if (errors?.length) { toast.error(isAr ? 'حدث خطأ' : 'Error'); return; }
+    if (errors?.length) {
+      const errMsg = errors[0]?.message ?? '';
+      if (errMsg.includes('OFFER_ALREADY_EXISTS')) {
+        toast.error(isAr ? 'عرض موجود بالفعل على هذا الإعلان' : 'An offer already exists for this listing');
+      } else {
+        toast.error(isAr ? 'حدث خطأ' : 'Error');
+      }
+      return;
+    }
     toast.success(content.dashboard.offers.actions.successCounter);
     setCounterPrice('');
     setSelectedId(null);

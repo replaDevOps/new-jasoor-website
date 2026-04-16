@@ -339,7 +339,8 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
 
   const handleSubmit = async () => {
     // P5-FIX R-06: submit real listing to backend via createBusiness mutation
-    setIsSubmitted(true);
+    // NOTE: setIsSubmitted(true) is intentionally called AFTER a successful mutation,
+    // not at the start — to prevent the success screen flashing during file uploads.
     try {
       // Upload CR file if present (Step 4)
       let crDocument = null;
@@ -433,9 +434,9 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
         const { errors } = await createBusiness({ variables: { input } });
         if (errors?.length) {
           toast.error(language === 'ar' ? 'حدث خطأ أثناء إرسال الإدراج' : 'Error submitting listing');
-          setIsSubmitted(false);
           return;
         }
+        setIsSubmitted(true); // Only set true AFTER successful mutation — prevents success screen flash
         toast.success(t.successTitleCreate);
         // isSubmitted = true — success screen shown; user clicks Continue → onSuccess()
       } else {
@@ -445,7 +446,6 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
     } catch (err) {
       console.error('ListingWizard submit error:', err);
       toast.error(language === 'ar' ? 'حدث خطأ، حاول مجدداً' : 'Something went wrong, please try again');
-      setIsSubmitted(false);
     }
   };
 

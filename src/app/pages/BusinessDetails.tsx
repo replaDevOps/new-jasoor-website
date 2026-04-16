@@ -290,9 +290,11 @@ export const BusinessDetails = ({
   // ── Derived display values from real API data ─────────────────────────────────
   const categoryName = isAr ? business.category?.arabicName : business.category?.name;
   const cityDisplay  = business.city ? (business.district ? `${business.district}, ${business.city}` : business.city) : '';
-  const priceDisplay = business.price ? Number(business.price).toLocaleString() : '—';
-  const profitDisplay = business.profit ? `${Number(business.profit).toLocaleString()} ${t.currency}` : '—';
-  const revenueDisplay = business.revenue ? `${Number(business.revenue).toLocaleString()} ${t.currency}` : '—';
+  const fmtNum = (n: number | string) =>
+    Number(n).toLocaleString(isAr ? 'ar-SA-u-ca-gregory' : 'en-US');
+  const priceDisplay   = business.price   ? fmtNum(business.price)   : '—';
+  const profitDisplay  = business.profit  ? `${fmtNum(business.profit)} ${t.currency}`  : '—';
+  const revenueDisplay = business.revenue ? `${fmtNum(business.revenue)} ${t.currency}` : '—';
   const marginDisplay = business.profitMargen ? `${business.profitMargen}%` : '—';
   const employeesDisplay = business.numberOfEmployees || '—';
   const recoveryDisplay = (business.capitalRecovery != null && business.capitalRecovery > 0) ? `${Math.round(business.capitalRecovery)} ${t.month}` : '—';
@@ -304,7 +306,7 @@ export const BusinessDetails = ({
     (items || []).map(a => ({
       name: a.name,
       quantity: a.quantity,
-      value: `${Number(a.price).toLocaleString()} ${t.currency}`,
+      value: `${fmtNum(a.price)} ${t.currency}`,
       date: a.purchaseYear?.toString(),
     }));
 
@@ -585,7 +587,7 @@ export const BusinessDetails = ({
             ) : (
               <div className="flex overflow-x-auto pb-6 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:gap-8 snap-x snap-mandatory md:snap-none hide-scrollbar">
                 {similar.map((listing) => {
-                  const fmt = (n: number) => Number(n).toLocaleString();
+                  const fmt = (n: number | string) => Number(n).toLocaleString(isAr ? 'ar-SA-u-ca-gregory' : 'en-US');
                   const catName = isAr ? listing.category?.arabicName : listing.category?.name;
                   return (
                     <div key={listing.id} className="min-w-[85%] md:min-w-0 md:w-auto pl-4 md:pl-0 last:pl-4 md:last:pl-0 snap-center">
