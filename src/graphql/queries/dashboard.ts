@@ -16,6 +16,14 @@ export const GET_USER_DETAILS = gql`
       city
       district
       status
+      documents {
+        id
+        title
+        fileName
+        fileType
+        filePath
+        description
+      }
     }
   }
 `;
