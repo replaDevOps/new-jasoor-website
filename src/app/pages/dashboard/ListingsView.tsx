@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { Plus, ChevronLeft, ChevronRight, AlertCircle, Eye, Heart, MessageCircle } from 'lucide-react';
 import { Card } from '../../components/Card';
 import { Badge as UiBadge } from '../../components/Badge';
-import { useQuery, useMutation, useApolloClient } from '@apollo/client';
+import { useQuery, useMutation } from '@apollo/client';
 import { CREATE_SAVE_BUSINESS } from '../../../graphql/mutations/dashboard';
 import { GET_SELLER_BUSINESSES, GET_FAVORITE_BUSINESSES, GET_SELLER_SOLD_BUSINESSES } from '../../../graphql/queries/dashboard';
 import { SectionHeader } from './DashboardView';
@@ -22,30 +22,16 @@ export const ListingsView = ({
   onNavigate?: (page: string, id?: number) => void;
 }) => {
   const { content, language, direction, userId } = useApp();
-  const apolloClient = useApolloClient();
   const isAr = language === 'ar';
   const [saveBusiness] = useMutation(CREATE_SAVE_BUSINESS, { errorPolicy: 'all' });
   const [filter, setFilter] = useState<'all' | 'sold'>('all');
 
   // Load active + sold listings separately (backend splits them)
+  // network-only + skip: isFavorites means query fires automatically once userId is set
   const { data: sellerData, loading: sellerLoading, refetch: refetchSeller, error: sellerError } = useQuery(GET_SELLER_BUSINESSES,      { skip: isFavorites, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
   const { data: soldData,   loading: soldLoading,   refetch: refetchSold,   error: soldError   } = useQuery(GET_SELLER_SOLD_BUSINESSES, { skip: isFavorites, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
-  const { data: favData,    loading: favLoading,    refetch: refetchFav,    error: favError    } = useQuery(GET_FAVORITE_BUSINESSES,    { skip: !isFavorites, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all' });
+  const { data: favData,    loading: favLoading,    refetch: refetchFav,    error: favError    } = useQuery(GET_FAVORITE_BUSINESSES,    { skip: !isFavorites, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
   const queryError = isFavorites ? favError : (sellerError || soldError);
-
-  // Force fresh fetch: evict cached listings and refetch when userId is available
-  useEffect(() => {
-    if (!userId) return;
-    // Evict any stale cached results so we always get fresh data from server
-    try {
-      apolloClient.cache.evict({ id: 'ROOT_QUERY', fieldName: 'getAllSellerBusinesses' });
-      apolloClient.cache.evict({ id: 'ROOT_QUERY', fieldName: 'getAllSellerSoldBusinesses' });
-      apolloClient.cache.evict({ id: 'ROOT_QUERY', fieldName: 'getFavoritBusiness' });
-      apolloClient.cache.gc();
-    } catch {}
-    if (!isFavorites) { refetchSeller(); refetchSold(); }
-    else              { refetchFav(); }
-  }, [userId]);
 
   // Debug: log what backend returns
   useEffect(() => {

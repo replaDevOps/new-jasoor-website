@@ -14,10 +14,10 @@ export const DealsView = ({ onNavigate }: { onNavigate?: (view: string, id?: str
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // P6-FIX R-04: real deals data — in-progress + completed
-  const { data: buyerData,     loading: buyerLoading     } = useQuery(GET_BUYER_INPROGRESS_DEALS,  { variables: { limit: 50, offset: 0 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all' });
-  const { data: sellerData,    loading: sellerLoading    } = useQuery(GET_SELLER_INPROGRESS_DEALS, { variables: { limit: 50, offset: 0 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all' });
-  const { data: buyerDoneData, loading: buyerDoneLoading } = useQuery(GET_BUYER_COMPLETED_DEALS,   { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all', skip: filter !== 'completed' });
-  const { data: sellerDoneData,loading: sellerDoneLoading} = useQuery(GET_SELLER_COMPLETED_DEALS,  { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all', skip: filter !== 'completed' });
+  const { data: buyerData,     loading: buyerLoading     } = useQuery(GET_BUYER_INPROGRESS_DEALS,  { variables: { limit: 50, offset: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: sellerData,    loading: sellerLoading    } = useQuery(GET_SELLER_INPROGRESS_DEALS, { variables: { limit: 50, offset: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: buyerDoneData, loading: buyerDoneLoading } = useQuery(GET_BUYER_COMPLETED_DEALS,   { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all', skip: filter !== 'completed' });
+  const { data: sellerDoneData,loading: sellerDoneLoading} = useQuery(GET_SELLER_COMPLETED_DEALS,  { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all', skip: filter !== 'completed' });
 
   // Merge buyer + seller deals (in-progress or completed), deduplicate
   const buyerDeals      = (buyerData?.getBuyerInprogressDeals?.deals     ?? []).map((d: any) => ({ ...d, _role: 'buyer'  }));

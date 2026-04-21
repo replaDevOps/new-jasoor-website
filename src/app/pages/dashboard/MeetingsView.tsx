@@ -66,14 +66,14 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
   // Admin: fetch all SCHEDULED meetings needing approval
   const { data: scheduledData, refetch: refetchScheduled } = useQuery(GET_SCHEDULED_MEETINGS, {
     variables: { limit: 50, offSet: 0 },
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'network-only',
     errorPolicy: 'all',
   });
   const adminMeetings = scheduledData?.getScheduledMeetings?.items ?? [];
   const isAdminUser = adminMeetings.length > 0;
 
-  const { data: sentData,     loading: sentLoading,     refetch: refetchSent,     error: sentError     } = useQuery(GET_SENT_MEETINGS,     { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all' });
-  const { data: receivedData, loading: receivedLoading, refetch: refetchReceived, error: receivedError } = useQuery(GET_RECEIVED_MEETINGS, { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'cache-and-network', errorPolicy: 'all' });
+  const { data: sentData,     loading: sentLoading,     refetch: refetchSent,     error: sentError     } = useQuery(GET_SENT_MEETINGS,     { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: receivedData, loading: receivedLoading, refetch: refetchReceived, error: receivedError } = useQuery(GET_RECEIVED_MEETINGS, { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
   const queryError = sentError || receivedError;
 
   const [updateMeeting]  = useMutation(UPDATE_MEETING,  { errorPolicy: 'all' });
