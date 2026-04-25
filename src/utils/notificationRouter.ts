@@ -1,139 +1,218 @@
-// src/utils/notificationRouter.ts  (v2 — only real views)
-//
-// v2 changes vs v1:
-//   * Drops invented views ('payment', 'dealDetails', 'listingDetails') that
-//     the custom SPA router in App.tsx does NOT recognize.
-//   * Uses ONLY the documented existing views:
-//       'dashboard' | 'offers' | 'meetings' | 'deals' | 'alerts' | 'settings'
-//       + 'details' with id (for listing) per onNavigate('details', id).
-//   * Exposes `routeNotification()` as the single entry-point used by AlertsView.
+/**
+ * notificationRouter.ts — turn a notification into a concrete action.
+ *
+ * Jusoor's SPA router is custom (see App.tsx). Views it knows about:
+ *   'home' | 'browse' | 'details' | 'signin' | 'signup' | 'forgot'
+ *   | 'dashboard' | 'wizard' | 'articles' | 'article'
+ *
+ * Dashboard *tabs* (not views):
+ *   'overview' | 'listings' | 'offers' | 'meetings' | 'deals' | 'alerts' | 'settings'
+ *
+ * We MUST NOT route to invented views like 'payment', 'dealDetails',
+ * 'listingDetails' — those cause dead-end clicks. Deal-specific actions open
+ * the 'deals' tab and let the user tap into the deal card; payment stages
+ * live inside the deals tab.
+ *
+ * Input shape (flexible to survive backend drift):
+ *   {
+ *     id, type,                                  // 'NEW_OFFER', 'COUNTER_OFFER', ...
+ *     entityType?, entityId?,                    // 'offer' | 'meeting' | 'deal' | 'business'
+ *     actionType?,                               // 'VIEW' | 'RESPOND' | 'PAY' | ...
+ *     // Legacy-compatible accessors:
+ *     offerId?, meetingId?, dealId?, businessId?
+ *   }
+ */
 
-export type AppView =
-  | 'dashboard'
-  | 'offers'
-  | 'meetings'
-  | 'deals'
-  | 'alerts'
-  | 'settings'
-  | 'details'     // business/listing details per existing router
-  | 'signin';
+export type OnNavigate = (
+  view: string,
+  id?: string | null,
+  tab?: string | null,
+) => void;
 
-export interface NotificationTarget {
-  view: AppView;
-  id?: string;
+export interface NotificationLike {
+  id?: string | null;
+  type?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
+  actionType?: string | null;
+  offerId?: string | null;
+  meetingId?: string | null;
+  dealId?: string | null;
+  businessId?: string | null;
+  // content / message are fine to include but we don't route on text:
+  title?: string | null;
+  body?: string | null;
+}
+
+export interface RoutedAction {
+  /** What the CTA button should say. Bilingual. */
   label: { ar: string; en: string };
+  /** Call this when the user clicks the CTA. */
+  execute: (onNavigate: OnNavigate) => void;
+  /** Route kind for analytics / logging. */
+  kind:
+    | 'offer'
+    | 'meeting'
+    | 'deal'
+    | 'listing'
+    | 'alerts'
+    | 'settings'
+    | 'noop';
 }
 
-export type EntityType =
-  | 'OFFER'
-  | 'COUNTER_OFFER'
-  | 'MEETING'
-  | 'DEAL'
-  | 'DOCUMENT'
-  | 'PAYMENT'
-  | 'VERIFICATION'
-  | 'LISTING';
-
-export type ActionType = 'VIEW' | 'RESPOND' | 'SCHEDULE' | 'PAY' | 'REVIEW' | 'FINALIZE' | 'UPLOAD';
-
-export interface EntityNotification {
-  entityType: EntityType;
-  entityId?: string;
-  actionType?: ActionType;
-}
-
-export function routeByEntity(n: EntityNotification): NotificationTarget {
-  const { entityType, entityId, actionType } = n;
-  switch (entityType) {
-    case 'OFFER':
-      return {
-        view: 'offers', id: entityId,
-        label: actionType === 'RESPOND'
-          ? { ar: 'الرد على العرض', en: 'Respond to offer' }
-          : { ar: 'عرض العرض', en: 'View offer' },
-      };
-    case 'COUNTER_OFFER':
-      return {
-        view: 'offers', id: entityId,
-        label: { ar: 'الرد على العرض المضاد', en: 'Respond to counter-offer' },
-      };
-    case 'MEETING':
-      return {
-        view: 'meetings', id: entityId,
-        label: actionType === 'SCHEDULE'
-          ? { ar: 'جدولة الاجتماع', en: 'Schedule meeting' }
-          : { ar: 'عرض الاجتماع', en: 'View meeting' },
-      };
-    // Payment and document-review surfaces live inside DealsView — route there
-    // and let the view open the right deal/tab based on the id.
-    case 'PAYMENT':
-      return {
-        view: 'deals', id: entityId,
-        label: { ar: 'إتمام الدفع', en: 'Proceed to payment' },
-      };
-    case 'DOCUMENT':
-      return {
-        view: 'deals', id: entityId,
-        label: { ar: 'مراجعة المستندات', en: 'Review documents' },
-      };
-    case 'DEAL':
-      return {
-        view: 'deals', id: entityId,
-        label: actionType === 'FINALIZE'
-          ? { ar: 'إنهاء الصفقة', en: 'Finalize deal' }
-          : { ar: 'عرض الصفقة', en: 'View deal' },
-      };
-    // Identity upload + review live in Settings → Identity tab.
-    case 'VERIFICATION':
-      return {
-        view: 'settings', id: 'identity',
-        label: { ar: 'مراجعة التوثيق', en: 'Review verification' },
-      };
-    // Listing page is the existing 'details' view with the listing id.
-    case 'LISTING':
-      return {
-        view: 'details', id: entityId,
-        label: { ar: 'عرض الإعلان', en: 'View listing' },
-      };
-    default:
-      return { view: 'alerts', label: { ar: 'عرض التفاصيل', en: 'View details' } };
+function entityOf(n: NotificationLike): { type: string | null; id: string | null } {
+  // Prefer the explicit entityType/entityId the backend now sends.
+  if (n.entityType && n.entityId) {
+    return { type: n.entityType.toLowerCase(), id: n.entityId };
   }
+  // Fallback to the older shape where the ID is on a typed field.
+  if (n.offerId) return { type: 'offer', id: n.offerId };
+  if (n.meetingId) return { type: 'meeting', id: n.meetingId };
+  if (n.dealId) return { type: 'deal', id: n.dealId };
+  if (n.businessId) return { type: 'business', id: n.businessId };
+  return { type: null, id: null };
 }
 
-export type LegacyCode =
-  | 'OFFER_RECEIVED' | 'OFFER_ACCEPTED' | 'OFFER_REJECTED' | 'COUNTER_OFFER_RECEIVED'
-  | 'MEETING_REQUESTED' | 'MEETING_SCHEDULED' | 'MEETING_APPROVED'
-  | 'PAYMENT_REQUIRED' | 'DOCUMENTS_UPLOADED' | 'DEAL_COMPLETED'
-  | 'VERIFICATION_APPROVED' | 'VERIFICATION_REJECTED';
+/**
+ * Given a notification, return the action that should be taken on click.
+ * The UI wires this into a single button with `execute(onNavigate)`.
+ */
+export function routeNotification(n: NotificationLike): RoutedAction {
+  const { type } = entityOf(n);
+  const t = (n.type ?? '').toUpperCase();
 
-const LEGACY_MAP: Record<LegacyCode, EntityNotification> = {
-  OFFER_RECEIVED:         { entityType: 'OFFER',         actionType: 'RESPOND'  },
-  OFFER_ACCEPTED:         { entityType: 'OFFER',         actionType: 'VIEW'     },
-  OFFER_REJECTED:         { entityType: 'OFFER',         actionType: 'VIEW'     },
-  COUNTER_OFFER_RECEIVED: { entityType: 'COUNTER_OFFER', actionType: 'RESPOND'  },
-  MEETING_REQUESTED:      { entityType: 'MEETING',       actionType: 'SCHEDULE' },
-  MEETING_SCHEDULED:      { entityType: 'MEETING',       actionType: 'VIEW'     },
-  MEETING_APPROVED:       { entityType: 'MEETING',       actionType: 'VIEW'     },
-  PAYMENT_REQUIRED:       { entityType: 'PAYMENT',       actionType: 'PAY'      },
-  DOCUMENTS_UPLOADED:     { entityType: 'DOCUMENT',      actionType: 'REVIEW'   },
-  DEAL_COMPLETED:         { entityType: 'DEAL',          actionType: 'VIEW'     },
-  VERIFICATION_APPROVED:  { entityType: 'VERIFICATION',  actionType: 'VIEW'     },
-  VERIFICATION_REJECTED:  { entityType: 'VERIFICATION',  actionType: 'UPLOAD'   },
-};
+  // --- OFFERS ---------------------------------------------------------------
+  if (type === 'offer' || t.includes('OFFER')) {
+    if (t.includes('COUNTER')) {
+      return {
+        kind: 'offer',
+        label: { ar: 'الردّ على العرض المضاد', en: 'Respond to counter' },
+        execute: (nav) => nav('dashboard', null, 'offers'),
+      };
+    }
+    if (t.includes('ACCEPT')) {
+      return {
+        kind: 'offer',
+        label: { ar: 'عرض العرض المقبول', en: 'View accepted offer' },
+        execute: (nav) => nav('dashboard', null, 'offers'),
+      };
+    }
+    if (t.includes('REJECT')) {
+      return {
+        kind: 'offer',
+        label: { ar: 'عرض الحالة', en: 'View status' },
+        execute: (nav) => nav('dashboard', null, 'offers'),
+      };
+    }
+    return {
+      kind: 'offer',
+      label: { ar: 'عرض العرض', en: 'View offer' },
+      execute: (nav) => nav('dashboard', null, 'offers'),
+    };
+  }
 
-export function routeByCode(code: string, entityId?: string): NotificationTarget {
-  const mapped = LEGACY_MAP[code as LegacyCode];
-  if (mapped) return routeByEntity({ ...mapped, entityId });
-  return { view: 'alerts', label: { ar: 'عرض التفاصيل', en: 'View details' } };
+  // --- MEETINGS -------------------------------------------------------------
+  if (type === 'meeting' || t.includes('MEETING')) {
+    if (t.includes('REQUEST')) {
+      return {
+        kind: 'meeting',
+        label: { ar: 'مراجعة طلب الاجتماع', en: 'Review meeting request' },
+        execute: (nav) => nav('dashboard', null, 'meetings'),
+      };
+    }
+    if (t.includes('SCHEDULED') || t.includes('READY') || t.includes('APPROVED')) {
+      return {
+        kind: 'meeting',
+        label: { ar: 'فتح الاجتماع', en: 'Open meeting' },
+        execute: (nav) => nav('dashboard', null, 'meetings'),
+      };
+    }
+    if (t.includes('REJECT') || t.includes('CANCEL')) {
+      return {
+        kind: 'meeting',
+        label: { ar: 'عرض الحالة', en: 'View status' },
+        execute: (nav) => nav('dashboard', null, 'meetings'),
+      };
+    }
+    return {
+      kind: 'meeting',
+      label: { ar: 'عرض الاجتماع', en: 'View meeting' },
+      execute: (nav) => nav('dashboard', null, 'meetings'),
+    };
+  }
+
+  // --- DEALS ---------------------------------------------------------------
+  if (type === 'deal' || t.includes('DEAL') || t.includes('NDA') || t.includes('PAYMENT') || t.includes('DOCUMENT')) {
+    if (t.includes('PAYMENT')) {
+      return {
+        kind: 'deal',
+        label: { ar: 'إتمام الدفع', en: 'Proceed to payment' },
+        execute: (nav) => nav('dashboard', null, 'deals'),
+      };
+    }
+    if (t.includes('DOCUMENT')) {
+      return {
+        kind: 'deal',
+        label: { ar: 'مراجعة المستندات', en: 'Review documents' },
+        execute: (nav) => nav('dashboard', null, 'deals'),
+      };
+    }
+    if (t.includes('NDA')) {
+      return {
+        kind: 'deal',
+        label: { ar: 'توقيع اتفاقية السرية', en: 'Sign NDA' },
+        execute: (nav) => nav('dashboard', null, 'deals'),
+      };
+    }
+    if (t.includes('FINAL') || t.includes('COMPLETE')) {
+      return {
+        kind: 'deal',
+        label: { ar: 'إنهاء الصفقة', en: 'Finalize deal' },
+        execute: (nav) => nav('dashboard', null, 'deals'),
+      };
+    }
+    return {
+      kind: 'deal',
+      label: { ar: 'عرض الصفقة', en: 'View deal' },
+      execute: (nav) => nav('dashboard', null, 'deals'),
+    };
+  }
+
+  // --- LISTINGS / BUSINESSES ------------------------------------------------
+  if (type === 'business' || t.includes('LISTING') || t.includes('BUSINESS')) {
+    const id = n.businessId ?? n.entityId ?? null;
+    if (id) {
+      return {
+        kind: 'listing',
+        label: { ar: 'عرض القائمة', en: 'View listing' },
+        execute: (nav) => nav('details', id),
+      };
+    }
+    return {
+      kind: 'listing',
+      label: { ar: 'قوائمي', en: 'My listings' },
+      execute: (nav) => nav('dashboard', null, 'listings'),
+    };
+  }
+
+  // --- VERIFICATION ---------------------------------------------------------
+  if (t.includes('VERIFICATION') || t.includes('IDENTITY') || t.includes('KYC')) {
+    return {
+      kind: 'settings',
+      label: { ar: 'إدارة التحقق', en: 'Manage verification' },
+      execute: (nav) => nav('dashboard', null, 'settings'),
+    };
+  }
+
+  // --- FALLBACK -------------------------------------------------------------
+  return {
+    kind: 'alerts',
+    label: { ar: 'فتح التنبيهات', en: 'Open alerts' },
+    execute: (nav) => nav('dashboard', null, 'alerts'),
+  };
 }
 
-export function routeNotification(n: {
-  entityType?: EntityType;
-  entityId?: string;
-  actionType?: ActionType;
-  type?: string;
-}): NotificationTarget {
-  if (n.entityType) return routeByEntity(n as EntityNotification);
-  if (n.type) return routeByCode(n.type, n.entityId);
-  return { view: 'alerts', label: { ar: 'عرض التفاصيل', en: 'View details' } };
+/** Convenience for render sites: pick the correct label string for the UI language. */
+export function actionLabel(action: RoutedAction, isAr: boolean): string {
+  return isAr ? action.label.ar : action.label.en;
 }

@@ -1,107 +1,120 @@
-// src/app/components/StateBlock.tsx
-// One component that renders loading / empty / error / restricted states
-// so dashboard cards never show bare "---" or unexplained blanks.
-//
-// Usage:
-//   <StateBlock
-//     loading={loading}
-//     error={error}
-//     isEmpty={!data?.length}
-//     emptyLabel={{ ar: 'لا توجد عروض بعد', en: 'No offers yet' }}
-//     emptyCta={{ ar: 'تصفح الفرص', en: 'Browse opportunities',
-//                 onClick: () => onNavigate?.('browse') }}
-//   >
-//     {/* your actual list */}
-//   </StateBlock>
+/**
+ * StateBlock.tsx — single component for loading / empty / error / success
+ * states. Wrap any list or stat card in this to avoid the "---" blanks the
+ * audit flagged.
+ *
+ * Usage:
+ *
+ *   <StateBlock
+ *     loading={loading}
+ *     error={error}
+ *     isEmpty={!items?.length}
+ *     emptyTitle={isAr ? 'لا توجد عروض بعد' : 'No offers yet'}
+ *     emptyHint={isAr ? 'ستظهر العروض الجديدة هنا.' : 'New offers will show up here.'}
+ *     action={<button ...>Browse businesses</button>}
+ *   >
+ *     {items.map(i => <OfferCard key={i.id} offer={i} />)}
+ *   </StateBlock>
+ */
 
-import React from 'react';
+import React, { ReactNode } from 'react';
 import { useApp } from '../../context/AppContext';
-
-interface Bilingual { ar: string; en: string }
-interface Cta extends Bilingual { onClick: () => void }
 
 interface Props {
   loading?: boolean;
   error?: unknown;
   isEmpty?: boolean;
-  restricted?: boolean;
-  restrictedReason?: Bilingual;
-  emptyLabel?: Bilingual;
-  emptyCta?: Cta;
-  onRetry?: () => void;
-  children?: React.ReactNode;
+  children?: ReactNode;
+
+  loadingLabel?: string;
+  emptyTitle?: string;
+  emptyHint?: string;
+  errorTitle?: string;
+  errorHint?: string;
+
+  /** Optional CTA (rendered under emptyHint). Buttons/links only. */
+  action?: ReactNode;
+
+  className?: string;
+  /** Compact variant for stat cards. */
+  compact?: boolean;
 }
 
 export const StateBlock: React.FC<Props> = ({
   loading,
   error,
   isEmpty,
-  restricted,
-  restrictedReason,
-  emptyLabel,
-  emptyCta,
-  onRetry,
   children,
+  loadingLabel,
+  emptyTitle,
+  emptyHint,
+  errorTitle,
+  errorHint,
+  action,
+  className,
+  compact,
 }) => {
   const { language } = useApp();
   const isAr = language === 'ar';
 
   if (loading) {
     return (
-      <div className="animate-pulse space-y-3 p-6" aria-busy="true">
-        <div className="h-4 bg-gray-100 rounded w-2/3" />
-        <div className="h-4 bg-gray-100 rounded w-1/2" />
-        <div className="h-4 bg-gray-100 rounded w-3/4" />
+      <div
+        className={
+          (compact
+            ? 'min-h-[80px] flex items-center justify-center'
+            : 'min-h-[200px] flex flex-col items-center justify-center') +
+          ' bg-gray-50 rounded-[24px] border border-gray-100 ' +
+          (className ?? '')
+        }
+      >
+        <span className="inline-block w-5 h-5 rounded-full border-2 border-[#008A66] border-t-transparent animate-spin" />
+        <p className="text-gray-600 text-sm mt-3">
+          {loadingLabel ?? (isAr ? 'جارٍ التحميل...' : 'Loading...')}
+        </p>
       </div>
     );
   }
 
   if (error) {
+    const message =
+      (error as { message?: string } | null)?.message ??
+      (isAr ? 'تعذّر جلب البيانات، يرجى المحاولة مرة أخرى.' : 'Could not load data. Try again.');
     return (
-      <div className="p-6 text-center">
-        <p className="text-red-600 font-bold mb-3">
-          {isAr ? 'حدث خطأ، يرجى المحاولة مجدداً' : 'An error occurred, please try again'}
-        </p>
-        {onRetry && (
-          <button
-            onClick={onRetry}
-            className="bg-[#008A66] text-white font-bold px-4 py-2 rounded-xl hover:bg-[#007053]"
-          >
-            {isAr ? 'إعادة المحاولة' : 'Retry'}
-          </button>
-        )}
-      </div>
-    );
-  }
-
-  if (restricted) {
-    return (
-      <div className="p-6 text-center border border-amber-200 bg-amber-50 rounded-[24px]">
-        <p className="text-amber-800 font-bold">
-          {restrictedReason
-            ? isAr ? restrictedReason.ar : restrictedReason.en
-            : isAr ? 'غير متاح لحسابك حالياً' : 'Not available for your account yet'}
-        </p>
+      <div
+        className={
+          (compact ? 'p-4' : 'p-6') +
+          ' bg-red-50 border border-red-200 rounded-[24px] ' +
+          (className ?? '')
+        }
+        role="alert"
+      >
+        <h4 className="text-red-900 font-bold text-base mb-1">
+          {errorTitle ?? (isAr ? 'حدث خطأ' : 'Something went wrong')}
+        </h4>
+        <p className="text-red-800 text-sm">{errorHint ?? message}</p>
       </div>
     );
   }
 
   if (isEmpty) {
     return (
-      <div className="p-8 text-center">
-        <p className="text-gray-500 mb-3">
-          {emptyLabel
-            ? isAr ? emptyLabel.ar : emptyLabel.en
-            : isAr ? 'لا توجد بيانات بعد' : 'No data yet'}
-        </p>
-        {emptyCta && (
-          <button
-            onClick={emptyCta.onClick}
-            className="bg-[#008A66] text-white font-bold px-5 py-2.5 rounded-xl hover:bg-[#007053] transition-colors shadow-lg shadow-[#008A66]/20"
-          >
-            {isAr ? emptyCta.ar : emptyCta.en}
-          </button>
-        )}
+      <div
+        className={
+          (compact
+            ? 'p-4 text-center'
+            : 'p-8 md:p-10 text-center') +
+          ' bg-gray-50 rounded-[24px] border border-dashed border-gray-200 ' +
+          (className ?? '')
+        }
+      >
+        <h4 className="text-[#111827] font-bold text-base mb-1">
+          {emptyTitle ?? (isAr ? 'لا توجد بيانات بعد' : 'Nothing here yet')}
+        </h4>
+        {emptyHint ? (
+          <p className="text-gray-600 text-sm max-w-md mx-auto">{emptyHint}</p>
+        ) : null}
+        {action ? <div className="mt-4">{action}</div> : null}
       </div>
     );
   }

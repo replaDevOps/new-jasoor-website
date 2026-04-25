@@ -1,87 +1,163 @@
-// src/utils/logout.ts  (v2 — tokenManager-integrated, no guessed keys)
-//
-// v2 changes vs v1:
-//   * No more hardcoded cookie/localStorage key guesses that silently do nothing.
-//   * Delegates cookie clearing to tokenManager.clearAll() — the source of truth.
-//   * localStorage cleanup is SCOPED: only removes the `jusoor:*` prefix, never
-//     blows away unrelated keys.
-//   * Apollo client is stopped BEFORE clearStore() so the auto-refresh service
-//     doesn't fire a refresh with a now-dead refresh token.
-
-import type { ApolloClient } from '@apollo/client';
-import { clearAllTokens } from './tokenManager';
-
 /**
- * Remove every localStorage key prefixed with the app namespace.
- * Intentionally surgical — unrelated keys (e.g. feature flags from other tools) survive.
+ * logout.ts — one-call logout that actually terminates the session.
+ *
+ * Design goals:
+ *   1. Stop Apollo BEFORE wiping tokens so in-flight queries don't 401-cascade
+ *      and trigger the refresh service.
+ *   2. Delegate cookie wipe to tokenManager.clearAllTokens() — never hardcode
+ *      cookie names here. tokenManager owns the encrypted-cookie schema.
+ *   3. Scope localStorage cleanup to the `jusoor:` prefix. `localStorage.clear()`
+ *      nukes unrelated app state (saved drafts, language preference, etc.).
+ *   4. Dispatch `jusoor:auth:logged-out` so `App.tsx` can switch the view
+ *      back to signin without a full page reload.
+ *   5. Optionally call the LOGOUT mutation if the caller passes a client.
+ *      This is fire-and-forget — we don't block the UI on a server call.
+ *
+ * Usage (in AppContext.tsx):
+ *
+ *   import { performLogout } from '@/utils/logout';
+ *   import { apolloClient } from '@/config/apolloClient';
+ *
+ *   const logout = async () => {
+ *     await performLogout({ client: apolloClient });
+ *     setIsLoggedIn(false);
+ *     setUserId(null);
+ *   };
  */
-function clearScopedLocalStorage(prefix = 'jusoor:'): void {
-  try {
-    const keys: string[] = [];
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const k = window.localStorage.key(i);
-      if (k && k.startsWith(prefix)) keys.push(k);
-    }
-    keys.forEach((k) => window.localStorage.removeItem(k));
-    // Known non-prefixed draft keys used by the app:
-    ['draft:newListing'].forEach((k) => window.localStorage.removeItem(k));
-  } catch {
-    /* Private mode / quota errors — ignore, we did our best. */
+
+import type { ApolloClient, NormalizedCacheObject } from '@apollo/client';
+import { gql } from '@apollo/client';
+import { tokenManager } from './tokenManager';
+
+// Only define this if the server has a LOGOUT mutation. If it doesn't, the
+// call is harmless — the promise rejects and we swallow it.
+const LOGOUT_MUTATION = gql`
+  mutation Logout {
+    logout
   }
-}
+`;
 
 export interface LogoutOptions {
-  apolloClient?: ApolloClient<unknown> | null;
-  /** Optional redirect callback — usually a navigation to SignIn. */
-  redirect?: () => void;
-  /** Best-effort server LOGOUT mutation. */
-  serverLogout?: () => Promise<unknown>;
+  /** Apollo client to stop + call LOGOUT on. Pass the app-wide singleton. */
+  client?: ApolloClient<NormalizedCacheObject> | null;
+  /** If false, skip the server-side LOGOUT mutation. Default: true. */
+  callServer?: boolean;
+  /** If false, skip dispatching the cross-app event. Default: true. */
+  dispatchEvent?: boolean;
 }
 
-export async function performLogout(opts: LogoutOptions = {}): Promise<void> {
-  const { apolloClient, redirect, serverLogout } = opts;
+export const LOGGED_OUT_EVENT = 'jusoor:auth:logged-out';
 
-  // 1. Stop Apollo FIRST so the auto-refresh loop and subscriptions go quiet
-  //    before we yank the tokens out from under them.
-  if (apolloClient) {
-    try { apolloClient.stop(); } catch { /* ignore */ }
+/**
+ * Scoped localStorage cleanup — only keys that start with `jusoor:`.
+ * This preserves unrelated app state (e.g., listing wizard drafts that the
+ * user may want to keep, language preference, theme).
+ *
+ * If some keys should ALSO survive logout (e.g., saved language), add them
+ * to the `preserve` list.
+ */
+function clearScopedLocalStorage(preserve: string[] = ['jusoor:lang', 'jusoor:theme']): void {
+  try {
+    const keys = Object.keys(window.localStorage);
+    for (const key of keys) {
+      if (!key.startsWith('jusoor:')) continue;
+      if (preserve.includes(key)) continue;
+      window.localStorage.removeItem(key);
+    }
+  } catch {
+    // SSR or privacy-mode browsers may throw here. Ignore.
+  }
+}
+
+/**
+ * Scoped sessionStorage cleanup — session-scoped state goes away anyway when
+ * the tab closes, but on logout we want it gone immediately.
+ */
+function clearScopedSessionStorage(): void {
+  try {
+    const keys = Object.keys(window.sessionStorage);
+    for (const key of keys) {
+      if (!key.startsWith('jusoor:')) continue;
+      window.sessionStorage.removeItem(key);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Full logout. Safe to call multiple times; idempotent.
+ *
+ * Order matters:
+ *   1. Stop Apollo → cancels in-flight queries, no 401 cascade.
+ *   2. Call LOGOUT mutation (best-effort, tokens still attached here).
+ *   3. Clear tokens via tokenManager (encrypted cookies + any in-memory cache).
+ *   4. Clear scoped localStorage / sessionStorage.
+ *   5. Clear Apollo cache.
+ *   6. Dispatch event so App.tsx switches view.
+ */
+export async function performLogout(options: LogoutOptions = {}): Promise<void> {
+  const { client = null, callServer = true, dispatchEvent = true } = options;
+
+  // 1. Stop in-flight queries BEFORE tokens disappear.
+  if (client) {
+    try {
+      client.stop();
+    } catch {
+      // client.stop can throw on some versions; safe to ignore.
+    }
   }
 
-  // 2. Best-effort server logout with a hard timeout.
-  if (serverLogout) {
+  // 2. Best-effort server-side logout. Fire-and-forget with short timeout.
+  if (callServer && client) {
     try {
       await Promise.race([
-        serverLogout(),
+        client.mutate({ mutation: LOGOUT_MUTATION, errorPolicy: 'ignore' }),
         new Promise((resolve) => setTimeout(resolve, 1500)),
       ]);
     } catch {
-      /* swallow — local cleanup must still happen */
+      // Server may not expose LOGOUT — that's fine, we still wipe locally.
     }
   }
 
-  // 3. Real source-of-truth for cookies + token cache. No guessed keys.
+  // 3. Wipe all token storage through the owner of the encryption schema.
   try {
-    await clearAllTokens();
+    await tokenManager.clearAllTokens();
   } catch (e) {
-    // If tokenManager ever fails, at least clear the documented three cookies
-    // by expiring them. Keys per yazid-preferences: _at, _rt, userId.
-    const expired = 'Thu, 01 Jan 1970 00:00:00 GMT';
-    ['_at', '_rt', 'userId'].forEach((key) => {
-      document.cookie = `${key}=; Path=/; Expires=${expired}; SameSite=Lax`;
-    });
+    // Fallback: at minimum remove the known cookie names if clearAllTokens
+    // isn't implemented yet. tokenManager-addendum.md provides the proper
+    // implementation to append.
+    // eslint-disable-next-line no-console
+    console.warn('[logout] tokenManager.clearAllTokens() unavailable', e);
+    try {
+      document.cookie = '_at=; Path=/; Max-Age=0';
+      document.cookie = '_rt=; Path=/; Max-Age=0';
+      document.cookie = 'userId=; Path=/; Max-Age=0';
+    } catch {
+      // SSR — ignore.
+    }
   }
 
-  // 4. Scoped localStorage + full sessionStorage.
-  clearScopedLocalStorage('jusoor:');
-  try { window.sessionStorage.clear(); } catch { /* ignore */ }
+  // 4. Clear scoped client-side state.
+  clearScopedLocalStorage();
+  clearScopedSessionStorage();
 
-  // 5. Clear Apollo cache AFTER tokens are gone so any still-inflight query
-  //    sees empty auth, fails fast, and does not populate the store again.
-  if (apolloClient) {
-    try { await apolloClient.clearStore(); } catch { /* ignore */ }
-    try { await apolloClient.resetStore(); } catch { /* ignore */ }
+  // 5. Clear Apollo cache (after tokens are gone so refetch-on-mount can't
+  //    revive a stale session).
+  if (client) {
+    try {
+      await client.clearStore();
+    } catch {
+      // ignore
+    }
   }
 
-  // 6. Redirect — caller chooses how to navigate (onNavigate or the global event).
-  redirect?.();
+  // 6. Notify the app so the router can switch views without a full reload.
+  if (dispatchEvent && typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new Event(LOGGED_OUT_EVENT));
+    } catch {
+      // ignore
+    }
+  }
 }

@@ -1,124 +1,163 @@
-// src/hooks/useVerificationGate.ts  (v2 — safe for rollout)
-//
-// CRITICAL CHANGE vs v1:
-//   v1 returned 'UNVERIFIED' as a default whenever `data.getUserDetails.status`
-//   was missing. That would have locked out every user on the platform if the
-//   migration + GET_USER_DETAILS query update hadn't shipped first.
-//
-//   v2 uses a tri-state: 'UNKNOWN' while loading or when the backend hasn't
-//   exposed the new enum yet. In UNKNOWN, the gate falls back to the legacy
-//   boolean `isVerified` (if present) and treats absence of both as "do not
-//   block" — so the UX cannot regress for already-working users. Block-by-
-//   default lives on the SERVER (see verification.resolvers.ts).
+/**
+ * useVerificationGate.ts — read-only gate for the current user's verification.
+ *
+ * IMPORTANT: This is UX only. The BACKEND must enforce the same gate in
+ * resolvers (see `verification.resolvers.ts`). Hiding buttons here will not
+ * stop an attacker hitting the mutation directly.
+ *
+ * Product states (in order of permission):
+ *   UNVERIFIED           — account created, no document uploaded yet. Browsing only.
+ *   PENDING_VERIFICATION — document uploaded, awaiting admin review. Browsing only.
+ *   VERIFIED             — admin approved. Full transactional access.
+ *   REJECTED             — admin rejected; can re-upload.
+ *
+ * The one trap from v1:
+ *   If `GET_USER_DETAILS` does NOT yet select `status` (the migration hasn't
+ *   run or the frontend hasn't been extended yet), the old hook defaulted to
+ *   `UNVERIFIED` and locked EVERY user out of offers overnight.
+ *
+ *   This version adds an `UNKNOWN` state that falls back to the legacy
+ *   `isVerified: boolean` field if present. Only once we have a real status
+ *   string do we treat the absence of it as meaningful.
+ */
 
-import { useMemo } from 'react';
 import { useQuery } from '@apollo/client';
-import { GET_USER_DETAILS } from '../graphql/queries/dashboard';
 import { useApp } from '../context/AppContext';
+import { GET_USER_DETAILS } from '../graphql/queries/dashboard';
 
 export type VerificationStatus =
-  | 'UNVERIFIED'
-  | 'PENDING_VERIFICATION'
   | 'VERIFIED'
+  | 'PENDING_VERIFICATION'
+  | 'UNVERIFIED'
   | 'REJECTED'
   | 'UNKNOWN';
 
-export type GatedAction =
-  | 'MAKE_OFFER'
-  | 'REQUEST_MEETING'
-  | 'COUNTER_OFFER'
-  | 'PROGRESS_DEAL'
-  | 'UPLOAD_DOCUMENT'
-  | 'PAY_COMMISSION';
-
-interface GateResult {
+export interface VerificationGate {
+  /** Normalised status. */
   status: VerificationStatus;
+  /** True iff backend says this user can perform sensitive actions. */
+  canTransact: boolean;
+  /** True iff a document has been uploaded and is waiting on admin review. */
+  isPending: boolean;
+  /** True iff the user has never uploaded identity. */
+  isUnverified: boolean;
+  /** True iff admin rejected the last upload. */
+  isRejected: boolean;
+  /** True iff the user's full name/identity has been confirmed. */
+  isVerified: boolean;
+  /** True iff Apollo is still loading the status query. */
   loading: boolean;
-  /** True = FE may let the user attempt the action. Server still has final say. */
-  allowed: (action: GatedAction) => boolean;
-  reason: (action: GatedAction) => { ar: string; en: string } | null;
-  needsUpload: boolean;
-  pending: boolean;
-  rejected: boolean;
-  verified: boolean;
+  /** Admin-supplied rejection reason, when REJECTED. */
+  rejectionNote: string | null;
+  /** Raw user details payload for banner / settings rendering. */
+  user: UserDetails | null;
 }
 
-const SENSITIVE_ACTIONS: ReadonlySet<GatedAction> = new Set([
-  'MAKE_OFFER',
-  'REQUEST_MEETING',
-  'COUNTER_OFFER',
-  'PROGRESS_DEAL',
-  'UPLOAD_DOCUMENT',
-  'PAY_COMMISSION',
-]);
+interface UserDetails {
+  id?: string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  fullName?: string | null;
+  status?: string | null;       // new model
+  isVerified?: boolean | null;  // legacy boolean fallback
+  verificationNote?: string | null;
+  identityDocumentUrl?: string | null;
+}
 
-/**
- * Resolve status from whichever shape the backend currently returns.
- * Priority: new enum `status` → legacy boolean `isVerified` → UNKNOWN.
- */
-function resolveStatus(u: unknown): VerificationStatus {
-  if (!u || typeof u !== 'object') return 'UNKNOWN';
-  const raw = (u as Record<string, unknown>);
-  const enumStatus = raw.status;
-  if (
-    enumStatus === 'UNVERIFIED' ||
-    enumStatus === 'PENDING_VERIFICATION' ||
-    enumStatus === 'VERIFIED' ||
-    enumStatus === 'REJECTED'
-  ) {
-    return enumStatus;
+interface GetUserDetailsData {
+  getUserDetails?: UserDetails | null;
+}
+
+function normaliseStatus(details: UserDetails | null | undefined): VerificationStatus {
+  if (!details) return 'UNKNOWN';
+
+  // 1. Explicit status wins.
+  const raw = (details.status ?? '').toString().trim().toUpperCase();
+  if (raw === 'VERIFIED') return 'VERIFIED';
+  if (raw === 'PENDING_VERIFICATION' || raw === 'UNDER_REVIEW' || raw === 'PENDING') {
+    return 'PENDING_VERIFICATION';
   }
-  if (typeof raw.isVerified === 'boolean') {
-    return raw.isVerified ? 'VERIFIED' : 'UNVERIFIED';
+  if (raw === 'REJECTED') return 'REJECTED';
+  if (raw === 'UNVERIFIED' || raw === 'NEW') return 'UNVERIFIED';
+
+  // 2. No explicit status field — fall back to legacy boolean.
+  if (details.isVerified === true) return 'VERIFIED';
+  if (details.isVerified === false) {
+    // Legacy boolean explicitly set to false. If they've uploaded a doc but
+    // haven't been approved, treat as pending. We can't tell reliably from
+    // just a boolean, so we return UNKNOWN and let the caller decide.
+    return 'UNKNOWN';
   }
+
+  // 3. Status field absent AND boolean absent. Safer to return UNKNOWN than
+  //    to lock every user out.
   return 'UNKNOWN';
 }
 
-export function useVerificationGate(): GateResult {
+export function useVerificationGate(): VerificationGate {
   const { userId } = useApp();
 
-  const { data, loading } = useQuery(GET_USER_DETAILS, {
+  const { data, loading } = useQuery<GetUserDetailsData>(GET_USER_DETAILS, {
     variables: { id: userId },
-    skip: !userId,
     errorPolicy: 'all',
-    fetchPolicy: 'cache-first',
+    fetchPolicy: 'cache-and-network',
+    skip: !userId,
   });
 
-  const status = resolveStatus(data?.getUserDetails);
+  const user = data?.getUserDetails ?? null;
+  const status = normaliseStatus(user);
 
-  return useMemo(() => {
-    const pending = status === 'PENDING_VERIFICATION';
-    const rejected = status === 'REJECTED';
-    const verified = status === 'VERIFIED';
-    const needsUpload = status === 'UNVERIFIED' || status === 'REJECTED';
+  return {
+    status,
+    user,
+    loading,
+    canTransact: status === 'VERIFIED',
+    isPending: status === 'PENDING_VERIFICATION',
+    isUnverified: status === 'UNVERIFIED',
+    isRejected: status === 'REJECTED',
+    isVerified: status === 'VERIFIED',
+    rejectionNote: user?.verificationNote ?? null,
+  };
+}
 
-    // FE permissiveness policy:
-    //   VERIFIED  → allow
-    //   UNKNOWN   → allow (server enforces)  ← prevents accidental lockout during rollout
-    //   other     → block
-    const allowed = (action: GatedAction) => {
-      if (!SENSITIVE_ACTIONS.has(action)) return true;
-      return verified || status === 'UNKNOWN';
+/**
+ * Helper for a UI site that conditionally disables a button. Keeps toast /
+ * banner logic out of the hook itself.
+ *
+ *   const gate = useVerificationGate();
+ *   const { disabled, reason } = gateButton(gate, isAr);
+ *   <button disabled={disabled} title={reason}>Make offer</button>
+ */
+export function gateButton(
+  gate: VerificationGate,
+  isAr: boolean,
+): { disabled: boolean; reason: string | null } {
+  if (gate.loading || gate.status === 'UNKNOWN') {
+    // Neither allow nor block while we don't know — keep UI stable.
+    return { disabled: false, reason: null };
+  }
+  if (gate.canTransact) return { disabled: false, reason: null };
+
+  if (gate.isPending) {
+    return {
+      disabled: true,
+      reason: isAr
+        ? 'حسابك قيد المراجعة. بعد الموافقة يمكنك إتمام العمليات.'
+        : 'Your account is under review. You can transact once approved.',
     };
-
-    const reason = (action: GatedAction) => {
-      if (allowed(action)) return null;
-      if (needsUpload)
-        return {
-          ar: 'يرجى رفع وثيقة الهوية من لوحة التحكم للمتابعة.',
-          en: 'Upload your ID from the dashboard to continue.',
-        };
-      if (pending)
-        return {
-          ar: 'حسابك قيد مراجعة الإدارة. ستتمكن من المتابعة فور الاعتماد.',
-          en: 'Your account is under admin review. You can continue once approved.',
-        };
-      return {
-        ar: 'هذا الإجراء يتطلب حساباً موثقاً بالكامل.',
-        en: 'This action requires a fully verified account.',
-      };
+  }
+  if (gate.isRejected) {
+    return {
+      disabled: true,
+      reason: isAr
+        ? 'تم رفض المستند. يرجى إعادة الرفع من الإعدادات.'
+        : 'Your document was rejected. Please re-upload it from Settings.',
     };
-
-    return { status, loading, allowed, reason, needsUpload, pending, rejected, verified };
-  }, [status, loading]);
+  }
+  return {
+    disabled: true,
+    reason: isAr
+      ? 'يتطلب هذا الإجراء توثيق الهوية. ابدأ من الإعدادات.'
+      : 'This action requires identity verification. Start it from Settings.',
+  };
 }

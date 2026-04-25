@@ -1,73 +1,128 @@
-// src/utils/maskName.ts
-// Counterparty privacy helper. Never exposes full name to the other party.
-// Produces: "Yazid***"  (firstName + three asterisks)
-//
-// Rules:
-// 1. If a `firstName` is present, use it.
-// 2. If only `fullName` exists (legacy records), derive firstName = first whitespace-separated token.
-// 3. Fallback to a localized anonymous label.
-//
-// Trust boundary: this is a DISPLAY helper. The real enforcement must also
-// live in the GraphQL resolver for any query that returns a counterparty —
-// see backend/privacy.md for the resolver-level masking contract.
+/**
+ * maskName.ts — counterparty display masking (frontend)
+ *
+ * IMPORTANT: This is a UX convenience, NOT a security boundary. The backend
+ * MUST also mask counterparty identity in resolvers (see privacy.resolvers.ts).
+ * If the server ships a clear-text name, this file hides it in the UI but it
+ * is still visible in the Network tab. Do not rely on it alone.
+ *
+ * Product rule:
+ *   Full name: "Yazid Alharbi"
+ *   Masked:    "Yazid***"
+ *
+ * Inputs this accepts, in priority order:
+ *   { firstName, lastName }           ← new model
+ *   { fullName }                      ← legacy model (split on first space)
+ *   string                            ← convenience
+ */
 
-export interface PersonLike {
+export interface NamedPerson {
+  id?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   fullName?: string | null;
-  name?: string | null; // some legacy resolvers return `name`
 }
 
 export interface MaskOptions {
-  /** Show the full real name. Use ONLY for admin views or the logged-in user themselves. */
-  reveal?: boolean;
-  /** Locale for the anonymous fallback label. */
-  isAr?: boolean;
+  /** If the viewer IS this user, return the unmasked name. */
+  viewerId?: string | null;
+  /** If true, force unmask (admin views, server-confirmed same-user, etc.). */
+  forceReveal?: boolean;
+  /** Fallback string when there is nothing to render. */
+  fallback?: string;
 }
 
-const ANON_LABEL = {
-  ar: 'مستخدم مجهول',
-  en: 'Anonymous user',
-};
+/** Pick a displayable first name from any supported shape. */
+export function pickFirstName(person: NamedPerson | string | null | undefined): string {
+  if (!person) return '';
+  if (typeof person === 'string') {
+    const first = person.trim().split(/\s+/)[0] ?? '';
+    return first;
+  }
+  if (person.firstName && person.firstName.trim()) return person.firstName.trim();
+  if (person.fullName && person.fullName.trim()) {
+    return person.fullName.trim().split(/\s+/)[0] ?? '';
+  }
+  return '';
+}
 
-/**
- * Extract the first name token from any PersonLike shape.
- * Tolerant of legacy records that only have `fullName` or `name`.
- */
-export function deriveFirstName(p?: PersonLike | null): string {
-  if (!p) return '';
-  if (p.firstName && p.firstName.trim()) return p.firstName.trim();
-  const legacy = (p.fullName ?? p.name ?? '').trim();
-  if (!legacy) return '';
-  const [first] = legacy.split(/\s+/);
-  return first ?? '';
+/** Pick a displayable last name from any supported shape. */
+export function pickLastName(person: NamedPerson | string | null | undefined): string {
+  if (!person) return '';
+  if (typeof person === 'string') {
+    const parts = person.trim().split(/\s+/);
+    return parts.slice(1).join(' ');
+  }
+  if (person.lastName && person.lastName.trim()) return person.lastName.trim();
+  if (person.fullName && person.fullName.trim()) {
+    const parts = person.fullName.trim().split(/\s+/);
+    return parts.slice(1).join(' ');
+  }
+  return '';
+}
+
+/** Return the full, unmasked display name. */
+export function fullDisplayName(person: NamedPerson | string | null | undefined): string {
+  const f = pickFirstName(person);
+  const l = pickLastName(person);
+  return [f, l].filter(Boolean).join(' ');
 }
 
 /**
- * Return the display string for a counterparty.
- * Default: "FirstName***". With `reveal: true`, returns the best full name.
+ * Mask a counterparty for display.
+ *
+ *   maskName({ firstName: 'Yazid', lastName: 'Alharbi' })   → "Yazid***"
+ *   maskName({ fullName: 'Yazid Alharbi' })                 → "Yazid***"
+ *   maskName({ fullName: 'Yazid' })                         → "Yazid***"
+ *   maskName(null, { fallback: 'User' })                    → "User"
+ *
+ *   // Self-view bypasses masking:
+ *   maskName(me, { viewerId: me.id })                       → "Yazid Alharbi"
  */
-export function maskName(p?: PersonLike | null, opts: MaskOptions = {}): string {
-  const { reveal = false, isAr = false } = opts;
-  const first = deriveFirstName(p);
+export function maskName(
+  person: NamedPerson | string | null | undefined,
+  options: MaskOptions = {},
+): string {
+  const { viewerId, forceReveal, fallback = '—' } = options;
 
-  if (!first) {
-    return isAr ? ANON_LABEL.ar : ANON_LABEL.en;
+  if (!person) return fallback;
+
+  // Self-view: the viewer is looking at their own record.
+  if (typeof person !== 'string' && viewerId && person.id && person.id === viewerId) {
+    const full = fullDisplayName(person);
+    return full || fallback;
   }
 
-  if (reveal) {
-    const last = p?.lastName?.trim();
-    if (last) return `${first} ${last}`;
-    const legacy = (p?.fullName ?? p?.name ?? '').trim();
-    return legacy || first;
+  if (forceReveal) {
+    const full = fullDisplayName(person);
+    return full || fallback;
   }
 
+  const first = pickFirstName(person);
+  if (!first) return fallback;
   return `${first}***`;
 }
 
 /**
- * Convenience: explicitly for counterparty displays (offers, meetings, deals, notifications).
- * Always masked. Alias kept for readability at call sites.
+ * Convenience for components that render a counterparty with optional listing
+ * context:
+ *
+ *   maskCounterparty(offer.fromUser, { viewerId: myId })
+ *     → "Yazid***"
  */
-export const maskCounterparty = (p?: PersonLike | null, isAr = false): string =>
-  maskName(p, { reveal: false, isAr });
+export function maskCounterparty(
+  person: NamedPerson | string | null | undefined,
+  options: MaskOptions = {},
+): string {
+  return maskName(person, options);
+}
+
+/**
+ * Compact initial for avatars / compact lists (no surname exposure):
+ *   initial({ firstName: 'Yazid' })   → "Y"
+ *   initial({ fullName: 'Yazid A.' }) → "Y"
+ */
+export function initial(person: NamedPerson | string | null | undefined): string {
+  const first = pickFirstName(person);
+  return first ? first.charAt(0).toUpperCase() : '?';
+}
