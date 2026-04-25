@@ -134,3 +134,13 @@ export const UPDATE_MEETING = gql`
     }
   }
 `;
+
+export const UPLOAD_IDENTITY_DOCUMENT = gql`
+  mutation UploadIdentityDocument($input: UploadIdentityInput!) {
+    uploadIdentityDocument(input: $input) {
+      id
+      filePath
+      title
+    }
+  }
+`;
