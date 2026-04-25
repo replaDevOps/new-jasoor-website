@@ -18,6 +18,7 @@ import { ListingWizard } from './ListingWizard';
 import { Card } from '../components/Card';
 import { Badge as UiBadge } from '../components/Badge';
 import { Modal } from '../components/ui/Modal';
+import { useFileUpload } from '../../hooks/useFileUpload';
 // P6-FIX R-04: replace mock data with real Apollo queries/mutations
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import {
@@ -64,6 +65,7 @@ import {
   REJECT_MEETING,
   // P10: meeting mutations
   UPDATE_MEETING,
+  UPLOAD_IDENTITY_DOCUMENT,
 } from '../../graphql/mutations/dashboard';
 import { REQUEST_MEETING } from '../../graphql/mutations/business';
 
@@ -324,7 +326,7 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
 
 
 const OffersView = () => {
-  const { content, language } = useApp();
+  const { content, language, userId } = useApp();
   const isAr = language === 'ar';
   const [directionFilter, setDirectionFilter] = useState<'received'|'sent'>('received');
   const [selectedId, setSelectedId] = useState<string|null>(null);
@@ -333,9 +335,9 @@ const OffersView = () => {
   const [meetingDate, setMeetingDate] = useState('');
   const [meetingTime, setMeetingTime] = useState('');
 
-  // P6-FIX R-04: real offers
-  const { data: buyerData,  loading: buyerLoading,  refetch: refetchBuyer  } = useQuery(GET_OFFERS_BY_USER,    { errorPolicy: 'all' });
-  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_OFFERS_BY_SELLER,  { errorPolicy: 'all' });
+  // P6-FIX R-04: real offers — network-only + skip until userId ready
+  const { data: buyerData,  loading: buyerLoading,  refetch: refetchBuyer  } = useQuery(GET_OFFERS_BY_USER,   { fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
+  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_OFFERS_BY_SELLER, { fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
   const [updateStatus] = useMutation(UPDATE_OFFER_STATUS, { errorPolicy: 'all' });
   const [doCounter]    = useMutation(COUNTER_OFFER,       { errorPolicy: 'all' });
   const [reqMeeting]   = useMutation(REQUEST_MEETING,     { errorPolicy: 'all' });
@@ -952,12 +954,12 @@ const MeetingsView = () => {
   const [availDate, setAvailDate]   = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // Queries
-  const { data: sentData,     loading: sentLoading,     refetch: refetchSent     } = useQuery(GET_SENT_MEETINGS,     { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
-  const { data: receivedData, loading: receivedLoading, refetch: refetchReceived } = useQuery(GET_RECEIVED_MEETINGS, { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+  // Queries — network-only + skip until userId ready to avoid stale/unauth fetches
+  const { data: sentData,     loading: sentLoading,     refetch: refetchSent     } = useQuery(GET_SENT_MEETINGS,     { variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
+  const { data: receivedData, loading: receivedLoading, refetch: refetchReceived } = useQuery(GET_RECEIVED_MEETINGS, { variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
   // P10: ready-for-scheduling + confirmed/scheduled meetings
-  const { data: readyData,     loading: readyLoading,     refetch: refetchReady     } = useQuery(GET_READY_SCHEDULED_MEETINGS, { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
-  const { data: scheduledData, loading: scheduledLoading, refetch: refetchScheduled } = useQuery(GET_SCHEDULED_MEETINGS,       { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+  const { data: readyData,     loading: readyLoading,     refetch: refetchReady     } = useQuery(GET_READY_SCHEDULED_MEETINGS, { variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
+  const { data: scheduledData, loading: scheduledLoading, refetch: refetchScheduled } = useQuery(GET_SCHEDULED_MEETINGS,       { variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
 
   // Mutations
   const [approveMeeting, { loading: approving }]  = useMutation(APPROVE_MEETING, { errorPolicy: 'all' });
@@ -1321,15 +1323,22 @@ const SettingsView = () => {
   const [pwdForm, setPwdForm] = useState({ current:'', new:'', confirm:'' });
   const [bankForm, setBankForm] = useState({ bankName:'', accountNumber:'', accountTitle:'', iban:'' });
 
+  // Identity document state
+  const [idFile, setIdFile] = useState<File | null>(null);
+  const [idUploaded, setIdUploaded] = useState(false);
+  const { uploadFile, uploading: idUploading } = useFileUpload();
+
   // P6-FIX R-04: real user + banks data
-  const { data: userData, loading: userLoading } = useQuery(GET_USER_DETAILS, {
-    variables: { getUserDetailsId: userId }, skip: !userId, errorPolicy: 'all',
+  const { data: userData, loading: userLoading, refetch: refetchUser } = useQuery(GET_USER_DETAILS, {
+    variables: { getUserDetailsId: userId }, skip: !userId, fetchPolicy: 'network-only',
+    pollInterval: 60000, errorPolicy: 'all',
   });
   const { data: banksData, loading: banksLoading, refetch: refetchBanks } = useQuery(GET_USER_BANKS, { errorPolicy: 'all' });
-  const [updateUser,  { loading: savingProfile  }] = useMutation(UPDATE_USER,     { errorPolicy: 'all' });
-  const [changePwd,   { loading: savingPassword }] = useMutation(CHANGE_PASSWORD, { errorPolicy: 'all' });
-  const [addBank,     { loading: addingBank     }] = useMutation(ADD_BANK,         { errorPolicy: 'all' });
-  const [deleteBank                               ] = useMutation(DELETE_BANK,      { errorPolicy: 'all' });
+  const [updateUser,         { loading: savingProfile  }] = useMutation(UPDATE_USER,                { errorPolicy: 'all' });
+  const [changePwd,          { loading: savingPassword }] = useMutation(CHANGE_PASSWORD,            { errorPolicy: 'all' });
+  const [addBank,            { loading: addingBank     }] = useMutation(ADD_BANK,                   { errorPolicy: 'all' });
+  const [deleteBank                                     ] = useMutation(DELETE_BANK,                 { errorPolicy: 'all' });
+  const [uploadIdentityDoc,  { loading: savingId       }] = useMutation(UPLOAD_IDENTITY_DOCUMENT,   { errorPolicy: 'all' });
 
   React.useEffect(() => {
     const u = userData?.getUserDetails;
@@ -1367,10 +1376,40 @@ const SettingsView = () => {
     refetchBanks();
   };
 
+  const handleUploadIdentity = async () => {
+    if (!idFile) { toast.error(isAr?'الرجاء اختيار ملف':'Please select a file'); return; }
+    const uploaded = await uploadFile(idFile, 'identity_document');
+    if (!uploaded) { toast.error(isAr?'فشل رفع الملف':'Upload failed'); return; }
+    const { errors } = await uploadIdentityDoc({
+      variables: {
+        input: {
+          title: 'identity_document',
+          fileName: uploaded.fileName,
+          fileType: uploaded.fileType,
+          filePath: uploaded.filePath,
+          description: 'Identity verification document',
+        },
+      },
+    });
+    if (errors?.length) { toast.error(isAr?'حدث خطأ أثناء الحفظ':'Error saving document'); return; }
+    toast.success(isAr?'تم رفع وثيقة الهوية بنجاح، سيتم مراجعتها قريباً':'Identity document uploaded — under review');
+    setIdUploaded(true);
+    setIdFile(null);
+    refetchUser();
+  };
+
+  const userStatus = userData?.getUserDetails?.status ?? '';
+  const verificationBadge = () => {
+    if (userStatus === 'verified')      return { label: isAr?'تم التحقق':'Verified',       color:'text-[#10B981] bg-[#E6F3EF]',  icon: <CheckCircle2 size={14}/> };
+    if (userStatus === 'under_review')  return { label: isAr?'قيد المراجعة':'Under Review', color:'text-yellow-700 bg-yellow-100', icon: <AlertCircle size={14}/> };
+    return                               { label: isAr?'غير محقق':'Unverified',              color:'text-gray-600 bg-gray-100',    icon: <XCircle size={14}/> };
+  };
+
   const tabs = [
     { id:'profile',  label:content.dashboard.settings.tabs.profile,  icon:User },
     { id:'wallet',   label:content.dashboard.settings.tabs.wallet,    icon:CreditCard },
     { id:'password', label:content.dashboard.settings.tabs.password,  icon:Lock },
+    { id:'identity', label:isAr?'الهوية':'Identity',                  icon:ShieldCheck },
   ];
 
   return (
@@ -1463,6 +1502,71 @@ const SettingsView = () => {
                     </button>
                   </div>
                 </div>
+              </div>
+            )}
+            {/* ── Identity Tab ── */}
+            {activeTab==='identity' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
+                <h3 className="text-xl font-bold text-[#111827] mb-2 border-b border-gray-100 pb-4">
+                  {isAr?'التحقق من الهوية':'Identity Verification'}
+                </h3>
+
+                {/* Status badge */}
+                <div className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-gray-50">
+                  <ShieldCheck size={22} className="text-[#10B981]"/>
+                  <div>
+                    <p className="text-sm font-bold text-gray-700">{isAr?'حالة الحساب':'Account Status'}</p>
+                    <span className={`inline-flex items-center gap-1 mt-1 text-xs font-bold px-3 py-1 rounded-full ${verificationBadge().color}`}>
+                      {verificationBadge().icon}
+                      {verificationBadge().label}
+                    </span>
+                  </div>
+                </div>
+
+                {userStatus === 'verified' ? (
+                  <div className="flex items-center gap-3 p-4 rounded-xl bg-[#E6F3EF] border border-[#10B981]/30">
+                    <CheckCircle2 size={20} className="text-[#10B981]"/>
+                    <p className="text-sm font-bold text-[#008A66]">
+                      {isAr?'تم التحقق من هويتك بنجاح':'Your identity has been verified'}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 max-w-md">
+                    <p className="text-sm text-gray-500">
+                      {isAr
+                        ? 'قم برفع صورة من وثيقة هويتك (هوية وطنية أو جواز سفر) للتحقق من حسابك.'
+                        : 'Upload a copy of your ID (National ID or Passport) to verify your account.'}
+                    </p>
+                    <div className="space-y-2">
+                      <label className="text-sm font-bold text-gray-700">
+                        {isAr?'وثيقة الهوية':'Identity Document'}
+                      </label>
+                      <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-[#10B981] hover:bg-[#f0faf6] transition-colors">
+                        <Upload size={24} className="text-gray-400 mb-2"/>
+                        <span className="text-sm text-gray-500 font-medium">
+                          {idFile ? idFile.name : (isAr?'اختر ملفاً أو اسحبه هنا':'Choose a file or drag it here')}
+                        </span>
+                        <span className="text-xs text-gray-400 mt-1">PDF, JPG, PNG</span>
+                        <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={e => { const f = e.target.files?.[0]; if (f) { setIdFile(f); setIdUploaded(false); } }}/>
+                      </label>
+                    </div>
+                    {idUploaded && (
+                      <div className="flex items-center gap-2 text-sm text-[#10B981] font-bold">
+                        <CheckCircle2 size={16}/>{isAr?'تم الرفع بنجاح':'Uploaded successfully'}
+                      </div>
+                    )}
+                    <button
+                      onClick={handleUploadIdentity}
+                      disabled={!idFile || idUploading || savingId}
+                      className="bg-[#10B981] text-white px-8 py-3 rounded-xl font-bold hover:bg-[#008A66] disabled:opacity-60 w-full"
+                    >
+                      {(idUploading || savingId)
+                        ? (isAr?'جارٍ الرفع...':'Uploading...')
+                        : (isAr?'رفع وثيقة الهوية':'Upload Identity Document')}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -69,9 +69,10 @@ export const OffersView = ({
   const [timeError, setTimeError]       = useState('');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
 
-  // Load both buyer and seller offers always
-  const { data: buyerData,  loading: buyerLoading,  refetch: refetchBuyer  } = useQuery(GET_OFFERS_BY_USER,   { errorPolicy: 'all' });
-  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_OFFERS_BY_SELLER, { errorPolicy: 'all' });
+  // Load both buyer and seller offers — network-only so fresh data is always fetched,
+  // skip until userId is available to avoid unauthenticated requests.
+  const { data: buyerData,  loading: buyerLoading,  refetch: refetchBuyer  } = useQuery(GET_OFFERS_BY_USER,   { fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
+  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_OFFERS_BY_SELLER, { fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
   const [updateStatus] = useMutation(UPDATE_OFFER_STATUS, { errorPolicy: 'all', refetchQueries: ['GetOffersByUser', 'GetOffersBySeller'] });
   const [counterOffer]  = useMutation(COUNTER_OFFER,       { errorPolicy: 'all', refetchQueries: ['GetOffersByUser', 'GetOffersBySeller'] });
   // C13: createDeal hook removed — server auto-creates deal on ACCEPTED

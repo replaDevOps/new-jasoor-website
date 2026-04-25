@@ -67,13 +67,14 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
   const { data: scheduledData, refetch: refetchScheduled } = useQuery(GET_SCHEDULED_MEETINGS, {
     variables: { limit: 50, offSet: 0 },
     fetchPolicy: 'network-only',
+    skip: !userId,
     errorPolicy: 'all',
   });
   const adminMeetings = scheduledData?.getScheduledMeetings?.items ?? [];
   const isAdminUser = adminMeetings.length > 0;
 
-  const { data: sentData,     loading: sentLoading,     refetch: refetchSent,     error: sentError     } = useQuery(GET_SENT_MEETINGS,     { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
-  const { data: receivedData, loading: receivedLoading, refetch: refetchReceived, error: receivedError } = useQuery(GET_RECEIVED_MEETINGS, { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: sentData,     loading: sentLoading,     refetch: refetchSent,     error: sentError     } = useQuery(GET_SENT_MEETINGS,     { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
+  const { data: receivedData, loading: receivedLoading, refetch: refetchReceived, error: receivedError } = useQuery(GET_RECEIVED_MEETINGS, { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
   const queryError = sentError || receivedError;
 
   const [updateMeeting]  = useMutation(UPDATE_MEETING,  { errorPolicy: 'all' });
