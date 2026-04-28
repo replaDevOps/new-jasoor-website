@@ -159,7 +159,7 @@ const DashboardView = () => {
     </div>
 
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-       <div className="lg:col-span-2 bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
+       <div className="lg:col-span-2 bg-white rounded-3xl p-5 md:p-8 border border-gray-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
              <h3 className="text-xl font-bold text-[#111827]">{content.dashboard.activity.title}</h3>
              <button className="text-sm text-[#10B981] font-bold hover:underline">{content.dashboard.activity.viewHistory}</button>
@@ -180,7 +180,7 @@ const DashboardView = () => {
           </div>
        </div>
 
-       <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm flex flex-col justify-between h-fit">
+       <div className="bg-white rounded-3xl p-5 md:p-8 border border-gray-100 shadow-sm flex flex-col justify-between h-fit">
           <div>
             <h3 className="text-xl font-bold text-[#111827] mb-4">{content.dashboard.accountStatus.title}</h3>
             <div className="bg-[#E6F3EF] p-4 rounded-2xl flex items-center gap-3 mb-6">
@@ -350,35 +350,63 @@ const OffersView = () => {
         </div>
       }/>
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-        {loading ? <div className="p-8 text-center text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div> : (
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-100">
-                <tr>
-                  {[content.dashboard.offers.table.listing, content.dashboard.offers.table.offerAmount, content.dashboard.offers.table.date, content.dashboard.offers.table.status, content.dashboard.offers.table.actions].map(h=>(
-                    <th key={h} className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {allOffers.map((o: any) => (
-                  <tr key={o.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4"><p className="text-sm font-bold text-[#111827]">{o.business?.businessTitle}</p><p className="text-xs text-gray-500">{fmt(o.business?.price)} {content.dashboard.offers.sar}</p></td>
-                    <td className="px-6 py-4 whitespace-nowrap"><span className="text-sm font-black text-[#10B981]">{fmt(o.price)} {content.dashboard.offers.sar}</span></td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{fmtDate(o.createdAt)}</td>
-                    <td className="px-6 py-4 whitespace-nowrap"><DashBadge color={statusColor(o.status)}>{statusLabel(o.status)}</DashBadge></td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button onClick={() => { setSelectedId(o.id); setActionMode('details'); }} className="text-[#10B981] hover:text-[#008A66] font-bold text-sm flex items-center gap-1">
+        {loading ? <div className="p-6 text-center text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div> : allOffers.length === 0 ? (
+          <div className="p-10 text-center text-gray-400">{content.dashboard.meetings.empty}</div>
+        ) : (
+          <>
+            {/* Mobile: card list */}
+            <div className="md:hidden divide-y divide-gray-100">
+              {allOffers.map((o: any) => (
+                <div key={o.id} className="p-4">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-[#111827] truncate">{o.business?.businessTitle}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{fmt(o.business?.price)} {content.dashboard.offers.sar}</p>
+                    </div>
+                    <DashBadge color={statusColor(o.status)}>{statusLabel(o.status)}</DashBadge>
+                  </div>
+                  <div className="flex items-center justify-between mt-3">
+                    <span className="text-sm font-black text-[#10B981]">{fmt(o.price)} {content.dashboard.offers.sar}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400">{fmtDate(o.createdAt)}</span>
+                      <button onClick={() => { setSelectedId(o.id); setActionMode('details'); }} className="text-[#10B981] font-bold text-sm flex items-center gap-1">
                         {content.dashboard.offers.actions.viewDetails}
                         {direction==='rtl'?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}
                       </button>
-                    </td>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {/* Desktop: table */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    {[content.dashboard.offers.table.listing, content.dashboard.offers.table.offerAmount, content.dashboard.offers.table.date, content.dashboard.offers.table.status, content.dashboard.offers.table.actions].map(h=>(
+                      <th key={h} className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            {allOffers.length === 0 && <div className="p-8 text-center text-gray-400">{content.dashboard.meetings.empty}</div>}
-          </div>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {allOffers.map((o: any) => (
+                    <tr key={o.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4"><p className="text-sm font-bold text-[#111827]">{o.business?.businessTitle}</p><p className="text-xs text-gray-500">{fmt(o.business?.price)} {content.dashboard.offers.sar}</p></td>
+                      <td className="px-6 py-4 whitespace-nowrap"><span className="text-sm font-black text-[#10B981]">{fmt(o.price)} {content.dashboard.offers.sar}</span></td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{fmtDate(o.createdAt)}</td>
+                      <td className="px-6 py-4 whitespace-nowrap"><DashBadge color={statusColor(o.status)}>{statusLabel(o.status)}</DashBadge></td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button onClick={() => { setSelectedId(o.id); setActionMode('details'); }} className="text-[#10B981] hover:text-[#008A66] font-bold text-sm flex items-center gap-1">
+                          {content.dashboard.offers.actions.viewDetails}
+                          {direction==='rtl'?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 
@@ -837,14 +865,14 @@ const DealsView = () => {
   return (
     <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <SectionHeader title={content.dashboard.deals.title} action={
-        <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <div className="flex bg-white rounded-xl border border-gray-200 p-1">
-            <button onClick={() => setTab('buyer')}  className={cn("flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", tab==='buyer' ?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{isAr?'كمشترٍ':'As Buyer'}</button>
-            <button onClick={() => setTab('seller')} className={cn("flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", tab==='seller'?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{isAr?'كبائعٍ':'As Seller'}</button>
+            <button onClick={() => setTab('buyer')}  className={cn("flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", tab==='buyer' ?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{isAr?'كمشترٍ':'As Buyer'}</button>
+            <button onClick={() => setTab('seller')} className={cn("flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", tab==='seller'?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{isAr?'كبائعٍ':'As Seller'}</button>
           </div>
           <div className="flex bg-white rounded-xl border border-gray-200 p-1">
-            <button onClick={() => setFilter('in-progress')} className={cn("flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", filter==='in-progress'?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{content.dashboard.deals.filters.inProgress}</button>
-            <button onClick={() => setFilter('completed')}   className={cn("flex-1 px-4 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", filter==='completed'  ?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{content.dashboard.deals.filters.completed}</button>
+            <button onClick={() => setFilter('in-progress')} className={cn("flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", filter==='in-progress'?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{content.dashboard.deals.filters.inProgress}</button>
+            <button onClick={() => setFilter('completed')}   className={cn("flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", filter==='completed'  ?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{content.dashboard.deals.filters.completed}</button>
           </div>
         </div>
       }/>
@@ -1006,57 +1034,98 @@ const MeetingsView = () => {
       {/* Main table — single source of truth for all meetings */}
       {(
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-          {loading ? <div className="p-8 text-center text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div> : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-100">
-                  <tr>
-                    {[content.dashboard.meetings.table.otherParty, isAr?'الإدراج':'Listing',
-                      content.dashboard.meetings.table.meetingDate, content.dashboard.meetings.table.status,
-                      content.dashboard.meetings.table.actions].map(h => (
-                      <th key={h} className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {filtered.map((m: any) => (
-                    <tr key={m.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
-                            {otherParty(m).charAt(0).toUpperCase()}
-                          </div>
-                          <span className="text-sm font-bold text-[#111827]">{otherParty(m)}</span>
+          {loading ? <div className="p-6 text-center text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div> : filtered.length === 0 ? (
+            <div className="p-10 text-center text-gray-400">{content.dashboard.meetings.empty}</div>
+          ) : (
+            <>
+              {/* Mobile: card list */}
+              <div className="md:hidden divide-y divide-gray-100">
+                {filtered.map((m: any) => (
+                  <div key={m.id} className="p-4">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">
+                          {otherParty(m).charAt(0).toUpperCase()}
                         </div>
-                      </td>
-                      <td className="px-6 py-4"><span className="text-sm text-gray-600">{m.business?.businessTitle}</span></td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-bold text-[#111827]">
-                          {fmtDate(m.adminAvailabilityDate ?? m.receiverAvailabilityDate ?? m.requestedDate)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap"><DashBadge color={statusColor(m.status)}>{statusLabel(m.status)}</DashBadge></td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          {m.status === 'SCHEDULED' && m.meetingLink && (
-                            <a href={m.meetingLink} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-colors">
-                              <Video size={13}/>{isAr?'انضم':'Join'}
-                            </a>
-                          )}
-                          <button onClick={() => { setSelectedId(m.id); setShowDatePicker(false); setAvailDate(''); }}
-                            className="text-[#10B981] hover:text-[#008A66] font-bold text-sm flex items-center gap-1">
-                            {content.dashboard.meetings.actions.viewDetails}
-                            {direction==='rtl'?<ChevronLeft size={16}/>:<ChevronRight size={16}/>}
-                          </button>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-[#111827] truncate">{otherParty(m)}</p>
+                          <p className="text-xs text-gray-500 truncate">{m.business?.businessTitle}</p>
                         </div>
-                      </td>
+                      </div>
+                      <DashBadge color={statusColor(m.status)}>{statusLabel(m.status)}</DashBadge>
+                    </div>
+                    <div className="flex items-center justify-between mt-3">
+                      <span className="text-xs text-gray-500 font-bold">
+                        {fmtDate(m.adminAvailabilityDate ?? m.receiverAvailabilityDate ?? m.requestedDate)}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {m.status === 'SCHEDULED' && m.meetingLink && (
+                          <a href={m.meetingLink} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700">
+                            <Video size={12}/>{isAr?'انضم':'Join'}
+                          </a>
+                        )}
+                        <button onClick={() => { setSelectedId(m.id); setShowDatePicker(false); setAvailDate(''); }}
+                          className="text-[#10B981] font-bold text-sm flex items-center gap-1">
+                          {content.dashboard.meetings.actions.viewDetails}
+                          {direction==='rtl'?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop: table */}
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50 border-b border-gray-100">
+                    <tr>
+                      {[content.dashboard.meetings.table.otherParty, isAr?'الإدراج':'Listing',
+                        content.dashboard.meetings.table.meetingDate, content.dashboard.meetings.table.status,
+                        content.dashboard.meetings.table.actions].map(h => (
+                        <th key={h} className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-              {filtered.length===0 && <div className="p-8 text-center text-gray-400">{content.dashboard.meetings.empty}</div>}
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {filtered.map((m: any) => (
+                      <tr key={m.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
+                              {otherParty(m).charAt(0).toUpperCase()}
+                            </div>
+                            <span className="text-sm font-bold text-[#111827]">{otherParty(m)}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4"><span className="text-sm text-gray-600">{m.business?.businessTitle}</span></td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm font-bold text-[#111827]">
+                            {fmtDate(m.adminAvailabilityDate ?? m.receiverAvailabilityDate ?? m.requestedDate)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap"><DashBadge color={statusColor(m.status)}>{statusLabel(m.status)}</DashBadge></td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            {m.status === 'SCHEDULED' && m.meetingLink && (
+                              <a href={m.meetingLink} target="_blank" rel="noopener noreferrer"
+                                className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-colors">
+                                <Video size={13}/>{isAr?'انضم':'Join'}
+                              </a>
+                            )}
+                            <button onClick={() => { setSelectedId(m.id); setShowDatePicker(false); setAvailDate(''); }}
+                              className="text-[#10B981] hover:text-[#008A66] font-bold text-sm flex items-center gap-1">
+                              {content.dashboard.meetings.actions.viewDetails}
+                              {direction==='rtl'?<ChevronLeft size={16}/>:<ChevronRight size={16}/>}
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -1306,7 +1375,7 @@ const SettingsView = () => {
           </div>
         </div>
         <div className="md:col-span-3">
-          <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-8">
+          <div className="bg-white rounded-3xl border border-gray-200 shadow-sm p-5 md:p-8">
             {activeTab==='profile' && (
               <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
                 <h3 className="text-xl font-bold text-[#111827] mb-6 border-b border-gray-100 pb-4">{content.dashboard.settings.sections.profile}</h3>
