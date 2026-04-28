@@ -18,7 +18,6 @@ import { ListingWizard } from './ListingWizard';
 import { Card } from '../components/Card';
 import { Badge as UiBadge } from '../components/Badge';
 import { Modal } from '../components/ui/Modal';
-import { useFileUpload } from '../../hooks/useFileUpload';
 // P6-FIX R-04: replace mock data with real Apollo queries/mutations
 import { useQuery, useMutation, useSubscription } from '@apollo/client';
 import {
@@ -65,7 +64,6 @@ import {
   REJECT_MEETING,
   // P10: meeting mutations
   UPDATE_MEETING,
-  UPLOAD_IDENTITY_DOCUMENT,
 } from '../../graphql/mutations/dashboard';
 import { REQUEST_MEETING } from '../../graphql/mutations/business';
 
@@ -89,7 +87,7 @@ const DashBadge = ({ children, color }: { children: React.ReactNode, color: stri
     yellow: 'bg-yellow-100 text-yellow-700',
     red: 'bg-red-50 text-red-600',
     gray: 'bg-gray-100 text-gray-600',
-    blue: 'bg-[#E6F3EF] text-[#10B981]',
+    blue: 'bg-blue-50 text-blue-600',
     black: 'bg-gray-900 text-white'
   };
   return (
@@ -115,58 +113,30 @@ const SectionHeader = ({ title, action }: { title: string, action?: React.ReactN
 // --- Sub-Views ---
 
 const DashboardView = () => {
-  const { content, language, userId } = useApp();
+  const { content, language } = useApp();
   const isAr = language === 'ar';
 
   // P6-FIX R-04: real stats from API
   const { data: sellerData } = useQuery(GET_PROFILE_STATISTICS, { errorPolicy: 'all' });
   const { data: buyerData  } = useQuery(GET_BUYER_STATISTICS,   { errorPolicy: 'all' });
-  // ACTIVITY-FIX: real notifications — 5 most recent, 30s poll
-  const { data: notifData } = useQuery(GET_NOTIFICATIONS, {
-    skip: !userId,
-    variables: { userId: String(userId), limit: 5, offSet: 0 },
-    fetchPolicy: 'network-only',
-    pollInterval: 30000,
-    errorPolicy: 'all',
-  });
-  // ACTIVITY-FIX: real verification status from API
-  const { data: userDetailsData } = useQuery(GET_USER_DETAILS, {
-    variables: { getUserDetailsId: userId },
-    skip: !userId,
-    errorPolicy: 'all',
-  });
-
-  // skip: !userId already prevents the query until userId is available — no manual refetch needed
-
-  const notifications: any[] = notifData?.getNotifications?.notifications ?? [];
-  const userStatus = userDetailsData?.getUserDetails?.status ?? '';
-  const isVerified    = userStatus === 'VERIFIED'     || userStatus === 'verified';
-  const isUnderReview = userStatus === 'UNDER_REVIEW' || userStatus === 'under_review';
 
   const ss = sellerData?.getProfileStatistics;
   const bs = buyerData?.getBuyerStatistics;
 
   const stats = [
     { label: isAr ? 'الصفقات المكتملة'  : 'Finalized Deals',     value: ss?.finalizedDealsCount ?? bs?.finalizedDealsCount ?? '—', icon: Handshake,    color: 'bg-[#E6F3EF] text-[#10B981]' },
-    { label: isAr ? 'الإدراجات النشطة'  : 'Listed Businesses',   value: ss?.listedBusinessesCount ?? '—',                           icon: Store,        color: 'bg-[#E6F3EF] text-[#10B981]' },
+    { label: isAr ? 'الإدراجات النشطة'  : 'Listed Businesses',   value: ss?.listedBusinessesCount ?? '—',                           icon: Store,        color: 'bg-blue-50 text-blue-600' },
     { label: isAr ? 'العروض المستلمة'   : 'Received Offers',     value: ss?.receivedOffersCount ?? '—',                            icon: DollarSign,   color: 'bg-orange-50 text-orange-600' },
     { label: isAr ? 'الاجتماعات'        : 'Meetings',            value: ss?.scheduledMeetingsCount ?? bs?.scheduledMeetingsCount ?? '—', icon: Calendar, color: 'bg-purple-50 text-purple-600' },
     { label: isAr ? 'مشاهدات الإدراجات' : 'Business Views',      value: ss?.viewedBusinessesCount ?? '—',                          icon: Eye,          color: 'bg-pink-50 text-pink-600' },
     { label: isAr ? 'المفضلة'           : 'Saved Businesses',    value: bs?.favouriteBusinessesCount ?? '—',                       icon: Bookmark,     color: 'bg-yellow-50 text-yellow-600' },
   ];
 
-  // ACTIVITY-FIX: type-aware icon based on notification name keywords
-  const iconFor = (name: string) => {
-    const n = (name ?? '').toLowerCase();
-    if (n.includes('offer')   || n.includes('عرض'))      return { Icon: DollarSign, color: 'bg-orange-100 text-orange-600' };
-    if (n.includes('meeting') || n.includes('اجتماع'))   return { Icon: Calendar,   color: 'bg-purple-50 text-purple-600'  };
-    if (n.includes('deal')    || n.includes('صفقة'))     return { Icon: Handshake,  color: 'bg-[#E6F3EF] text-[#10B981]'  };
-    if (n.includes('payment') || n.includes('دفع'))      return { Icon: Wallet,     color: 'bg-green-50 text-green-600'   };
-    if (n.includes('publish') || n.includes('نشر'))      return { Icon: Store,      color: 'bg-blue-50 text-blue-600'     };
-    return                                                       { Icon: Bell,       color: 'bg-gray-100 text-gray-500'    };
-  };
-
-  const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isAr ? 'ar-SA-u-ca-gregory' : 'en-GB', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  const activityItems = [
+    { title: content.dashboard.activity.items.newOffer.title,         desc: content.dashboard.activity.items.newOffer.desc,         time: content.dashboard.activity.items.newOffer.time,         icon: DollarSign,   color: 'bg-orange-100 text-orange-600' },
+    { title: content.dashboard.activity.items.upcomingMeeting.title,  desc: content.dashboard.activity.items.upcomingMeeting.desc,  time: content.dashboard.activity.items.upcomingMeeting.time,  icon: Calendar,     color: 'bg-blue-100 text-blue-600' },
+    { title: content.dashboard.activity.items.listingPublished.title, desc: content.dashboard.activity.items.listingPublished.desc, time: content.dashboard.activity.items.listingPublished.time, icon: CheckCircle2, color: 'bg-green-100 text-green-600' },
+  ];
 
   return (
   <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -192,49 +162,32 @@ const DashboardView = () => {
        <div className="lg:col-span-2 bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
              <h3 className="text-xl font-bold text-[#111827]">{content.dashboard.activity.title}</h3>
-             <span className="text-sm text-[#10B981] font-bold">{isAr ? 'آخر الأنشطة' : 'Recent Activity'}</span>
+             <button className="text-sm text-[#10B981] font-bold hover:underline">{content.dashboard.activity.viewHistory}</button>
           </div>
-          <div className="space-y-6 relative before:absolute before:right-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gray-100">
-             {notifications.length === 0 ? (
-               <p className="text-gray-400 text-sm text-center py-4">{isAr ? 'لا يوجد نشاط بعد' : 'No recent activity'}</p>
-             ) : notifications.map((n: any) => {
-               const { Icon, color } = iconFor(n.name ?? '');
-               return (
-                 <div key={n.id} className="flex gap-4 relative">
-                   <div className={cn('w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 ring-4 ring-white', n.isRead ? 'bg-gray-100 text-gray-400' : color)}>
-                     <Icon size={18} />
-                   </div>
-                   <div>
-                     <p className="font-bold text-[#111827] text-sm">{n.name}</p>
-                     {n.message && <p className="text-gray-500 text-sm mt-0.5">{n.message}</p>}
-                     <p className="text-xs text-gray-400 mt-1">{fmtDate(n.createdAt)}</p>
-                   </div>
-                 </div>
-               );
-             })}
+          <div className="space-y-8 relative before:absolute before:right-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gray-100">
+             {activityItems.map((item, i) => (
+               <div key={i} className="flex gap-4 relative">
+                  <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 ring-4 ring-white", item.color)}>
+                     <item.icon size={18} />
+                  </div>
+                  <div>
+                     <p className="font-bold text-[#111827] text-base">{item.title}</p>
+                     <p className="text-gray-500 text-sm mt-1">{item.desc}</p>
+                     <p className="text-xs text-gray-400 mt-2 font-medium">{item.time}</p>
+                  </div>
+               </div>
+             ))}
           </div>
        </div>
 
        <div className="bg-white rounded-3xl p-8 border border-gray-100 shadow-sm flex flex-col justify-between h-fit">
           <div>
             <h3 className="text-xl font-bold text-[#111827] mb-4">{content.dashboard.accountStatus.title}</h3>
-            <div className={`p-4 rounded-2xl flex items-center gap-3 mb-6 ${isVerified ? 'bg-[#E6F3EF]' : isUnderReview ? 'bg-amber-50' : 'bg-red-50'}`}>
-              <ShieldCheck className={isVerified ? 'text-[#10B981]' : isUnderReview ? 'text-amber-500' : 'text-red-400'} size={24} />
+            <div className="bg-[#E6F3EF] p-4 rounded-2xl flex items-center gap-3 mb-6">
+              <ShieldCheck className="text-[#10B981]" size={24} />
               <div>
-                <p className={`font-bold ${isVerified ? 'text-[#004E39]' : isUnderReview ? 'text-amber-800' : 'text-red-700'}`}>
-                  {isVerified
-                    ? content.dashboard.accountStatus.verified
-                    : isUnderReview
-                      ? (isAr ? 'قيد المراجعة' : 'Under Review')
-                      : (isAr ? 'غير موثق' : 'Unverified')}
-                </p>
-                <p className={`text-xs ${isVerified ? 'text-[#004E39]/70' : isUnderReview ? 'text-amber-700' : 'text-red-500'}`}>
-                  {isVerified
-                    ? content.dashboard.accountStatus.verifiedDesc
-                    : isUnderReview
-                      ? (isAr ? 'يتم مراجعة حسابك حالياً' : 'Your account is being reviewed')
-                      : (isAr ? 'يرجى رفع وثيقة الهوية' : 'Please upload your ID document')}
-                </p>
+                <p className="font-bold text-[#004E39]">{content.dashboard.accountStatus.verified}</p>
+                <p className="text-xs text-[#004E39]/70">{content.dashboard.accountStatus.verifiedDesc}</p>
               </div>
             </div>
             <p className="text-gray-500 text-sm leading-relaxed mb-6">{content.dashboard.accountStatus.message}</p>
@@ -326,7 +279,7 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
 
 
 const OffersView = () => {
-  const { content, language, userId } = useApp();
+  const { content, language, direction } = useApp();
   const isAr = language === 'ar';
   const [directionFilter, setDirectionFilter] = useState<'received'|'sent'>('received');
   const [selectedId, setSelectedId] = useState<string|null>(null);
@@ -335,22 +288,21 @@ const OffersView = () => {
   const [meetingDate, setMeetingDate] = useState('');
   const [meetingTime, setMeetingTime] = useState('');
 
-  // P6-FIX R-04: real offers — network-only + skip until userId ready
-  const { data: buyerData,  loading: buyerLoading,  refetch: refetchBuyer  } = useQuery(GET_OFFERS_BY_USER,   { fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
-  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_OFFERS_BY_SELLER, { fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
+  // P6-FIX R-04: real offers
+  const { data: buyerData,  loading: buyerLoading,  refetch: refetchBuyer  } = useQuery(GET_OFFERS_BY_USER,    { errorPolicy: 'all' });
+  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_OFFERS_BY_SELLER,  { errorPolicy: 'all' });
   const [updateStatus] = useMutation(UPDATE_OFFER_STATUS, { errorPolicy: 'all' });
   const [doCounter]    = useMutation(COUNTER_OFFER,       { errorPolicy: 'all' });
   const [reqMeeting]   = useMutation(REQUEST_MEETING,     { errorPolicy: 'all' });
 
-  // BUG-FIX: getOffersByUser returns { offers: [], count } — must access .offers, not the wrapper object
-  const allOffers = directionFilter === 'sent' ? (buyerData?.getOffersByUser?.offers??[]) : (sellerData?.getOffersBySeller??[]);
+  const allOffers = directionFilter === 'sent' ? (buyerData?.getOffersByUser??[]) : (sellerData?.getOffersBySeller??[]);
   const loading   = directionFilter === 'sent' ? buyerLoading : sellerLoading;
   const refetch   = directionFilter === 'sent' ? refetchBuyer  : refetchSeller;
   const selectedOffer = allOffers.find((o: any) => o.id === selectedId);
 
   const statusColor = (s: string) => s==='ACCEPTED'?'green':s==='REJECTED'?'red':s==='PENDING'?'yellow':'blue';
   const statusLabel = (s: string) => ({ACCEPTED:content.dashboard.offers.status.accepted, REJECTED:content.dashboard.offers.status.rejected, PENDING:content.dashboard.offers.status.pending, MEETING:content.dashboard.offers.status.sent, COUNTERED:isAr?'عرض مضاد':'Countered'})[s]??s;
-  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB'):'—';
+  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA':'en-SA'):'—';
   const fmt = (n: number) => Number(n).toLocaleString();
 
   const handleAccept = async () => {
@@ -371,8 +323,7 @@ const OffersView = () => {
   const handleCounter = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOffer||!counterPrice) return;
-    // BUG-FIX: CounterOfferInput uses parentOfferId not offerId
-    const { errors } = await doCounter({ variables: { input: { parentOfferId: selectedOffer.id, price: parseFloat(counterPrice) } } });
+    const { errors } = await doCounter({ variables: { input: { offerId: selectedOffer.id, price: parseFloat(counterPrice) } } });
     if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
     toast.success(content.dashboard.offers.actions.successCounter); setSelectedId(null); refetch();
   };
@@ -381,11 +332,7 @@ const OffersView = () => {
     e.preventDefault();
     if (!selectedOffer||!meetingDate) return;
     const iso = `${meetingDate}T${meetingTime||'09:00'}:00.000Z`;
-    // BUG-FIX: requestedEndDate was identical to requestedDate (0-duration). Add 1 hour.
-    const endDate = new Date(iso);
-    endDate.setHours(endDate.getHours() + 1);
-    const endIso = endDate.toISOString();
-    const { errors } = await reqMeeting({ variables: { input: { businessId: selectedOffer.business.id, requestedDate: iso, requestedEndDate: endIso } } });
+    const { errors } = await reqMeeting({ variables: { input: { businessId: selectedOffer.business.id, requestedDate: iso, requestedEndDate: iso } } });
     if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
     toast.success(content.dashboard.offers.actions.successMeeting); setSelectedId(null);
   };
@@ -562,7 +509,7 @@ const DealsView = () => {
   const filtered = rawDeals;
 
   const refetch = () => { tab==='buyer' ? refetchBuyer() : refetchSeller(); if (selectedId) refetchDeal(); };
-  const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB') : '—';
+  const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA':'en-SA') : '—';
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   const isBuyer  = deal ? deal.buyer?.id === userId : false;
@@ -576,9 +523,7 @@ const DealsView = () => {
   const handleBuyerSignNDA = async () => {
     if (!deal) return;
     try {
-      // BUG-FIX: errorPolicy:'all' means GraphQL errors won't throw — must check errors in result
-      const { errors } = await updateDeal({ variables: { input: { id: deal.id, isDsaBuyer: true } } });
-      if (errors?.length) { toast.error(errors[0]?.message ?? (isAr ? 'حدث خطأ' : 'Something went wrong')); return; }
+      await updateDeal({ variables: { input: { id: deal.id, isDsaBuyer: true } } });
       toast.success(isAr ? 'تم توقيع اتفاقية NDA' : 'NDA signed');
       refetch();
     } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
@@ -607,8 +552,7 @@ const DealsView = () => {
   const handleBuyerComplete = async () => {
     if (!deal) return;
     try {
-      const { errors } = await updateDeal({ variables: { input: { id: deal.id, isBuyerCompleted: true } } });
-      if (errors?.length) { toast.error(errors[0]?.message ?? (isAr ? 'حدث خطأ' : 'Something went wrong')); return; }
+      await updateDeal({ variables: { input: { id: deal.id, isBuyerCompleted: true } } });
       toast.success(isAr ? 'تم تأكيد إتمام الصفقة' : 'Deal marked complete');
       refetch();
     } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
@@ -618,8 +562,7 @@ const DealsView = () => {
   const handleSellerSignNDA = async () => {
     if (!deal) return;
     try {
-      const { errors } = await updateDeal({ variables: { input: { id: deal.id, isDsaSeller: true } } });
-      if (errors?.length) { toast.error(errors[0]?.message ?? (isAr ? 'حدث خطأ' : 'Something went wrong')); return; }
+      await updateDeal({ variables: { input: { id: deal.id, isDsaSeller: true } } });
       toast.success(isAr ? 'تم توقيع اتفاقية NDA' : 'NDA signed');
       refetch();
     } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
@@ -628,8 +571,7 @@ const DealsView = () => {
   const handleSellerSendBank = async () => {
     if (!deal || !userBank) return;
     try {
-      const { errors } = await sendBankToBuyer({ variables: { dealId: deal.id, bankId: userBank.id } });
-      if (errors?.length) { toast.error(errors[0]?.message ?? (isAr ? 'حدث خطأ' : 'Something went wrong')); return; }
+      await sendBankToBuyer({ variables: { dealId: deal.id, bankId: userBank.id } });
       toast.success(isAr ? 'تم إرسال تفاصيل البنك للمشتري' : 'Bank details sent to buyer');
       refetch();
     } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
@@ -638,8 +580,7 @@ const DealsView = () => {
   const handleSellerConfirmDocs = async () => {
     if (!deal) return;
     try {
-      const { errors } = await updateDeal({ variables: { input: { id: deal.id, isDocVedifiedSeller: true } } });
-      if (errors?.length) { toast.error(errors[0]?.message ?? (isAr ? 'حدث خطأ' : 'Something went wrong')); return; }
+      await updateDeal({ variables: { input: { id: deal.id, isDocVedifiedSeller: true } } });
       toast.success(isAr ? 'تم تأكيد المستندات' : 'Documents confirmed');
       refetch();
     } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
@@ -648,8 +589,7 @@ const DealsView = () => {
   const handleSellerComplete = async () => {
     if (!deal) return;
     try {
-      const { errors } = await updateDeal({ variables: { input: { id: deal.id, isSellerCompleted: true } } });
-      if (errors?.length) { toast.error(errors[0]?.message ?? (isAr ? 'حدث خطأ' : 'Something went wrong')); return; }
+      await updateDeal({ variables: { input: { id: deal.id, isSellerCompleted: true } } });
       toast.success(isAr ? 'تم تأكيد إتمام الصفقة' : 'Deal marked complete');
       refetch();
     } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
@@ -841,7 +781,7 @@ const DealsView = () => {
                     {/* NDA download link in step */}
                     {step.ndaPath && !step.done && (
                       <a href={step.ndaPath} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm text-[#10B981] hover:underline mb-3">
+                        className="inline-flex items-center gap-1 text-sm text-blue-600 hover:underline mb-3">
                         <Download size={14}/>{isAr?'تنزيل للمراجعة':'Download to review'}
                       </a>
                     )}
@@ -919,7 +859,7 @@ const DealsView = () => {
             return (
               <div key={d.id} className="bg-white rounded-3xl border border-gray-200 p-6 shadow-sm hover:shadow-md transition-all cursor-pointer group" onClick={() => setSelectedId(d.id)}>
                 <div className="flex justify-between items-start mb-4">
-                  <div className="w-12 h-12 rounded-full bg-[#E6F3EF] flex items-center justify-center text-[#10B981]"><Handshake size={24}/></div>
+                  <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600"><Handshake size={24}/></div>
                   <DashBadge color={completed?'gray':'green'}>{completed?content.dashboard.deals.status.completed:content.dashboard.deals.status.inProgress}</DashBadge>
                 </div>
                 <h3 className="text-lg font-black text-[#111827] mb-1">{d.business?.businessTitle}</h3>
@@ -954,12 +894,12 @@ const MeetingsView = () => {
   const [availDate, setAvailDate]   = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
 
-  // Queries — network-only + skip until userId ready to avoid stale/unauth fetches
-  const { data: sentData,     loading: sentLoading,     refetch: refetchSent     } = useQuery(GET_SENT_MEETINGS,     { variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
-  const { data: receivedData, loading: receivedLoading, refetch: refetchReceived } = useQuery(GET_RECEIVED_MEETINGS, { variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
+  // Queries
+  const { data: sentData,     loading: sentLoading,     refetch: refetchSent     } = useQuery(GET_SENT_MEETINGS,     { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+  const { data: receivedData, loading: receivedLoading, refetch: refetchReceived } = useQuery(GET_RECEIVED_MEETINGS, { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
   // P10: ready-for-scheduling + confirmed/scheduled meetings
-  const { data: readyData,     loading: readyLoading,     refetch: refetchReady     } = useQuery(GET_READY_SCHEDULED_MEETINGS, { variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
-  const { data: scheduledData, loading: scheduledLoading, refetch: refetchScheduled } = useQuery(GET_SCHEDULED_MEETINGS,       { variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
+  const { data: readyData,     loading: readyLoading,     refetch: refetchReady     } = useQuery(GET_READY_SCHEDULED_MEETINGS, { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+  const { data: scheduledData, loading: scheduledLoading, refetch: refetchScheduled } = useQuery(GET_SCHEDULED_MEETINGS,       { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
 
   // Mutations
   const [approveMeeting, { loading: approving }]  = useMutation(APPROVE_MEETING, { errorPolicy: 'all' });
@@ -1002,7 +942,7 @@ const MeetingsView = () => {
     COMPLETED: isAr?'مكتمل':'Completed',
     REJECTED:  isAr?'مرفوض':'Rejected',
   })[s] ?? s;
-  const fmtDate   = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB') : '—';
+  const fmtDate   = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA':'en-SA') : '—';
   const otherParty = (m: any) =>
     (m.requestedTo?.name && m.requestedBy?.name)
       ? `${m.requestedTo?.name ?? ''} / ${m.requestedBy?.name ?? ''}`
@@ -1015,8 +955,7 @@ const MeetingsView = () => {
 
   const handleApprove = async (id: string) => {
     try {
-      // BUG-FIX: mutation defines $meetingId not $approveMeetingId
-      await approveMeeting({ variables: { meetingId: id } });
+      await approveMeeting({ variables: { approveMeetingId: id } });
       toast.success(isAr ? 'تمت الموافقة على الاجتماع' : 'Meeting approved');
       refetchAll(); setSelectedId(null);
     } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
@@ -1064,45 +1003,7 @@ const MeetingsView = () => {
         </div>
       }/>
 
-      {/* Scheduled meetings — show Zoom links prominently */}
-      {(tab==='all'||tab==='upcoming') && !loading && rawMeetings.filter((m:any)=>m.status==='SCHEDULED').length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* BUG-FIX: was rawMeetings.map — now filters to only SCHEDULED meetings */}
-          {rawMeetings.filter((m:any)=>m.status==='SCHEDULED').map((m: any) => (
-            <div key={m.id} className="bg-white p-5 rounded-3xl border border-blue-100 shadow-sm">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p className="font-bold text-[#111827]">{m.business?.businessTitle}</p>
-                  <p className="text-sm text-gray-500">{isAr?'مع':'with'} {m.requestedBy?.name ?? m.requestedTo?.name}</p>
-                </div>
-                <DashBadge color="blue">{isAr?'مجدول':'Scheduled'}</DashBadge>
-              </div>
-              <div className="space-y-1 text-sm mb-4">
-                <p className="text-gray-500">{isAr?'التاريخ':'Date'}: <span className="font-bold text-[#111827]">{fmtDate(m.adminAvailabilityDate)}</span></p>
-              </div>
-              {m.meetingLink ? (
-                <a href={m.meetingLink} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2.5 bg-[#008A66] text-white rounded-xl font-bold text-sm hover:bg-[#007053] transition-colors w-fit">
-                  <Video size={16}/>{isAr?'انضم إلى الاجتماع':'Join Meeting'}
-                </a>
-              ) : (
-                <p className="text-sm text-gray-400 italic">{isAr?'رابط الاجتماع سيُرسل قريباً':'Meeting link will be sent soon'}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Ready-for-scheduling tab — admin scheduling queue */}
-      {tab==='ready' && !loading && rawMeetings.length > 0 && (
-        <div className="bg-[#F0FDF4] rounded-3xl border border-[#10B981]/20 p-5 mb-2">
-          <p className="text-sm text-[#008A66] font-bold flex items-center gap-2">
-            <CheckCircle2 size={16}/>{isAr?'هذه الاجتماعات معتمدة وتنتظر تحديد موعد من الإدارة':'These meetings are approved and awaiting admin scheduling'}
-          </p>
-        </div>
-      )}
-
-      {/* Main table (all tabs except scheduled cards above) */}
+      {/* Main table — single source of truth for all meetings */}
       {(
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
           {loading ? <div className="p-8 text-center text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div> : (
@@ -1122,7 +1023,7 @@ const MeetingsView = () => {
                     <tr key={m.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#E6F3EF] text-[#10B981] flex items-center justify-center font-bold text-xs">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
                             {otherParty(m).charAt(0).toUpperCase()}
                           </div>
                           <span className="text-sm font-bold text-[#111827]">{otherParty(m)}</span>
@@ -1136,11 +1037,19 @@ const MeetingsView = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap"><DashBadge color={statusColor(m.status)}>{statusLabel(m.status)}</DashBadge></td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <button onClick={() => { setSelectedId(m.id); setShowDatePicker(false); setAvailDate(''); }}
-                          className="text-[#10B981] hover:text-[#008A66] font-bold text-sm flex items-center gap-1">
-                          {content.dashboard.meetings.actions.viewDetails}
-                          {direction==='rtl'?<ChevronLeft size={16}/>:<ChevronRight size={16}/>}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {m.status === 'SCHEDULED' && m.meetingLink && (
+                            <a href={m.meetingLink} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-colors">
+                              <Video size={13}/>{isAr?'انضم':'Join'}
+                            </a>
+                          )}
+                          <button onClick={() => { setSelectedId(m.id); setShowDatePicker(false); setAvailDate(''); }}
+                            className="text-[#10B981] hover:text-[#008A66] font-bold text-sm flex items-center gap-1">
+                            {content.dashboard.meetings.actions.viewDetails}
+                            {direction==='rtl'?<ChevronLeft size={16}/>:<ChevronRight size={16}/>}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1196,7 +1105,7 @@ const MeetingsView = () => {
                 <div className="flex justify-between py-2.5 border-b border-gray-50">
                   <span className="text-gray-500">{content.dashboard.meetings.table.meetingLink}</span>
                   <a href={selected.meetingLink} target="_blank" rel="noopener noreferrer"
-                    className="text-[#10B981] hover:underline flex items-center gap-1 text-sm font-bold">
+                    className="text-blue-600 hover:underline flex items-center gap-1 text-sm font-bold">
                     <Video size={16}/>Zoom Link
                   </a>
                 </div>
@@ -1204,9 +1113,7 @@ const MeetingsView = () => {
             </div>
 
             {/* M-05: Seller sets availability date for received PENDING meetings */}
-            {/* BUG-FIX: tab==='received' was always false — tab is 'all'|'upcoming'|'past'.
-                Check requestedBy.id instead: if user is NOT the one who sent, they are the receiver */}
-            {selected.status==='PENDING' && userId && String(selected.requestedBy?.id) !== String(userId) && (
+            {tab==='received' && selected.status==='PENDING' && (
               <div className="space-y-3 pt-1">
                 {!showDatePicker ? (
                   <button onClick={() => setShowDatePicker(true)}
@@ -1276,9 +1183,9 @@ const AlertsView = () => {
     const n = name?.toLowerCase()??'';
     if (n.includes('offer')||n.includes('عرض'))    return { Icon:DollarSign, bg:'bg-orange-50 text-orange-600', bar:'bg-orange-500' };
     if (n.includes('payment')||n.includes('دفع'))  return { Icon:Wallet,     bg:'bg-green-50 text-green-600',  bar:'bg-green-500'  };
-    return                                                 { Icon:FileText,   bg:'bg-[#E6F3EF] text-[#10B981]',    bar:'bg-[#10B981]'   };
+    return                                                 { Icon:FileText,   bg:'bg-blue-50 text-blue-600',    bar:'bg-blue-400'   };
   };
-  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB'):'';
+  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA':'en-SA'):'';
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1323,22 +1230,15 @@ const SettingsView = () => {
   const [pwdForm, setPwdForm] = useState({ current:'', new:'', confirm:'' });
   const [bankForm, setBankForm] = useState({ bankName:'', accountNumber:'', accountTitle:'', iban:'' });
 
-  // Identity document state
-  const [idFile, setIdFile] = useState<File | null>(null);
-  const [idUploaded, setIdUploaded] = useState(false);
-  const { uploadFile, uploading: idUploading } = useFileUpload();
-
   // P6-FIX R-04: real user + banks data
-  const { data: userData, loading: userLoading, refetch: refetchUser } = useQuery(GET_USER_DETAILS, {
-    variables: { getUserDetailsId: userId }, skip: !userId, fetchPolicy: 'network-only',
-    pollInterval: 60000, errorPolicy: 'all',
+  const { data: userData, loading: userLoading } = useQuery(GET_USER_DETAILS, {
+    variables: { getUserDetailsId: userId }, skip: !userId, errorPolicy: 'all',
   });
   const { data: banksData, loading: banksLoading, refetch: refetchBanks } = useQuery(GET_USER_BANKS, { errorPolicy: 'all' });
-  const [updateUser,         { loading: savingProfile  }] = useMutation(UPDATE_USER,                { errorPolicy: 'all' });
-  const [changePwd,          { loading: savingPassword }] = useMutation(CHANGE_PASSWORD,            { errorPolicy: 'all' });
-  const [addBank,            { loading: addingBank     }] = useMutation(ADD_BANK,                   { errorPolicy: 'all' });
-  const [deleteBank                                     ] = useMutation(DELETE_BANK,                 { errorPolicy: 'all' });
-  const [uploadIdentityDoc,  { loading: savingId       }] = useMutation(UPLOAD_IDENTITY_DOCUMENT,   { errorPolicy: 'all' });
+  const [updateUser,  { loading: savingProfile  }] = useMutation(UPDATE_USER,     { errorPolicy: 'all' });
+  const [changePwd,   { loading: savingPassword }] = useMutation(CHANGE_PASSWORD, { errorPolicy: 'all' });
+  const [addBank,     { loading: addingBank     }] = useMutation(ADD_BANK,         { errorPolicy: 'all' });
+  const [deleteBank                               ] = useMutation(DELETE_BANK,      { errorPolicy: 'all' });
 
   React.useEffect(() => {
     const u = userData?.getUserDetails;
@@ -1376,47 +1276,26 @@ const SettingsView = () => {
     refetchBanks();
   };
 
-  const handleUploadIdentity = async () => {
-    if (!idFile) { toast.error(isAr?'الرجاء اختيار ملف':'Please select a file'); return; }
-    const uploaded = await uploadFile(idFile, 'identity_document');
-    if (!uploaded) { toast.error(isAr?'فشل رفع الملف':'Upload failed'); return; }
-    const { errors } = await uploadIdentityDoc({
-      variables: {
-        input: {
-          title: 'identity_document',
-          fileName: uploaded.fileName,
-          fileType: uploaded.fileType,
-          filePath: uploaded.filePath,
-          description: 'Identity verification document',
-        },
-      },
-    });
-    if (errors?.length) { toast.error(isAr?'حدث خطأ أثناء الحفظ':'Error saving document'); return; }
-    toast.success(isAr?'تم رفع وثيقة الهوية بنجاح، سيتم مراجعتها قريباً':'Identity document uploaded — under review');
-    setIdUploaded(true);
-    setIdFile(null);
-    refetchUser();
-  };
-
-  const userStatus = userData?.getUserDetails?.status ?? '';
-  const verificationBadge = () => {
-    if (userStatus === 'verified')      return { label: isAr?'تم التحقق':'Verified',       color:'text-[#10B981] bg-[#E6F3EF]',  icon: <CheckCircle2 size={14}/> };
-    if (userStatus === 'under_review')  return { label: isAr?'قيد المراجعة':'Under Review', color:'text-yellow-700 bg-yellow-100', icon: <AlertCircle size={14}/> };
-    return                               { label: isAr?'غير محقق':'Unverified',              color:'text-gray-600 bg-gray-100',    icon: <XCircle size={14}/> };
-  };
-
   const tabs = [
     { id:'profile',  label:content.dashboard.settings.tabs.profile,  icon:User },
     { id:'wallet',   label:content.dashboard.settings.tabs.wallet,    icon:CreditCard },
     { id:'password', label:content.dashboard.settings.tabs.password,  icon:Lock },
-    { id:'identity', label:isAr?'الهوية':'Identity',                  icon:ShieldCheck },
   ];
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <SectionHeader title={content.dashboard.settings.title}/>
+      {/* Settings sub-tabs: horizontal pills on mobile, vertical sidebar on desktop */}
+      <div className="flex md:hidden bg-white rounded-2xl border border-gray-200 shadow-sm p-1 gap-1">
+        {tabs.map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            className={cn("flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all", activeTab===tab.id?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>
+            <tab.icon size={15}/><span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-        <div className="md:col-span-1">
+        <div className="hidden md:block md:col-span-1">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-2">
             {tabs.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
@@ -1504,71 +1383,6 @@ const SettingsView = () => {
                 </div>
               </div>
             )}
-            {/* ── Identity Tab ── */}
-            {activeTab==='identity' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
-                <h3 className="text-xl font-bold text-[#111827] mb-2 border-b border-gray-100 pb-4">
-                  {isAr?'التحقق من الهوية':'Identity Verification'}
-                </h3>
-
-                {/* Status badge */}
-                <div className="flex items-center gap-3 p-4 rounded-xl border border-gray-200 bg-gray-50">
-                  <ShieldCheck size={22} className="text-[#10B981]"/>
-                  <div>
-                    <p className="text-sm font-bold text-gray-700">{isAr?'حالة الحساب':'Account Status'}</p>
-                    <span className={`inline-flex items-center gap-1 mt-1 text-xs font-bold px-3 py-1 rounded-full ${verificationBadge().color}`}>
-                      {verificationBadge().icon}
-                      {verificationBadge().label}
-                    </span>
-                  </div>
-                </div>
-
-                {userStatus === 'verified' ? (
-                  <div className="flex items-center gap-3 p-4 rounded-xl bg-[#E6F3EF] border border-[#10B981]/30">
-                    <CheckCircle2 size={20} className="text-[#10B981]"/>
-                    <p className="text-sm font-bold text-[#008A66]">
-                      {isAr?'تم التحقق من هويتك بنجاح':'Your identity has been verified'}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4 max-w-md">
-                    <p className="text-sm text-gray-500">
-                      {isAr
-                        ? 'قم برفع صورة من وثيقة هويتك (هوية وطنية أو جواز سفر) للتحقق من حسابك.'
-                        : 'Upload a copy of your ID (National ID or Passport) to verify your account.'}
-                    </p>
-                    <div className="space-y-2">
-                      <label className="text-sm font-bold text-gray-700">
-                        {isAr?'وثيقة الهوية':'Identity Document'}
-                      </label>
-                      <label className="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-gray-300 rounded-xl cursor-pointer hover:border-[#10B981] hover:bg-[#f0faf6] transition-colors">
-                        <Upload size={24} className="text-gray-400 mb-2"/>
-                        <span className="text-sm text-gray-500 font-medium">
-                          {idFile ? idFile.name : (isAr?'اختر ملفاً أو اسحبه هنا':'Choose a file or drag it here')}
-                        </span>
-                        <span className="text-xs text-gray-400 mt-1">PDF, JPG, PNG</span>
-                        <input type="file" className="hidden" accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={e => { const f = e.target.files?.[0]; if (f) { setIdFile(f); setIdUploaded(false); } }}/>
-                      </label>
-                    </div>
-                    {idUploaded && (
-                      <div className="flex items-center gap-2 text-sm text-[#10B981] font-bold">
-                        <CheckCircle2 size={16}/>{isAr?'تم الرفع بنجاح':'Uploaded successfully'}
-                      </div>
-                    )}
-                    <button
-                      onClick={handleUploadIdentity}
-                      disabled={!idFile || idUploading || savingId}
-                      className="bg-[#10B981] text-white px-8 py-3 rounded-xl font-bold hover:bg-[#008A66] disabled:opacity-60 w-full"
-                    >
-                      {(idUploading || savingId)
-                        ? (isAr?'جارٍ الرفع...':'Uploading...')
-                        : (isAr?'رفع وثيقة الهوية':'Upload Identity Document')}
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -1584,7 +1398,7 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
   const { data: notifData, refetch: refetchNotifications } = useQuery(GET_NOTIFICATIONS, {
     variables: { userId, limit: 50, offSet: 0 },
     skip: !userId,
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'cache-and-network',
     errorPolicy: 'all',
   });
   // P14 S-01: real-time subscription — refetch badge count when a new notification arrives
@@ -1602,9 +1416,8 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
     skip: !userId,
     errorPolicy: 'all',
   });
-  const isAr = language === 'ar';
   const navUser = navUserData?.getUserDetails;
-  const displayName = navUser?.name || (isAr ? 'المستخدم' : 'User');
+  const displayName = navUser?.name || (language === 'ar' ? 'المستخدم' : 'User');
   const avatarLetter = displayName.charAt(0).toUpperCase();
 
   const tabs = [
@@ -1619,18 +1432,6 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
   ];
 
   const handleAddListing = () => {
-    if (!isVerified) {
-      toast.error(
-        isAr ? 'يجب التحقق من هويتك قبل إضافة إدراج' : 'You must verify your identity before listing a business',
-        {
-          action: {
-            label: isAr ? 'تحقق الآن' : 'Verify Now',
-            onClick: () => { setActiveTab('settings'); window.scrollTo(0, 0); },
-          },
-        }
-      );
-      return;
-    }
     setViewMode('create-listing');
     window.scrollTo(0, 0);
   };
@@ -1678,58 +1479,34 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
       {/* BUG-20 FIX: useLightLogo was not passed — dark background needs dark logo (false = dark) */}
       <Navbar onNavigate={onNavigate} useLightLogo={false} />
       
-      {/* F-08: Mobile bottom navigation bar — visible on screens < lg only */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 shadow-[0_-4px_16px_rgba(0,0,0,0.06)]">
-        <div className="flex items-center justify-around px-2 py-2">
-          {[
-            { id: 'dashboard', icon: LayoutDashboard, label: isAr ? 'الرئيسية' : 'Home' },
-            { id: 'offers',    icon: FileText,        label: isAr ? 'العروض'   : 'Offers' },
-            { id: 'deals',     icon: Handshake,       label: isAr ? 'الصفقات'  : 'Deals' },
-            { id: 'meetings',  icon: Video,           label: isAr ? 'الاجتماعات' : 'Meetings' },
-            { id: 'settings',  icon: Settings,        label: isAr ? 'الإعدادات' : 'Settings' },
-          ].map(({ id, icon: Icon, label }) => (
-            <button
-              key={id}
-              onClick={() => { setActiveTab(id as TabType); window.scrollTo(0, 0); }}
-              className={cn(
-                'flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all min-w-[56px]',
-                activeTab === id ? 'text-[#008A66]' : 'text-gray-400 hover:text-gray-600'
-              )}
-            >
-              <Icon size={22} className={activeTab === id ? 'stroke-[2.5]' : 'stroke-2'} />
-              <span className="text-[10px] font-bold leading-tight">{label}</span>
-            </button>
-          ))}
-        </div>
-      </nav>
-
-      <main className="flex-grow pt-24 pb-32 lg:pb-16">
+      <main className="flex-grow pt-24 pb-16">
         <div className="container mx-auto px-4 max-w-7xl">
           {/* Header Profile Section */}
-          <div className="bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-gray-100 mb-8">
+          <div className="bg-white rounded-[2rem] p-4 md:p-8 shadow-sm border border-gray-100 mb-6 md:mb-8">
              {/* Top Section: Profile & Actions */}
-             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
+             <div className="flex flex-row items-center justify-between gap-3 mb-4 md:mb-8">
                 {/* Profile Info */}
-                <div className="flex items-center gap-5">
+                <div className="flex items-center gap-3 md:gap-5">
                    {/* Avatar */}
-                   <div className="w-20 h-20 rounded-full bg-[#111827] text-white flex items-center justify-center text-3xl font-bold shadow-lg shadow-gray-200">
+                   <div className="w-12 h-12 md:w-20 md:h-20 rounded-full bg-[#111827] text-white flex items-center justify-center text-xl md:text-3xl font-bold shadow-lg shadow-gray-200 shrink-0">
                       {avatarLetter}
                    </div>
                    <div>
-                      <h1 className="text-2xl md:text-3xl font-black text-[#111827] mb-1">{displayName}</h1>
-                      <div className="flex items-center gap-4 text-gray-500 text-sm font-medium">
+                      <h1 className="text-lg md:text-3xl font-black text-[#111827] mb-0.5 md:mb-1">{displayName}</h1>
+                      <div className="hidden md:flex items-center gap-4 text-gray-500 text-sm font-medium">
                          <span>{navUser?.email || ''}</span>
                          <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
                          <span className="text-[#10B981]">{content.dashboard.accountStatus.verified}</span>
                       </div>
+                      <p className="md:hidden text-xs text-[#10B981] font-medium">{content.dashboard.accountStatus.verified}</p>
                    </div>
                 </div>
 
                 {/* Actions: Add Listing + Bell + Logout */}
-                <div className="flex items-center gap-3 w-full md:w-auto self-end md:self-auto justify-end">
-                   <button onClick={() => handleAddListing()} className="bg-[#10B981] hover:bg-[#008A66] text-white px-4 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-[#10B981]/20 flex items-center gap-2 text-sm whitespace-nowrap">
+                <div className="flex items-center gap-2 md:gap-3 shrink-0">
+                   <button onClick={() => handleAddListing()} className="bg-[#10B981] hover:bg-[#008A66] text-white px-3 md:px-4 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-[#10B981]/20 flex items-center gap-2 text-sm whitespace-nowrap">
                       <Plus size={18} />
-                      <span>{content.dashboard.listings.addNew}</span>
+                      <span className="hidden md:inline">{content.dashboard.listings.addNew}</span>
                    </button>
                    
                    <div className="w-px h-8 bg-gray-200 mx-1 hidden sm:block"></div>
@@ -1742,28 +1519,30 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
                       )}
                    </button>
                    
-                   <button onClick={async () => { await logout(); onNavigate?.('home'); }} aria-label={language === 'ar' ? 'تسجيل الخروج' : 'Logout'} className="w-10 h-10 rounded-full bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 transition-colors">
+                   <button onClick={() => { logout(); onNavigate?.('home'); }} aria-label={language === 'ar' ? 'تسجيل الخروج' : 'Logout'} className="w-10 h-10 rounded-full bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 transition-colors">
                       <LogOut size={20} />
                    </button>
                 </div>
              </div>
 
              {/* Bottom Section: Tabs */}
-             <div className="border-t border-gray-100 pt-6 -mx-2 px-2 overflow-x-auto scrollbar-none">
-                <div className="flex items-center gap-2 w-max md:w-auto">
+             <div className="border-t border-gray-100 pt-4 -mx-2 px-2 overflow-x-auto scrollbar-none">
+                <div className="flex items-center gap-1.5 w-max md:w-auto">
                   {tabs.map((tab) => (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id as TabType)}
                       className={cn(
-                        "flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap",
+                        "flex items-center gap-2 rounded-xl font-bold transition-all whitespace-nowrap",
+                        "px-3 py-2.5 text-xs md:px-5 md:py-3 md:text-sm",
                         activeTab === tab.id
                           ? "bg-[#111827] text-white shadow-md"
                           : "bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-gray-200"
                       )}
                     >
-                      <tab.icon size={18} className="shrink-0" />
-                      <span>{tab.label}</span>
+                      <tab.icon size={16} className="md:hidden" />
+                      <tab.icon size={18} className="hidden md:block" />
+                      <span className="hidden md:inline">{tab.label}</span>
                     </button>
                   ))}
                 </div>
