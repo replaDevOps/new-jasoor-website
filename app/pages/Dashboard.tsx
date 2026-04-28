@@ -279,7 +279,7 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
 
 
 const OffersView = () => {
-  const { content, language } = useApp();
+  const { content, language, direction } = useApp();
   const isAr = language === 'ar';
   const [directionFilter, setDirectionFilter] = useState<'received'|'sent'>('received');
   const [selectedId, setSelectedId] = useState<string|null>(null);
@@ -1003,44 +1003,7 @@ const MeetingsView = () => {
         </div>
       }/>
 
-      {/* Scheduled meetings — show Zoom links prominently */}
-      {(tab==='all'||tab==='upcoming') && !loading && rawMeetings.filter((m:any)=>m.status==='SCHEDULED').length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {rawMeetings.map((m: any) => (
-            <div key={m.id} className="bg-white p-5 rounded-3xl border border-blue-100 shadow-sm">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p className="font-bold text-[#111827]">{m.business?.businessTitle}</p>
-                  <p className="text-sm text-gray-500">{isAr?'مع':'with'} {m.requestedBy?.name ?? m.requestedTo?.name}</p>
-                </div>
-                <DashBadge color="blue">{isAr?'مجدول':'Scheduled'}</DashBadge>
-              </div>
-              <div className="space-y-1 text-sm mb-4">
-                <p className="text-gray-500">{isAr?'التاريخ':'Date'}: <span className="font-bold text-[#111827]">{fmtDate(m.adminAvailabilityDate)}</span></p>
-              </div>
-              {m.meetingLink ? (
-                <a href={m.meetingLink} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors w-fit">
-                  <Video size={16}/>{isAr?'انضم إلى الاجتماع':'Join Meeting'}
-                </a>
-              ) : (
-                <p className="text-sm text-gray-400 italic">{isAr?'رابط الاجتماع سيُرسل قريباً':'Meeting link will be sent soon'}</p>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Ready-for-scheduling tab — admin scheduling queue */}
-      {tab==='ready' && !loading && rawMeetings.length > 0 && (
-        <div className="bg-[#F0FDF4] rounded-3xl border border-[#10B981]/20 p-5 mb-2">
-          <p className="text-sm text-[#008A66] font-bold flex items-center gap-2">
-            <CheckCircle2 size={16}/>{isAr?'هذه الاجتماعات معتمدة وتنتظر تحديد موعد من الإدارة':'These meetings are approved and awaiting admin scheduling'}
-          </p>
-        </div>
-      )}
-
-      {/* Main table (all tabs except scheduled cards above) */}
+      {/* Main table — single source of truth for all meetings */}
       {(
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
           {loading ? <div className="p-8 text-center text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div> : (
@@ -1074,11 +1037,19 @@ const MeetingsView = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap"><DashBadge color={statusColor(m.status)}>{statusLabel(m.status)}</DashBadge></td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <button onClick={() => { setSelectedId(m.id); setShowDatePicker(false); setAvailDate(''); }}
-                          className="text-[#10B981] hover:text-[#008A66] font-bold text-sm flex items-center gap-1">
-                          {content.dashboard.meetings.actions.viewDetails}
-                          {direction==='rtl'?<ChevronLeft size={16}/>:<ChevronRight size={16}/>}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {m.status === 'SCHEDULED' && m.meetingLink && (
+                            <a href={m.meetingLink} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-colors">
+                              <Video size={13}/>{isAr?'انضم':'Join'}
+                            </a>
+                          )}
+                          <button onClick={() => { setSelectedId(m.id); setShowDatePicker(false); setAvailDate(''); }}
+                            className="text-[#10B981] hover:text-[#008A66] font-bold text-sm flex items-center gap-1">
+                            {content.dashboard.meetings.actions.viewDetails}
+                            {direction==='rtl'?<ChevronLeft size={16}/>:<ChevronRight size={16}/>}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1314,8 +1285,17 @@ const SettingsView = () => {
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <SectionHeader title={content.dashboard.settings.title}/>
+      {/* Settings sub-tabs: horizontal pills on mobile, vertical sidebar on desktop */}
+      <div className="flex md:hidden bg-white rounded-2xl border border-gray-200 shadow-sm p-1 gap-1">
+        {tabs.map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            className={cn("flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-bold transition-all", activeTab===tab.id?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>
+            <tab.icon size={15}/><span>{tab.label}</span>
+          </button>
+        ))}
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-        <div className="md:col-span-1">
+        <div className="hidden md:block md:col-span-1">
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-2">
             {tabs.map(tab => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
@@ -1502,30 +1482,31 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
       <main className="flex-grow pt-24 pb-16">
         <div className="container mx-auto px-4 max-w-7xl">
           {/* Header Profile Section */}
-          <div className="bg-white rounded-[2rem] p-6 md:p-8 shadow-sm border border-gray-100 mb-8">
+          <div className="bg-white rounded-[2rem] p-4 md:p-8 shadow-sm border border-gray-100 mb-6 md:mb-8">
              {/* Top Section: Profile & Actions */}
-             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
+             <div className="flex flex-row items-center justify-between gap-3 mb-4 md:mb-8">
                 {/* Profile Info */}
-                <div className="flex items-center gap-5">
+                <div className="flex items-center gap-3 md:gap-5">
                    {/* Avatar */}
-                   <div className="w-20 h-20 rounded-full bg-[#111827] text-white flex items-center justify-center text-3xl font-bold shadow-lg shadow-gray-200">
+                   <div className="w-12 h-12 md:w-20 md:h-20 rounded-full bg-[#111827] text-white flex items-center justify-center text-xl md:text-3xl font-bold shadow-lg shadow-gray-200 shrink-0">
                       {avatarLetter}
                    </div>
                    <div>
-                      <h1 className="text-2xl md:text-3xl font-black text-[#111827] mb-1">{displayName}</h1>
-                      <div className="flex items-center gap-4 text-gray-500 text-sm font-medium">
+                      <h1 className="text-lg md:text-3xl font-black text-[#111827] mb-0.5 md:mb-1">{displayName}</h1>
+                      <div className="hidden md:flex items-center gap-4 text-gray-500 text-sm font-medium">
                          <span>{navUser?.email || ''}</span>
                          <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
                          <span className="text-[#10B981]">{content.dashboard.accountStatus.verified}</span>
                       </div>
+                      <p className="md:hidden text-xs text-[#10B981] font-medium">{content.dashboard.accountStatus.verified}</p>
                    </div>
                 </div>
 
                 {/* Actions: Add Listing + Bell + Logout */}
-                <div className="flex items-center gap-3 w-full md:w-auto self-end md:self-auto justify-end">
-                   <button onClick={() => handleAddListing()} className="bg-[#10B981] hover:bg-[#008A66] text-white px-4 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-[#10B981]/20 flex items-center gap-2 text-sm whitespace-nowrap">
+                <div className="flex items-center gap-2 md:gap-3 shrink-0">
+                   <button onClick={() => handleAddListing()} className="bg-[#10B981] hover:bg-[#008A66] text-white px-3 md:px-4 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-[#10B981]/20 flex items-center gap-2 text-sm whitespace-nowrap">
                       <Plus size={18} />
-                      <span>{content.dashboard.listings.addNew}</span>
+                      <span className="hidden md:inline">{content.dashboard.listings.addNew}</span>
                    </button>
                    
                    <div className="w-px h-8 bg-gray-200 mx-1 hidden sm:block"></div>
@@ -1545,21 +1526,23 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
              </div>
 
              {/* Bottom Section: Tabs */}
-             <div className="border-t border-gray-100 pt-6 -mx-2 px-2 overflow-x-auto scrollbar-none">
-                <div className="flex items-center gap-2 w-max md:w-auto">
+             <div className="border-t border-gray-100 pt-4 -mx-2 px-2 overflow-x-auto scrollbar-none">
+                <div className="flex items-center gap-1.5 w-max md:w-auto">
                   {tabs.map((tab) => (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id as TabType)}
                       className={cn(
-                        "flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all whitespace-nowrap",
-                        activeTab === tab.id 
-                          ? "bg-[#111827] text-white shadow-md" 
+                        "flex items-center gap-2 rounded-xl font-bold transition-all whitespace-nowrap",
+                        "px-3 py-2.5 text-xs md:px-5 md:py-3 md:text-sm",
+                        activeTab === tab.id
+                          ? "bg-[#111827] text-white shadow-md"
                           : "bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-gray-200"
                       )}
                     >
-                      <tab.icon size={18} />
-                      {tab.label}
+                      <tab.icon size={16} className="md:hidden" />
+                      <tab.icon size={18} className="hidden md:block" />
+                      <span className="hidden md:inline">{tab.label}</span>
                     </button>
                   ))}
                 </div>
