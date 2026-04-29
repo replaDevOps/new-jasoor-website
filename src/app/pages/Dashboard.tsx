@@ -278,7 +278,7 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
 };
 
 
-const OffersView = () => {
+const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
   const { content, language, direction } = useApp();
   const isAr = language === 'ar';
   const [directionFilter, setDirectionFilter] = useState<'received'|'sent'>('received');
@@ -310,6 +310,13 @@ const OffersView = () => {
     const { errors } = await updateStatus({ variables: { input: { id: selectedOffer.id, status: 'ACCEPTED' } } });
     if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
     toast.success(isAr?'تم قبول العرض':'Offer accepted'); setSelectedId(null); refetch();
+  };
+
+  const handleReject = async () => {
+    if (!selectedOffer) return;
+    const { errors } = await updateStatus({ variables: { input: { id: selectedOffer.id, status: 'REJECTED' } } });
+    if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
+    toast.success(isAr?'تم رفض العرض':'Offer rejected'); setSelectedId(null); refetch();
   };
 
   // P11 F-07: buyer withdraws their own sent offer
@@ -349,60 +356,106 @@ const OffersView = () => {
           </button>
         </div>
       }/>
+
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-        {loading ? <div className="p-6 text-center text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div> : allOffers.length === 0 ? (
-          <div className="p-10 text-center text-gray-400">{content.dashboard.meetings.empty}</div>
+        {loading ? (
+          <div className="p-6 text-center text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div>
+        ) : allOffers.length === 0 ? (
+          <div className="p-12 text-center">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <DollarSign size={28} className="text-gray-400"/>
+            </div>
+            <p className="text-gray-500 font-bold mb-1">
+              {directionFilter==='received' ? (isAr?'لا توجد عروض مستلمة':'No offers received yet') : (isAr?'لم ترسل أي عروض بعد':'No offers sent yet')}
+            </p>
+            <p className="text-gray-400 text-sm mb-5">
+              {directionFilter==='received' ? (isAr?'ستظهر العروض الواردة على إدراجاتك هنا':'Offers on your listings will appear here') : (isAr?'تصفح الإدراجات وقدّم عرضك الأول':'Browse listings and make your first offer')}
+            </p>
+            {directionFilter==='sent' && (
+              <button onClick={() => onNavigate?.('browse')} className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#10B981] text-white font-bold rounded-xl hover:bg-[#008A66] transition-colors text-sm">
+                {isAr?'تصفح الإدراجات':'Browse Listings'}{direction==='rtl'?<ChevronLeft size={16}/>:<ChevronRight size={16}/>}
+              </button>
+            )}
+          </div>
         ) : (
           <>
             {/* Mobile: card list */}
             <div className="md:hidden divide-y divide-gray-100">
-              {allOffers.map((o: any) => (
-                <div key={o.id} className="p-4">
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-[#111827] truncate">{o.business?.businessTitle}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">{fmt(o.business?.price)} {content.dashboard.offers.sar}</p>
+              {allOffers.map((o: any) => {
+                const counterparty = directionFilter==='sent' ? o.business?.seller?.name : o.buyer?.name;
+                return (
+                  <div key={o.id} className="p-4">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="flex-1 min-w-0">
+                        <button
+                          onClick={() => onNavigate?.('details', Number(o.business?.id))}
+                          className="text-sm font-bold text-[#10B981] hover:underline truncate block text-right w-full"
+                        >
+                          {o.business?.businessTitle}
+                        </button>
+                        <p className="text-xs text-gray-500 mt-0.5">{counterparty ?? '—'}</p>
+                      </div>
+                      <DashBadge color={statusColor(o.status)}>{statusLabel(o.status)}</DashBadge>
                     </div>
-                    <DashBadge color={statusColor(o.status)}>{statusLabel(o.status)}</DashBadge>
-                  </div>
-                  <div className="flex items-center justify-between mt-3">
-                    <span className="text-sm font-black text-[#10B981]">{fmt(o.price)} {content.dashboard.offers.sar}</span>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-gray-400">{fmtDate(o.createdAt)}</span>
-                      <button onClick={() => { setSelectedId(o.id); setActionMode('details'); }} className="text-[#10B981] font-bold text-sm flex items-center gap-1">
-                        {content.dashboard.offers.actions.viewDetails}
-                        {direction==='rtl'?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}
-                      </button>
+                    <div className="flex items-center justify-between mt-3">
+                      <span className="text-sm font-black text-[#10B981]">{fmt(o.price)} {content.dashboard.offers.sar}</span>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-gray-400">{fmtDate(o.createdAt)}</span>
+                        <button onClick={() => { setSelectedId(o.id); setActionMode('details'); }} className="text-[#10B981] font-bold text-sm flex items-center gap-1">
+                          {content.dashboard.offers.actions.viewDetails}
+                          {direction==='rtl'?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
+
             {/* Desktop: table */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-gray-50 border-b border-gray-100">
                   <tr>
-                    {[content.dashboard.offers.table.listing, content.dashboard.offers.table.offerAmount, content.dashboard.offers.table.date, content.dashboard.offers.table.status, content.dashboard.offers.table.actions].map(h=>(
+                    {[
+                      content.dashboard.offers.table.listing,
+                      directionFilter==='sent' ? content.dashboard.offers.table.seller : content.dashboard.offers.table.buyer,
+                      content.dashboard.offers.table.offerAmount,
+                      content.dashboard.offers.table.date,
+                      content.dashboard.offers.table.status,
+                      content.dashboard.offers.table.actions,
+                    ].map(h=>(
                       <th key={h} className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
-                  {allOffers.map((o: any) => (
-                    <tr key={o.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4"><p className="text-sm font-bold text-[#111827]">{o.business?.businessTitle}</p><p className="text-xs text-gray-500">{fmt(o.business?.price)} {content.dashboard.offers.sar}</p></td>
-                      <td className="px-6 py-4 whitespace-nowrap"><span className="text-sm font-black text-[#10B981]">{fmt(o.price)} {content.dashboard.offers.sar}</span></td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{fmtDate(o.createdAt)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap"><DashBadge color={statusColor(o.status)}>{statusLabel(o.status)}</DashBadge></td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <button onClick={() => { setSelectedId(o.id); setActionMode('details'); }} className="text-[#10B981] hover:text-[#008A66] font-bold text-sm flex items-center gap-1">
-                          {content.dashboard.offers.actions.viewDetails}
-                          {direction==='rtl'?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  {allOffers.map((o: any) => {
+                    const counterparty = directionFilter==='sent' ? o.business?.seller?.name : o.buyer?.name;
+                    return (
+                      <tr key={o.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => onNavigate?.('details', Number(o.business?.id))}
+                            className="text-sm font-bold text-[#10B981] hover:underline block text-right"
+                          >
+                            {o.business?.businessTitle}
+                          </button>
+                          <p className="text-xs text-gray-500 mt-0.5">{fmt(o.business?.price)} {content.dashboard.offers.sar}</p>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-[#111827]">{counterparty ?? '—'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap"><span className="text-sm font-black text-[#10B981]">{fmt(o.price)} {content.dashboard.offers.sar}</span></td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{fmtDate(o.createdAt)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap"><DashBadge color={statusColor(o.status)}>{statusLabel(o.status)}</DashBadge></td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button onClick={() => { setSelectedId(o.id); setActionMode('details'); }} className="text-[#10B981] hover:text-[#008A66] font-bold text-sm flex items-center gap-1">
+                            {content.dashboard.offers.actions.viewDetails}
+                            {direction==='rtl'?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -414,9 +467,18 @@ const OffersView = () => {
         title={actionMode==='details'?content.dashboard.offers.actions.viewDetails:actionMode==='counter'?content.dashboard.offers.actions.counterOffer:content.dashboard.offers.actions.scheduleMeeting}>
         {selectedOffer && (
           <div className="space-y-6">
+            {/* Listing header — clickable */}
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100">
               <div className="flex justify-between items-start mb-2">
-                <div><p className="text-xs text-gray-500 mb-1">{content.dashboard.offers.table.listing}</p><p className="font-bold text-[#111827]">{selectedOffer.business?.businessTitle}</p></div>
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">{content.dashboard.offers.table.listing}</p>
+                  <button
+                    onClick={() => { onNavigate?.('details', Number(selectedOffer.business?.id)); setSelectedId(null); }}
+                    className="font-bold text-[#10B981] hover:underline text-right"
+                  >
+                    {selectedOffer.business?.businessTitle}
+                  </button>
+                </div>
                 <DashBadge color={statusColor(selectedOffer.status)}>{statusLabel(selectedOffer.status)}</DashBadge>
               </div>
               {actionMode==='details' && (
@@ -426,49 +488,81 @@ const OffersView = () => {
                 </div>
               )}
             </div>
+
             {actionMode==='details' && (
               <>
                 <div className="space-y-4">
-                  <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-gray-500">{content.dashboard.offers.table.date}</span><span className="font-bold text-[#111827]">{fmtDate(selectedOffer.createdAt)}</span></div>
-                  <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-gray-500">{directionFilter==='sent'?content.dashboard.offers.table.seller:content.dashboard.offers.table.buyer}</span><span className="font-bold text-[#111827]">{selectedOffer.buyer?.name??'—'}</span></div>
-                  <div className="flex justify-between py-2 border-b border-gray-50"><span className="text-gray-500">{content.dashboard.offers.table.offerNumber}</span><span className="font-bold text-[#111827]">#{selectedOffer.id}</span></div>
+                  <div className="flex justify-between py-2 border-b border-gray-50">
+                    <span className="text-gray-500">{content.dashboard.offers.table.date}</span>
+                    <span className="font-bold text-[#111827]">{fmtDate(selectedOffer.createdAt)}</span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-gray-50">
+                    <span className="text-gray-500">{directionFilter==='sent' ? content.dashboard.offers.table.seller : content.dashboard.offers.table.buyer}</span>
+                    <span className="font-bold text-[#111827]">
+                      {directionFilter==='sent' ? (selectedOffer.business?.seller?.name ?? '—') : (selectedOffer.buyer?.name ?? '—')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between py-2 border-b border-gray-50">
+                    <span className="text-gray-500">{content.dashboard.offers.table.offerNumber}</span>
+                    <span className="font-bold text-[#111827]">#{selectedOffer.id}</span>
+                  </div>
                 </div>
+
+                {/* Seller actions: received PENDING offer */}
                 {selectedOffer.status==='PENDING' && directionFilter==='received' && (
                   <div className="flex flex-col gap-3 mt-6">
                     <div className="grid grid-cols-2 gap-3">
-                      <button onClick={() => setActionMode('counter')} className="py-3 rounded-xl border border-gray-300 text-[#111827] font-bold hover:bg-gray-50 flex items-center justify-center gap-2"><DollarSign size={18}/>{content.dashboard.offers.actions.counterOffer}</button>
-                      <button onClick={() => setActionMode('meeting')} className="py-3 rounded-xl bg-[#111827] text-white font-bold hover:bg-black flex items-center justify-center gap-2"><Calendar size={18}/>{content.dashboard.offers.actions.scheduleMeeting}</button>
+                      <button onClick={() => setActionMode('counter')} className="py-3 rounded-xl border border-gray-300 text-[#111827] font-bold hover:bg-gray-50 flex items-center justify-center gap-2">
+                        <DollarSign size={18}/>{content.dashboard.offers.actions.counterOffer}
+                      </button>
+                      <button onClick={() => setActionMode('meeting')} className="py-3 rounded-xl bg-[#111827] text-white font-bold hover:bg-black flex items-center justify-center gap-2">
+                        <Calendar size={18}/>{content.dashboard.offers.actions.scheduleMeeting}
+                      </button>
                     </div>
-                    <button onClick={handleAccept} className="w-full py-3 rounded-xl bg-[#10B981] text-white font-bold hover:bg-[#008A66] flex items-center justify-center gap-2"><CheckCircle2 size={18}/>{content.dashboard.offers.actions.accept}</button>
+                    <button onClick={handleAccept} className="w-full py-3 rounded-xl bg-[#10B981] text-white font-bold hover:bg-[#008A66] flex items-center justify-center gap-2">
+                      <CheckCircle2 size={18}/>{content.dashboard.offers.actions.accept}
+                    </button>
+                    <button onClick={handleReject} className="w-full py-3 rounded-xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2">
+                      <XCircle size={18}/>{isAr?'رفض العرض':'Reject Offer'}
+                    </button>
                   </div>
                 )}
-                {/* P11 F-07: Buyer can cancel/withdraw a sent PENDING offer */}
+
+                {/* Buyer actions: sent PENDING offer — can withdraw */}
                 {selectedOffer.status==='PENDING' && directionFilter==='sent' && (
                   <div className="mt-6">
-                    <button onClick={handleCancelOffer}
-                      className="w-full py-3 rounded-xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2">
+                    <button onClick={handleCancelOffer} className="w-full py-3 rounded-xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2">
                       <Ban size={18}/>{isAr?'سحب العرض':'Withdraw Offer'}
                     </button>
                   </div>
                 )}
               </>
             )}
+
             {actionMode==='counter' && (
               <form onSubmit={handleCounter} className="space-y-4">
-                <div><label className="block text-sm font-bold text-gray-700 mb-2">{content.dashboard.offers.actions.amount}</label>
-                  <input type="number" value={counterPrice} onChange={e=>setCounterPrice(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981]"/></div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">{content.dashboard.offers.actions.amount}</label>
+                  <input type="number" value={counterPrice} onChange={e=>setCounterPrice(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981]"/>
+                </div>
                 <div className="flex gap-3">
                   <button type="button" onClick={() => setActionMode('details')} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50">{content.dashboard.offers.actions.cancel}</button>
                   <button type="submit" className="flex-1 py-3 rounded-xl bg-[#10B981] text-white font-bold">{content.dashboard.offers.actions.submit}</button>
                 </div>
               </form>
             )}
+
             {actionMode==='meeting' && (
               <form onSubmit={handleMeeting} className="space-y-4">
-                <div><label className="block text-sm font-bold text-gray-700 mb-2">{content.dashboard.offers.actions.meetingDate}</label>
-                  <input type="date" value={meetingDate} onChange={e=>setMeetingDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981]"/></div>
-                <div><label className="block text-sm font-bold text-gray-700 mb-2">{content.dashboard.offers.actions.meetingTime}</label>
-                  <input type="time" value={meetingTime} onChange={e=>setMeetingTime(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981]"/></div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">{content.dashboard.offers.actions.meetingDate}</label>
+                  <input type="date" value={meetingDate} onChange={e=>setMeetingDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981]"/>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 mb-2">{content.dashboard.offers.actions.meetingTime}</label>
+                  <input type="time" value={meetingTime} onChange={e=>setMeetingTime(e.target.value)} min="16:30" max="23:00" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981]"/>
+                  <p className="text-xs text-gray-400 mt-1">{isAr?'المواعيد المتاحة: ٤:٣٠ م – ١١:٠٠ م':'Available: 4:30 PM – 11:00 PM'}</p>
+                </div>
                 <div className="flex gap-3">
                   <button type="button" onClick={() => setActionMode('details')} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50">{content.dashboard.offers.actions.cancel}</button>
                   <button type="submit" className="flex-1 py-3 rounded-xl bg-[#111827] text-white font-bold hover:bg-black">{content.dashboard.offers.actions.submit}</button>
@@ -1630,7 +1724,7 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
                 >
                    {activeTab === 'dashboard' && <DashboardView />}
                    {activeTab === 'listings' && <ListingsView onAddListing={handleAddListing} onEditListing={handleEditListing} onNavigate={onNavigate} />}
-                   {activeTab === 'offers' && <OffersView />}
+                   {activeTab === 'offers' && <OffersView onNavigate={onNavigate} />}
                    {activeTab === 'deals' && <DealsView />}
                    {activeTab === 'meetings' && <MeetingsView />}
                    {activeTab === 'favorites' && <ListingsView isFavorites onNavigate={onNavigate} />}

@@ -15,11 +15,12 @@ import { Card } from '../components/Card';
 import { useApp } from '../../context/AppContext';
 // P5-FIX: use real hooks instead of mock data
 import { useBusinessDetail } from '../../hooks/useBusinessDetail';
+import { useRandomBusinesses } from '../../hooks/useRandomBusinesses';
 // Offer/meeting mutations wired through modals — keep Apollo for offer submission
 import { useMutation, useQuery } from '@apollo/client';
 import { CREATE_OFFER, REQUEST_MEETING, CREATE_ENDA, VIEW_BUSINESS } from '../../graphql/mutations/business';
-import { GET_USER_DETAILS } from '../../graphql/queries/dashboard';
-import { GET_SIMILAR_BUSINESS_PROFIT_GRAPH, GET_SUGGESTED_LISTINGS } from '../../graphql/queries/business';
+import { GET_SIMILAR_BUSINESS_PROFIT_GRAPH } from '../../graphql/queries/business';
+import { GET_OFFERS_BY_USER } from '../../graphql/queries/dashboard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,22 +42,37 @@ export const BusinessDetails = ({
   businessId?: number | null;
   onNavigate?: (page: string, id?: number) => void;
 }) => {
-  const { language, direction, userId, isLoggedIn } = useApp();
+  const { language, direction, userId } = useApp();
   const isAr = language === 'ar';
 
   // P5-FIX R-01: real data via useBusinessDetail hook
   const { business, loading, error, toggleSave } = useBusinessDetail(businessId);
 
-  // F-SL: Replace random businesses with getSuggestedListings — real category/city/price matching
-  const { data: suggestedData, loading: similarLoading } = useQuery(GET_SUGGESTED_LISTINGS, {
-    variables: { businessId, limit: 6 },
+  // P5-FIX R-02: similar businesses via useRandomBusinesses with current business id
+  const { businesses: similarBusinesses, loading: similarLoading } = useRandomBusinesses(userId);
+
+  // P14 G-10: similar business profit comparison chart
+  const { data: profitGraphData } = useQuery(GET_SIMILAR_BUSINESS_PROFIT_GRAPH, {
+    variables: { similerBusinessAvgAnualProfitId: businessId },
     skip: !businessId,
     errorPolicy: 'all',
   });
-  const similarBusinesses: any[] = suggestedData?.getSuggestedListings ?? [];
+  const profitGraph: { profit: number; year: string }[] = profitGraphData?.similerBusinessAvgAnualProfit?.graph ?? [];
+  const totalProfit: number = profitGraphData?.similerBusinessAvgAnualProfit?.totalProfit ?? 0;
 
   const [modalOpen, setModalOpen] = useState<'offer' | 'meeting' | 'enda' | null>(null);
   const [isSaved, setIsSaved] = useState(false);
+
+  // Stage 4: check if buyer already has an active (PENDING) offer on this listing
+  const { data: myOffersData } = useQuery(GET_OFFERS_BY_USER, {
+    variables: { status: 'PENDING' },
+    skip: !userId,
+    errorPolicy: 'all',
+    fetchPolicy: 'cache-and-network',
+  });
+  const hasActivePendingOffer = (myOffersData?.getOffersByUser ?? []).some(
+    (o: any) => String(o.business?.id) === String(businessId)
+  );
 
   // Init isSaved from API data (savedBy array contains userId if already saved)
   useEffect(() => {
@@ -66,16 +82,6 @@ export const BusinessDetails = ({
   }, [business, userId]);
 
   // Mutations for offer, meeting, NDA
-  // Owner guard: hide action buttons if viewing own listing
-  const { data: userDetailsData } = useQuery(GET_USER_DETAILS, {
-    variables: { getUserDetailsId: userId },
-    skip: !userId,
-    errorPolicy: 'all',
-  });
-  const userStatus = userDetailsData?.getUserDetails?.status ?? '';
-  const isVerified = userStatus === 'VERIFIED' || userStatus === 'verified';
-  const isOwner = !!(userId && business?.seller?.id && String(userId) === String(business.seller.id));
-
   const [createOffer] = useMutation(CREATE_OFFER, { errorPolicy: 'all' });
   const [requestMeeting] = useMutation(REQUEST_MEETING, { errorPolicy: 'all' });
   const [createEnda] = useMutation(CREATE_ENDA, { errorPolicy: 'all' });
@@ -148,69 +154,45 @@ export const BusinessDetails = ({
 
   const handleOfferSubmit = async (amount: string) => {
     if (!business?.id) return;
-    // C8/C11/C12: use errorPolicy 'all' result, check errors array
-    const result = await createOffer({
-      variables: {
-        input: {
-          businessId: business.id,
-          price: parseFloat(amount),
-          message: '',
-          status: 'PENDING',
-          isProceedToPay: false,
+    try {
+      await createOffer({
+        variables: {
+          input: {
+            businessId: business.id,
+            price: parseFloat(amount),
+            message: '',
+            status: 'PENDING',
+            isProceedToPay: false,
+          },
         },
-      },
-    });
-    const errors = result?.errors ?? [];
-    if (errors.length) {
-      const msg = errors[0]?.message ?? '';
-      if (msg.includes('OFFER_ALREADY_EXISTS')) {
-        // C11/C12: bilingual duplicate offer error
-        toast.error(isAr
-          ? 'لديك عرض نشط بالفعل على هذا الإعلان'
-          : 'You already have an active offer on this listing');
-      } else {
-        toast.error(t.errGeneric);
-      }
-    } else {
+      });
       toast.success(t.offerSent);
+    } catch {
+      toast.error(t.errGeneric);
     }
     setModalOpen(null);
   };
 
   const handleMeetingSubmit = async (data: { date: string; startTime: string; endTime: string }) => {
     if (!business?.id) return;
-    // C8: check errors array from errorPolicy 'all' mutation
-    const result = await requestMeeting({
-      variables: {
-        input: {
-          businessId: business.id,
-          requestedDate: data.date ? `${data.date}T${data.startTime || '00:00'}:00.000Z` : new Date().toISOString(),
-          requestedEndDate: data.date ? `${data.date}T${data.endTime || '00:00'}:00.000Z` : new Date().toISOString(),
+    try {
+      await requestMeeting({
+        variables: {
+          input: {
+            businessId: business.id,
+            requestedDate: data.date ? `${data.date}T${data.startTime || '00:00'}:00.000Z` : new Date().toISOString(),
+            requestedEndDate: data.date ? `${data.date}T${data.endTime || '00:00'}:00.000Z` : new Date().toISOString(),
+          },
         },
-      },
-    });
-    const errors = result?.errors ?? [];
-    if (errors.length) {
-      const msg = errors[0]?.message ?? '';
-      if (msg.includes('MEETING_REQUEST_OUTSIDE_ALLOWED_HOURS') || msg.includes('MEETING_TIME_INVALID')) {
-        toast.error(isAr
-          ? 'الوقت المحدد خارج نطاق أوقات الاجتماعات المسموح بها'
-          : 'Selected time is outside the allowed meeting hours');
-      } else if (msg.includes('NDA_NOT_SIGNED')) {
-        toast.error(isAr
-          ? 'يجب توقيع اتفاقية السرية (NDA) لهذا الإعلان أولاً'
-          : 'You must sign the NDA for this listing before requesting a meeting');
-      } else {
-        toast.error(t.errGeneric);
-      }
-    } else {
+      });
       toast.success(t.meetingSent);
+    } catch {
+      toast.error(t.errGeneric);
     }
     setModalOpen(null);
   };
 
   const handleENDAConfirm = async () => {
-    if (!isLoggedIn) { onNavigate?.('signin'); return; }
     if (!business?.id || !userId) return;
     try {
       await createEnda({
@@ -290,14 +272,12 @@ export const BusinessDetails = ({
   // ── Derived display values from real API data ─────────────────────────────────
   const categoryName = isAr ? business.category?.arabicName : business.category?.name;
   const cityDisplay  = business.city ? (business.district ? `${business.district}, ${business.city}` : business.city) : '';
-  const fmtNum = (n: number | string) =>
-    Number(n).toLocaleString(isAr ? 'ar-SA-u-ca-gregory' : 'en-US');
-  const priceDisplay   = business.price   ? fmtNum(business.price)   : '—';
-  const profitDisplay  = business.profit  ? `${fmtNum(business.profit)} ${t.currency}`  : '—';
-  const revenueDisplay = business.revenue ? `${fmtNum(business.revenue)} ${t.currency}` : '—';
+  const priceDisplay = business.price ? Number(business.price).toLocaleString() : '—';
+  const profitDisplay = business.profit ? `${Number(business.profit).toLocaleString()} ${t.currency}` : '—';
+  const revenueDisplay = business.revenue ? `${Number(business.revenue).toLocaleString()} ${t.currency}` : '—';
   const marginDisplay = business.profitMargen ? `${business.profitMargen}%` : '—';
   const employeesDisplay = business.numberOfEmployees || '—';
-  const recoveryDisplay = (business.capitalRecovery != null && business.capitalRecovery > 0) ? `${Math.round(business.capitalRecovery)} ${t.month}` : '—';
+  const recoveryDisplay = business.capitalRecovery ? `${Math.round(business.capitalRecovery)} ${t.month}` : '—';
   const foundedDisplay  = business.foundedDate ? new Date(business.foundedDate).getFullYear().toString() : '—';
   const coverImage = business.documents?.find(d => d.fileType === 'image')?.filePath || null;
 
@@ -306,7 +286,7 @@ export const BusinessDetails = ({
     (items || []).map(a => ({
       name: a.name,
       quantity: a.quantity,
-      value: `${fmtNum(a.price)} ${t.currency}`,
+      value: `${Number(a.price).toLocaleString()} ${t.currency}`,
       date: a.purchaseYear?.toString(),
     }));
 
@@ -425,7 +405,7 @@ export const BusinessDetails = ({
             {assetItems.length > 0 && (
               <div className="mb-8">
                 <h2 className="text-2xl font-bold text-[#111827] mb-4">{t.assets}</h2>
-                <DataTable items={assetItems} type="asset" t={t} direction={direction} />
+                <DataTable items={assetItems} type="asset" t={t} />
               </div>
             )}
 
@@ -433,7 +413,7 @@ export const BusinessDetails = ({
             {inventoryItems.length > 0 && (
               <div className="mb-8">
                 <h2 className="text-2xl font-bold text-[#111827] mb-4">{t.inventory}</h2>
-                <DataTable items={inventoryItems} type="inventory" t={t} direction={direction} />
+                <DataTable items={inventoryItems} type="inventory" t={t} />
               </div>
             )}
 
@@ -441,7 +421,7 @@ export const BusinessDetails = ({
             {liabilityItems.length > 0 && (
               <div className="mb-8">
                 <h2 className="text-2xl font-bold text-[#111827] mb-4">{t.liabilities}</h2>
-                <DataTable items={liabilityItems} type="liability" t={t} direction={direction} />
+                <DataTable items={liabilityItems} type="liability" t={t} />
               </div>
             )}
 
@@ -500,34 +480,25 @@ export const BusinessDetails = ({
                 {/* Action Buttons */}
                 <div className="space-y-3 mb-8 hidden lg:block">
                   <button
-                    onClick={() => {
-                      if (!isLoggedIn) { onNavigate?.('signin'); return; }
-                      if (isOwner) { toast.error(isAr ? 'لا يمكنك التفاعل مع إدراجك الخاص' : 'You cannot interact with your own listing'); return; }
-                      if (!isVerified) { toast.error(isAr ? 'يجب التحقق من حسابك أولاً' : 'Please verify your account first'); return; }
-                      setModalOpen('meeting');
-                    }}
+                    onClick={() => setModalOpen('meeting')}
                     className="w-full bg-white text-[#111827] border border-gray-200 font-bold py-4 rounded-xl hover:bg-gray-50 transition-all shadow-sm"
                   >
                     {t.scheduleMeeting}
                   </button>
+                  {hasActivePendingOffer ? (
+                    <div className="w-full bg-gray-100 text-gray-500 font-bold py-4 rounded-xl text-center text-sm px-3">
+                      {isAr ? 'لديك عرض نشط بالفعل على هذا الإدراج' : 'You already have an active offer on this listing'}
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setModalOpen('offer')}
+                      className="w-full bg-[#111827] text-white font-bold py-4 rounded-xl hover:bg-black transition-all shadow-lg shadow-gray-200"
+                    >
+                      {t.makeOffer}
+                    </button>
+                  )}
                   <button
-                    onClick={() => {
-                      if (!isLoggedIn) { onNavigate?.('signin'); return; }
-                      if (isOwner) { toast.error(isAr ? 'لا يمكنك التفاعل مع إدراجك الخاص' : 'You cannot interact with your own listing'); return; }
-                      if (!isVerified) { toast.error(isAr ? 'يجب التحقق من حسابك أولاً' : 'Please verify your account first'); return; }
-                      setModalOpen('offer');
-                    }}
-                    className="w-full bg-[#111827] text-white font-bold py-4 rounded-xl hover:bg-black transition-all shadow-lg shadow-gray-200"
-                  >
-                    {t.makeOffer}
-                  </button>
-                  <button
-                    onClick={() => {
-                      if (!isLoggedIn) { onNavigate?.('signin'); return; }
-                      if (isOwner) { toast.error(isAr ? 'لا يمكنك التفاعل مع إدراجك الخاص' : 'You cannot interact with your own listing'); return; }
-                      if (!isVerified) { toast.error(isAr ? 'يجب التحقق من حسابك أولاً' : 'Please verify your account first'); return; }
-                      setModalOpen('enda');
-                    }}
+                    onClick={() => setModalOpen('enda')}
                     className="w-full bg-[#10B981] text-white font-bold py-4 rounded-xl hover:bg-[#059669] transition-all shadow-lg shadow-emerald-100"
                   >
                     {t.buyNow}
@@ -562,7 +533,33 @@ export const BusinessDetails = ({
 
         </div>
 
-
+        {/* ── P14 G-10: Similar Business Profit Comparison Chart ─────────── */}
+        {profitGraph.length > 0 && (
+          <div className="mt-16 mb-12">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-[#111827] mb-1">{isAr ? 'متوسط الربح السنوي للأعمال المماثلة' : 'Similar Business Avg. Annual Profit'}</h2>
+              <p className="text-gray-500 text-sm">{isAr ? `إجمالي: ${Number(totalProfit).toLocaleString()} ريال` : `Total: ${Number(totalProfit).toLocaleString()} SAR`}</p>
+            </div>
+            <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm overflow-x-auto">
+              <div className="flex items-end gap-3 min-w-0 h-48">
+                {profitGraph.map((item, i) => {
+                  const maxP = Math.max(...profitGraph.map(g => g.profit), 1);
+                  const pct = Math.round((item.profit / maxP) * 100);
+                  return (
+                    <div key={i} className="flex flex-col items-center gap-2 flex-1 min-w-[48px]">
+                      <span className="text-xs font-bold text-[#10B981]">{Number(item.profit).toLocaleString()}</span>
+                      <div className="w-full rounded-t-xl bg-[#E6F3EF] relative overflow-hidden" style={{ height: '120px' }}>
+                        <div className="absolute bottom-0 left-0 right-0 bg-[#10B981] rounded-t-xl transition-all duration-700"
+                          style={{ height: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs text-gray-500 font-bold">{item.year}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* ── Similar Opportunities ──────────────────────────────────────── */}
         {(similar.length > 0 || similarLoading) && (
@@ -587,13 +584,12 @@ export const BusinessDetails = ({
             ) : (
               <div className="flex overflow-x-auto pb-6 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:gap-8 snap-x snap-mandatory md:snap-none hide-scrollbar">
                 {similar.map((listing) => {
-                  const fmt = (n: number | string) => Number(n).toLocaleString(isAr ? 'ar-SA-u-ca-gregory' : 'en-US');
+                  const fmt = (n: number) => Number(n).toLocaleString();
                   const catName = isAr ? listing.category?.arabicName : listing.category?.name;
                   return (
                     <div key={listing.id} className="min-w-[85%] md:min-w-0 md:w-auto pl-4 md:pl-0 last:pl-4 md:last:pl-0 snap-center">
                       <Card
                         variant="listing"
-                        hideFavorite={!isLoggedIn}
                         title={listing.businessTitle}
                         description={listing.description || ''}
                         number={fmt(listing.price)}
@@ -613,7 +609,7 @@ export const BusinessDetails = ({
                         // P5-FIX R-02: Details button navigates to the real listing
                         footer={
                           <button
-                            onClick={() => onNavigate?.('details', listing.id)}
+                            onClick={() => onNavigate?.('details', Number(listing.id))}
                             className="bg-[#008A66] text-white text-xs font-bold px-5 py-2.5 rounded-full hover:bg-[#007053] transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
                           >
                             <span>{t.details}</span>
@@ -672,35 +668,26 @@ export const BusinessDetails = ({
           </div>
           <div className="grid grid-cols-4 gap-2">
             <button
-              onClick={() => {
-                      if (!isLoggedIn) { onNavigate?.('signin'); return; }
-                      if (isOwner) { toast.error(isAr ? 'لا يمكنك التفاعل مع إدراجك الخاص' : 'You cannot interact with your own listing'); return; }
-                      if (!isVerified) { toast.error(isAr ? 'يجب التحقق من حسابك أولاً' : 'Please verify your account first'); return; }
-                      setModalOpen('meeting');
-                    }}
+              onClick={() => setModalOpen('meeting')}
               className="col-span-1 bg-white text-[#111827] border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors flex flex-col items-center justify-center gap-1 py-2"
             >
               <Users size={18} />
               <span className="text-[10px] font-bold">{t.meeting}</span>
             </button>
+            {hasActivePendingOffer ? (
+              <div className="col-span-2 bg-gray-100 text-gray-500 font-bold rounded-xl flex items-center justify-center text-xs text-center px-2 py-3">
+                {isAr ? 'عرض نشط موجود' : 'Active offer exists'}
+              </div>
+            ) : (
+              <button
+                onClick={() => setModalOpen('offer')}
+                className="col-span-2 bg-[#111827] text-white font-bold rounded-xl hover:bg-black transition-colors flex items-center justify-center gap-2 py-3 shadow-lg shadow-gray-200"
+              >
+                {t.makeOffer}
+              </button>
+            )}
             <button
-              onClick={() => {
-                      if (!isLoggedIn) { onNavigate?.('signin'); return; }
-                      if (isOwner) { toast.error(isAr ? 'لا يمكنك التفاعل مع إدراجك الخاص' : 'You cannot interact with your own listing'); return; }
-                      if (!isVerified) { toast.error(isAr ? 'يجب التحقق من حسابك أولاً' : 'Please verify your account first'); return; }
-                      setModalOpen('offer');
-                    }}
-              className="col-span-2 bg-[#111827] text-white font-bold rounded-xl hover:bg-black transition-colors flex items-center justify-center gap-2 py-3 shadow-lg shadow-gray-200"
-            >
-              {t.makeOffer}
-            </button>
-            <button
-              onClick={() => {
-                      if (!isLoggedIn) { onNavigate?.('signin'); return; }
-                      if (isOwner) { toast.error(isAr ? 'لا يمكنك التفاعل مع إدراجك الخاص' : 'You cannot interact with your own listing'); return; }
-                      if (!isVerified) { toast.error(isAr ? 'يجب التحقق من حسابك أولاً' : 'Please verify your account first'); return; }
-                      setModalOpen('enda');
-                    }}
+              onClick={() => setModalOpen('enda')}
               className="col-span-1 bg-[#10B981] text-white rounded-xl hover:bg-[#059669] transition-colors flex flex-col items-center justify-center gap-1 py-2"
             >
               <ShieldCheck size={18} />
@@ -728,35 +715,31 @@ const StatRow = ({ icon, label, value, valueColor = 'text-[#111827]' }: {
   </div>
 );
 
-const DataTable = ({ items, type, t, direction }: {
+const DataTable = ({ items, type, t }: {
   items: FinancialTableItem[];
   type: 'asset' | 'liability' | 'inventory';
   t: Record<string, string>;
-  direction: string;
-}) => {
-  const isRtl = direction === 'rtl';
-  return (
-    <div className="rounded-xl border border-gray-100 overflow-hidden">
-      <table className={`w-full text-sm md:text-base ${isRtl ? 'text-right' : 'text-left'}`} dir={direction}>
-        <thead className="bg-gray-50">
-          <tr className="text-gray-500 text-xs uppercase tracking-wider">
-            <th className="px-3 py-3 font-bold w-[40%]">{t.assetName}</th>
-            <th className="px-3 py-3 font-bold w-[15%]">{t.qty}</th>
-            <th className="px-3 py-3 font-bold w-[25%]">{t.value}</th>
-            <th className="px-3 py-3 font-bold w-[20%]">{type === 'asset' ? t.purchaseDate : t.startDate}</th>
+}) => (
+  <div className="rounded-xl border border-gray-100 overflow-hidden">
+    <table className="w-full text-left text-sm md:text-base">
+      <thead className="bg-gray-50">
+        <tr className="text-gray-500 text-xs uppercase tracking-wider">
+          <th className="px-3 py-3 font-bold w-[40%]">{t.assetName}</th>
+          <th className="px-3 py-3 font-bold w-[15%]">{t.qty}</th>
+          <th className="px-3 py-3 font-bold w-[25%]">{t.value}</th>
+          <th className="px-3 py-3 font-bold w-[20%]">{type === 'asset' ? t.purchaseDate : t.startDate}</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-100 bg-white">
+        {items.map((item, idx) => (
+          <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+            <td className="px-3 py-2 font-bold text-[#111827]">{item.name}</td>
+            <td className="px-3 py-2 text-gray-600 font-medium">{item.quantity}</td>
+            <td className="px-3 py-2 font-bold text-[#008A66]">{item.value}</td>
+            <td className="px-3 py-2 text-gray-500 font-medium">{item.date || '—'}</td>
           </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100 bg-white">
-          {items.map((item, idx) => (
-            <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-              <td className="px-3 py-2 font-bold text-[#111827]">{item.name}</td>
-              <td className="px-3 py-2 text-gray-600 font-medium">{item.quantity}</td>
-              <td className="px-3 py-2 font-bold text-[#008A66]">{item.value}</td>
-              <td className="px-3 py-2 text-gray-500 font-medium">{item.date || '—'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
