@@ -151,11 +151,11 @@ export const DashboardView = () => {
         <div className="lg:col-span-2 bg-white rounded-3xl p-8 border border-gray-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-xl font-bold text-[#111827]">{content.dashboard.activity.title}</h3>
-            <span className="text-sm text-[#10B981] font-bold">{isAr ? 'آخر الأنشطة' : 'Recent Activity'}</span>
+            <span className="text-sm text-[#10B981] font-bold">{content.dashboard.activity.label}</span>
           </div>
           <div className="space-y-6 relative before:absolute before:right-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gray-100">
             {notifications.length === 0 ? (
-              <p className="text-gray-400 text-sm text-center py-4">{isAr ? 'لا يوجد نشاط بعد' : 'No recent activity'}</p>
+              <p className="text-gray-400 text-sm text-center py-4">{content.dashboard.activity.empty}</p>
             ) : notifications.map((n: any) => (
               <div key={n.id} className="flex gap-4 relative">
                 <div className={cn('w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 ring-4 ring-white', n.isRead ? 'bg-gray-100 text-gray-400' : 'bg-green-100 text-[#10B981]')}>
@@ -178,10 +178,10 @@ export const DashboardView = () => {
               <ShieldCheck className={isVerified ? 'text-[#10B981]' : 'text-amber-500'} size={24} />
               <div>
                 <p className={`font-bold ${isVerified ? 'text-[#004E39]' : 'text-amber-800'}`}>
-                  {isVerified ? content.dashboard.accountStatus.verified : (isAr ? 'قيد المراجعة' : 'Under Review')}
+                  {isVerified ? content.dashboard.accountStatus.verified : content.dashboard.accountStatus.underReview}
                 </p>
                 <p className={`text-xs ${isVerified ? 'text-[#004E39]/70' : 'text-amber-700'}`}>
-                  {isVerified ? content.dashboard.accountStatus.verifiedDesc : (isAr ? 'يتم مراجعة حسابك حالياً' : 'Your account is being reviewed')}
+                  {isVerified ? content.dashboard.accountStatus.verifiedDesc : content.dashboard.accountStatus.underReviewDesc}
                 </p>
               </div>
             </div>

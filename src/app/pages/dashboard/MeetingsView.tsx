@@ -8,6 +8,7 @@ import { useMutation } from '@apollo/client';
 import { UPDATE_MEETING, APPROVE_MEETING, REJECT_MEETING } from '../../../graphql/mutations/dashboard';
 import { toast } from 'sonner';
 import { DashBadge, SectionHeader, DashModal } from './DashboardView';
+import { maskName } from '../../../utils/maskName';
 
 // Helper: generate time slots for given day of week
 // Sunday(0)–Friday(5): 16:30–23:00, Saturday(6): 14:00–23:00, every 30 min
@@ -134,8 +135,8 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
   const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isAr ? 'ar-SA-u-ca-gregory' : 'en-GB') : '—';
   const fmtTime = (d: string) => d ? new Date(d).toLocaleTimeString(isAr ? 'ar-SA' : 'en-GB', { hour: '2-digit', minute: '2-digit' }) : '—';
 
-  const otherParty = (m: any) =>
-    m._role === 'sent' ? (m.requestedTo?.name ?? '—') : (m.requestedBy?.name ?? '—');
+  const otherParty = (m: any): string | null =>
+    m._role === 'sent' ? (m.requestedTo?.name ?? null) : (m.requestedBy?.name ?? null);
 
   const meetingDateStr = (m: any) => m.requestedDate ?? m.receiverAvailabilityDate;
 
@@ -206,8 +207,8 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
             <span className="text-lg leading-none">⏰</span>
             <span>
               {isAr
-                ? `تذكير: لديك اجتماع مع ${otherParty(m)} بعد ${hoursLeft} ساعة — ${fmtDate(meetingDateStr(m))} ${fmtTime(meetingDateStr(m))}`
-                : `Reminder: Meeting with ${otherParty(m)} in ${hoursLeft}h — ${fmtDate(meetingDateStr(m))} ${fmtTime(meetingDateStr(m))}`}
+                ? `تذكير: لديك اجتماع مع ${maskName(otherParty(m))} بعد ${hoursLeft} ساعة — ${fmtDate(meetingDateStr(m))} ${fmtTime(meetingDateStr(m))}`
+                : `Reminder: Meeting with ${maskName(otherParty(m))} in ${hoursLeft}h — ${fmtDate(meetingDateStr(m))} ${fmtTime(meetingDateStr(m))}`}
             </span>
             {m.meetingLink && (
               <a href={m.meetingLink} target="_blank" rel="noopener noreferrer" className="mr-auto ml-2 text-xs font-bold underline whitespace-nowrap">
@@ -254,9 +255,9 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
                           <div className="w-8 h-8 rounded-full bg-[#E6F3EF] text-[#10B981] flex items-center justify-center font-bold text-xs">
-                            {otherParty(m).charAt(0).toUpperCase()}
+                            {(otherParty(m) ?? '?').charAt(0).toUpperCase()}
                           </div>
-                          <span className="text-sm font-bold text-[#111827]">{otherParty(m)}</span>
+                          <span className="text-sm font-bold text-[#111827]">{maskName(otherParty(m))}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -305,10 +306,10 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
                     >
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-8 h-8 rounded-full bg-[#E6F3EF] text-[#10B981] flex items-center justify-center font-bold text-xs shrink-0">
-                          {otherParty(m).charAt(0).toUpperCase()}
+                          {(otherParty(m) ?? '?').charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-[#111827] truncate">{otherParty(m)}</p>
+                          <p className="text-sm font-bold text-[#111827] truncate">{maskName(otherParty(m))}</p>
                           <p className="text-xs text-gray-500">{fmtDate(meetingDateStr(m))} · {fmtTime(meetingDateStr(m))}</p>
                         </div>
                       </div>
@@ -374,10 +375,10 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
             <div className="space-y-6">
               <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center gap-4">
                 <div className="w-12 h-12 rounded-full bg-[#111827] text-white flex items-center justify-center font-bold text-xl">
-                  {otherParty(selected).charAt(0).toUpperCase()}
+                  {(otherParty(selected) ?? '?').charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h4 className="font-bold text-[#111827] text-lg">{otherParty(selected)}</h4>
+                  <h4 className="font-bold text-[#111827] text-lg">{maskName(otherParty(selected))}</h4>
                   <p className="text-gray-500 text-sm">{selected.business?.businessTitle}</p>
                 </div>
               </div>

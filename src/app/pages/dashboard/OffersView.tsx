@@ -15,14 +15,7 @@ import {
 } from '../../../graphql/mutations/dashboard';
 import { REQUEST_MEETING } from '../../../graphql/mutations/business';
 import { DashBadge, SectionHeader, DashModal } from './DashboardView';
-
-// Mask last name for privacy: "Mohammed Al-Zahrani" → "Mohammed ***"
-const maskName = (name: string | null | undefined): string => {
-  if (!name) return '—';
-  const parts = name.trim().split(/\s+/);
-  if (parts.length <= 1) return name;
-  return parts[0] + ' ***';
-};
+import { maskName } from '../../../utils/maskName';
 
 // Meeting time window validation
 // Sun–Fri (JS day 0–5): 4:30 PM – 11:00 PM

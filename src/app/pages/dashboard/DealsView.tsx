@@ -5,6 +5,7 @@ import { ArrowRight, CheckCircle2, Handshake } from 'lucide-react';
 import { useQuery } from '@apollo/client';
 import { GET_BUYER_INPROGRESS_DEALS, GET_SELLER_INPROGRESS_DEALS, GET_BUYER_COMPLETED_DEALS, GET_SELLER_COMPLETED_DEALS } from '../../../graphql/queries/dashboard';
 import { DashBadge, SectionHeader } from './DashboardView';
+import { maskName } from '../../../utils/maskName';
 
 export const DealsView = ({ onNavigate }: { onNavigate?: (view: string, id?: string) => void }) => {
   const { content, language, direction } = useApp();
@@ -71,7 +72,7 @@ export const DealsView = ({ onNavigate }: { onNavigate?: (view: string, id?: str
         <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-200 shadow-sm">
           <h2 className="text-xl md:text-2xl font-black text-[#111827] mb-1">{selectedDeal.business?.businessTitle}</h2>
           <p className="text-sm text-gray-500 font-medium mb-6">
-            {content.dashboard.deals.labels.buyer}: <span className="text-[#111827] font-bold">{selectedDeal.buyer?.name}</span>
+            {content.dashboard.deals.labels.buyer}: <span className="text-[#111827] font-bold">{maskName(selectedDeal.buyer?.name)}</span>
           </p>
           <p className="text-2xl md:text-4xl font-black text-[#10B981] mb-2">{Number(selectedDeal.price).toLocaleString()} SAR</p>
           {/* C17: show bracket-based commission from offer snapshot */}
@@ -199,7 +200,7 @@ export const DealsView = ({ onNavigate }: { onNavigate?: (view: string, id?: str
                 >
                   {deal.business?.businessTitle}
                 </button>
-                <p className="text-gray-500 text-sm mb-4">{content.dashboard.deals.labels.buyer}: {deal.buyer?.name}</p>
+                <p className="text-gray-500 text-sm mb-4">{content.dashboard.deals.labels.buyer}: {maskName(deal.buyer?.name)}</p>
                 <div className="space-y-3">
                   <div className="flex justify-between text-xs font-bold">
                     <span className="text-gray-500">{content.dashboard.deals.labels.progress}</span>
