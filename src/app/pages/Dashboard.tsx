@@ -66,6 +66,7 @@ import {
   UPDATE_MEETING,
 } from '../../graphql/mutations/dashboard';
 import { REQUEST_MEETING } from '../../graphql/mutations/business';
+import { maskName } from '../../utils/maskName';
 
 // ─── BUG-11 ARCHITECTURAL DECISION ──────────────────────────────────────────
 // The files in ./dashboard/ (DashboardView.tsx, OffersView.tsx, etc.) are
@@ -83,18 +84,36 @@ type ViewMode = 'dashboard' | 'create-listing' | 'edit-listing';
 
 const DashBadge = ({ children, color }: { children: React.ReactNode, color: string }) => {
   const colorClasses: Record<string, string> = {
-    green: 'bg-[#E6F3EF] text-[#10B981]',
+    green:  'bg-[#E6F3EF] text-[#10B981]',
     yellow: 'bg-yellow-100 text-yellow-700',
-    red: 'bg-red-50 text-red-600',
-    gray: 'bg-gray-100 text-gray-600',
-    blue: 'bg-blue-50 text-blue-600',
-    black: 'bg-gray-900 text-white'
+    red:    'bg-red-50 text-red-600',
+    gray:   'bg-gray-100 text-gray-600',
+    blue:   'bg-blue-50 text-blue-600',
+    orange: 'bg-orange-50 text-orange-600',
+    black:  'bg-gray-900 text-white',
   };
   return (
     <span className={cn("px-3 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1", colorClasses[color] || colorClasses.gray)}>
       {children}
     </span>
   );
+};
+
+const statusMeta = (status: string, isAr: boolean): { color: string; label: string } => {
+  switch (status) {
+    case 'ACCEPTED':  return { color: 'green',  label: isAr ? 'مقبول'         : 'Accepted' };
+    case 'REJECTED':  return { color: 'red',    label: isAr ? 'مرفوض'         : 'Rejected' };
+    case 'PENDING':   return { color: 'yellow', label: isAr ? 'قيد الانتظار'  : 'Pending' };
+    case 'COUNTERED': return { color: 'orange', label: isAr ? 'عرض مضاد'      : 'Countered' };
+    case 'CANCELLED': return { color: 'gray',   label: isAr ? 'ملغى'          : 'Cancelled' };
+    case 'MEETING':   return { color: 'blue',   label: isAr ? 'اجتماع مجدول' : 'Meeting Scheduled' };
+    case 'SCHEDULED': return { color: 'blue',   label: isAr ? 'مجدول'         : 'Scheduled' };
+    case 'READY':     return { color: 'green',  label: isAr ? 'جاهز للجدولة' : 'Ready' };
+    case 'COMPLETED': return { color: 'gray',   label: isAr ? 'مكتمل'         : 'Completed' };
+    case 'ACTIVE':    return { color: 'green',  label: isAr ? 'نشط'           : 'Active' };
+    case 'SOLD':      return { color: 'gray',   label: isAr ? 'مباع'          : 'Sold' };
+    default:          return { color: 'gray',   label: status };
+  }
 };
 
 const SectionHeader = ({ title, action }: { title: string, action?: React.ReactNode }) => (
@@ -110,15 +129,59 @@ const SectionHeader = ({ title, action }: { title: string, action?: React.ReactN
 );
 
 
+const SkeletonCard = () => (
+  <div className="bg-white rounded-3xl border border-gray-100 p-6 animate-pulse space-y-4">
+    <div className="flex justify-between">
+      <div className="w-12 h-12 rounded-full bg-gray-200" />
+      <div className="w-16 h-6 rounded-full bg-gray-100" />
+    </div>
+    <div className="h-4 bg-gray-200 rounded-full w-3/4" />
+    <div className="h-3 bg-gray-100 rounded-full w-1/2" />
+    <div className="h-2 bg-gray-100 rounded-full w-full mt-2" />
+  </div>
+);
+
+const SkeletonRow = ({ cols = 5 }: { cols?: number }) => (
+  <tr className="animate-pulse">
+    {Array.from({ length: cols }).map((_, i) => (
+      <td key={i} className="px-6 py-4">
+        <div className="h-3 bg-gray-200 rounded-full" style={{ width: `${60 + (i % 3) * 20}%` }} />
+      </td>
+    ))}
+  </tr>
+);
+
+const SkeletonNotification = () => (
+  <div className="bg-white p-4 rounded-2xl border border-gray-100 flex gap-4 items-start animate-pulse">
+    <div className="w-12 h-12 rounded-full bg-gray-200 shrink-0" />
+    <div className="flex-1 space-y-2">
+      <div className="h-4 bg-gray-200 rounded-full w-1/2" />
+      <div className="h-3 bg-gray-100 rounded-full w-3/4" />
+      <div className="h-2 bg-gray-100 rounded-full w-1/4" />
+    </div>
+  </div>
+);
+
+const ErrorCard = ({ onRetry, isAr }: { onRetry: () => void; isAr: boolean }) => (
+  <div className="bg-white rounded-3xl border border-red-100 p-12 text-center space-y-4">
+    <p className="text-red-500 font-bold">{isAr ? 'حدث خطأ في التحميل' : 'Something went wrong'}</p>
+    <button
+      onClick={onRetry}
+      className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#111827] text-white font-bold rounded-xl text-sm hover:bg-black transition-colors"
+    >
+      {isAr ? 'إعادة المحاولة' : 'Try again'}
+    </button>
+  </div>
+);
+
 // --- Sub-Views ---
 
 const DashboardView = () => {
-  const { content, language } = useApp();
+  const { content, language, userId } = useApp();
   const isAr = language === 'ar';
 
-  // P6-FIX R-04: real stats from API
-  const { data: sellerData } = useQuery(GET_PROFILE_STATISTICS, { errorPolicy: 'all' });
-  const { data: buyerData  } = useQuery(GET_BUYER_STATISTICS,   { errorPolicy: 'all' });
+  const { data: sellerData, loading: statsLoading } = useQuery(GET_PROFILE_STATISTICS, { skip: !userId, errorPolicy: 'all' });
+  const { data: buyerData  } = useQuery(GET_BUYER_STATISTICS,   { skip: !userId, errorPolicy: 'all' });
 
   const ss = sellerData?.getProfileStatistics;
   const bs = buyerData?.getBuyerStatistics;
@@ -151,7 +214,10 @@ const DashboardView = () => {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-gray-500 text-[10px] md:text-sm font-bold mb-1 line-clamp-1">{stat.label}</p>
-              <p className="text-xl md:text-3xl font-black text-[#111827]">{stat.value}</p>
+              {statsLoading
+                ? <div className="h-8 w-16 bg-gray-200 rounded-full animate-pulse mt-1" />
+                : <p className="text-xl md:text-3xl font-black text-[#111827]">{stat.value}</p>
+              }
             </div>
           </div>
         </div>
@@ -199,15 +265,15 @@ const DashboardView = () => {
 };
 
 const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavigate }: { isFavorites?: boolean; onAddListing?: () => void; onEditListing?: (id: number) => void; onNavigate?: (page: string, id?: number) => void }) => {
-  const { content, language, direction } = useApp();
+  const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
   const [filter, setFilter] = useState<'all' | 'sold'>('all');
 
-  // P6-FIX R-04: real data
-  const { data: sellerData, loading: sellerLoading } = useQuery(GET_SELLER_BUSINESSES,   { skip: isFavorites,  errorPolicy: 'all' });
+  // skip: !userId ensures queries wait until auth token is confirmed
+  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_SELLER_BUSINESSES,      { skip: isFavorites  || !userId, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
   // G-09: seller sold businesses tab
-  const { data: soldData, loading: soldLoading } = useQuery(GET_SELLER_SOLD_BUSINESSES, { variables: { limit: 50, offSet: 0 }, errorPolicy: 'all' });
-  const { data: favData,    loading: favLoading    } = useQuery(GET_FAVORITE_BUSINESSES, { skip: !isFavorites, errorPolicy: 'all' });
+  const { data: soldData,   loading: soldLoading,   refetch: refetchSold   } = useQuery(GET_SELLER_SOLD_BUSINESSES, { skip: isFavorites  || !userId, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: favData,    loading: favLoading,    refetch: refetchFav    } = useQuery(GET_FAVORITE_BUSINESSES,    { skip: !isFavorites || !userId, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
 
   const rawListings = isFavorites
     ? (favData?.getFavoritBusiness?.businesses ?? [])
@@ -247,7 +313,11 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{[1,2,3].map(i=><div key={i} className="rounded-[24px] border border-gray-100 bg-white animate-pulse h-64"/>)}</div>
       ) : filtered.length === 0 ? (
-        <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center text-gray-400">{isAr?'لا توجد إدراجات بعد':'No listings yet'}</div>
+        <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center space-y-4">
+          <p className="text-[#111827] font-bold text-lg">{isFavorites ? (isAr?'لا توجد إدراجات محفوظة':'No saved listings yet') : (isAr?'لا توجد إدراجات بعد':'No listings yet')}</p>
+          <p className="text-gray-400 text-sm">{isFavorites ? (isAr?'احفظ الإدراجات التي تهمك لتجدها هنا':'Save listings you like to find them here') : (isAr?'إذا كنت تمتلك إدراجات، اضغط "إعادة المحاولة" للتحديث':'If you have listings, tap Retry to refresh')}</p>
+          {!isFavorites && <button onClick={() => { refetchSeller(); refetchSold(); }} className="bg-[#008A66] text-white font-bold px-6 py-2.5 rounded-xl hover:bg-[#007053] transition-colors text-sm mx-auto block">{isAr?'إعادة المحاولة':'Retry'}</button>}
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filtered.map((b: any) => {
@@ -279,7 +349,7 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
 
 
 const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
-  const { content, language, direction } = useApp();
+  const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
   const [directionFilter, setDirectionFilter] = useState<'received'|'sent'>('received');
   const [selectedId, setSelectedId] = useState<string|null>(null);
@@ -288,21 +358,21 @@ const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =
   const [meetingDate, setMeetingDate] = useState('');
   const [meetingTime, setMeetingTime] = useState('');
 
-  // P6-FIX R-04: real offers
-  const { data: buyerData,  loading: buyerLoading,  refetch: refetchBuyer  } = useQuery(GET_OFFERS_BY_USER,    { errorPolicy: 'all' });
-  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_OFFERS_BY_SELLER,  { errorPolicy: 'all' });
+  const { data: buyerData,  loading: buyerLoading,  error: buyerError,  refetch: refetchBuyer  } = useQuery(GET_OFFERS_BY_USER,    { skip: !userId, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: sellerData, loading: sellerLoading, error: sellerError, refetch: refetchSeller } = useQuery(GET_OFFERS_BY_SELLER,  { skip: !userId, fetchPolicy: 'network-only', errorPolicy: 'all' });
   const [updateStatus] = useMutation(UPDATE_OFFER_STATUS, { errorPolicy: 'all' });
   const [doCounter]    = useMutation(COUNTER_OFFER,       { errorPolicy: 'all' });
   const [reqMeeting]   = useMutation(REQUEST_MEETING,     { errorPolicy: 'all' });
 
   const allOffers = directionFilter === 'sent' ? (buyerData?.getOffersByUser??[]) : (sellerData?.getOffersBySeller??[]);
   const loading   = directionFilter === 'sent' ? buyerLoading : sellerLoading;
+  const hasError  = directionFilter === 'sent' ? !!buyerError  : !!sellerError;
   const refetch   = directionFilter === 'sent' ? refetchBuyer  : refetchSeller;
   const selectedOffer = allOffers.find((o: any) => o.id === selectedId);
 
-  const statusColor = (s: string) => s==='ACCEPTED'?'green':s==='REJECTED'?'red':s==='PENDING'?'yellow':'blue';
-  const statusLabel = (s: string) => ({ACCEPTED:content.dashboard.offers.status.accepted, REJECTED:content.dashboard.offers.status.rejected, PENDING:content.dashboard.offers.status.pending, MEETING:content.dashboard.offers.status.sent, COUNTERED:isAr?'عرض مضاد':'Countered'})[s]??s;
-  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA':'en-SA'):'—';
+  const statusColor = (s: string) => statusMeta(s, isAr).color;
+  const statusLabel = (s: string) => statusMeta(s, isAr).label;
+  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB'):'—';
   const fmt = (n: number) => Number(n).toLocaleString();
 
   const handleAccept = async () => {
@@ -359,7 +429,22 @@ const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
         {loading ? (
-          <div className="p-6 text-center text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div>
+          <>
+            <div className="md:hidden divide-y divide-gray-100">
+              {[1,2,3].map(i => (
+                <div key={i} className="p-4 animate-pulse space-y-3">
+                  <div className="flex justify-between"><div className="h-4 bg-gray-200 rounded-full w-1/2"/><div className="h-5 bg-gray-100 rounded-full w-16"/></div>
+                  <div className="flex justify-between"><div className="h-3 bg-gray-100 rounded-full w-24"/><div className="h-3 bg-gray-100 rounded-full w-16"/></div>
+                </div>
+              ))}
+            </div>
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full"><thead className="bg-gray-50 border-b border-gray-100"><tr>{[1,2,3,4,5,6].map(i=><th key={i} className="px-6 py-4"><div className="h-3 bg-gray-200 rounded-full w-20"/></th>)}</tr></thead>
+              <tbody>{[1,2,3,4,5].map(i=><SkeletonRow key={i} cols={6}/>)}</tbody></table>
+            </div>
+          </>
+        ) : hasError ? (
+          <div className="p-8"><ErrorCard onRetry={refetch} isAr={isAr} /></div>
         ) : allOffers.length === 0 ? (
           <div className="p-12 text-center">
             <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
@@ -393,7 +478,7 @@ const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =
                         >
                           {o.business?.businessTitle}
                         </button>
-                        <p className="text-xs text-gray-500 mt-0.5">{counterparty ?? '—'}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{maskName(counterparty)}</p>
                       </div>
                       <DashBadge color={statusColor(o.status)}>{statusLabel(o.status)}</DashBadge>
                     </div>
@@ -443,7 +528,7 @@ const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =
                           </button>
                           <p className="text-xs text-gray-500 mt-0.5">{fmt(o.business?.price)} {content.dashboard.offers.sar}</p>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-[#111827]">{counterparty ?? '—'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-[#111827]">{maskName(counterparty)}</td>
                         <td className="px-6 py-4 whitespace-nowrap"><span className="text-sm font-black text-[#10B981]">{fmt(o.price)} {content.dashboard.offers.sar}</span></td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{fmtDate(o.createdAt)}</td>
                         <td className="px-6 py-4 whitespace-nowrap"><DashBadge color={statusColor(o.status)}>{statusLabel(o.status)}</DashBadge></td>
@@ -499,7 +584,7 @@ const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =
                   <div className="flex justify-between py-2 border-b border-gray-50">
                     <span className="text-gray-500">{directionFilter==='sent' ? content.dashboard.offers.table.seller : content.dashboard.offers.table.buyer}</span>
                     <span className="font-bold text-[#111827]">
-                      {directionFilter==='sent' ? (selectedOffer.business?.seller?.name ?? '—') : (selectedOffer.buyer?.name ?? '—')}
+                      {directionFilter==='sent' ? maskName(selectedOffer.business?.seller?.name) : maskName(selectedOffer.buyer?.name)}
                     </span>
                   </div>
                   <div className="flex justify-between py-2 border-b border-gray-50">
@@ -577,19 +662,17 @@ const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =
 };
 
 
-const DealsView = () => {
+const DealsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
   const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
   const [tab, setTab]       = useState<'buyer'|'seller'>('buyer');
   const [filter, setFilter] = useState<'in-progress'|'completed'>('in-progress');
   const [selectedId, setSelectedId] = useState<string|null>(null);
 
-  // P9: deal list queries
-  const { data: buyerData,  loading: buyerLoading,  refetch: refetchBuyer  } = useQuery(GET_BUYER_INPROGRESS_DEALS,  { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
-  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_SELLER_INPROGRESS_DEALS, { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
-  // P9: completed deals (separate queries, different endpoints)
-  const { data: buyerCompData,  loading: buyerCompLoading  } = useQuery(GET_BUYER_COMPLETED_DEALS,  { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
-  const { data: sellerCompData, loading: sellerCompLoading } = useQuery(GET_SELLER_COMPLETED_DEALS, { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+  const { data: buyerData,  loading: buyerLoading,  error: buyerDealsErr,  refetch: refetchBuyer  } = useQuery(GET_BUYER_INPROGRESS_DEALS,  { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: sellerData, loading: sellerLoading, error: sellerDealsErr, refetch: refetchSeller } = useQuery(GET_SELLER_INPROGRESS_DEALS, { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: buyerCompData,  loading: buyerCompLoading,  error: buyerCompErr,  refetch: refetchBuyerComp  } = useQuery(GET_BUYER_COMPLETED_DEALS,  { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: sellerCompData, loading: sellerCompLoading, error: sellerCompErr, refetch: refetchSellerComp } = useQuery(GET_SELLER_COMPLETED_DEALS, { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
 
   // P9: single deal detail query — only fires when a deal is selected
   const { data: dealDetailData, loading: dealDetailLoading, refetch: refetchDeal } = useQuery(GET_DEAL, {
@@ -607,7 +690,7 @@ const DealsView = () => {
     errorPolicy: 'all',
   });
   const { data: adminBankData } = useQuery(GET_ACTIVE_ADMIN_BANK, {
-    skip: !selectedId,
+    skip: !selectedId || !userId,
     errorPolicy: 'all',
   });
   const { data: userBankData } = useQuery(GET_USER_ACTIVE_BANK, {
@@ -628,10 +711,17 @@ const DealsView = () => {
   const loading = filter==='in-progress'
     ? (tab==='buyer' ? buyerLoading : sellerLoading)
     : (tab==='buyer' ? buyerCompLoading : sellerCompLoading);
+  const hasError = filter==='in-progress'
+    ? (tab==='buyer' ? !!buyerDealsErr : !!sellerDealsErr)
+    : (tab==='buyer' ? !!buyerCompErr  : !!sellerCompErr);
   const filtered = rawDeals;
 
-  const refetch = () => { tab==='buyer' ? refetchBuyer() : refetchSeller(); if (selectedId) refetchDeal(); };
-  const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA':'en-SA') : '—';
+  const refetch = () => {
+    if (filter === 'in-progress') { tab==='buyer' ? refetchBuyer() : refetchSeller(); }
+    else { tab==='buyer' ? refetchBuyerComp() : refetchSellerComp(); }
+    if (selectedId) refetchDeal();
+  };
+  const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB') : '—';
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   const isBuyer  = deal ? deal.buyer?.id === userId : false;
@@ -839,9 +929,14 @@ const DealsView = () => {
         <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-200 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
             <div>
-              <h2 className="text-xl md:text-2xl font-black text-[#111827] mb-1">{deal.business?.businessTitle}</h2>
-              <p className="text-sm text-gray-500">{content.dashboard.deals.labels.buyer}: <span className="text-[#111827] font-bold">{deal.buyer?.name}</span></p>
-              <p className="text-sm text-gray-500">{isAr?'البائع':'Seller'}: <span className="text-[#111827] font-bold">{deal.business?.seller?.name}</span></p>
+              <button
+                onClick={() => onNavigate?.('details', Number(deal.business?.id))}
+                className="text-xl md:text-2xl font-black text-[#111827] mb-1 hover:text-[#10B981] transition-colors text-right block"
+              >
+                {deal.business?.businessTitle}
+              </button>
+              <p className="text-sm text-gray-500">{content.dashboard.deals.labels.buyer}: <span className="text-[#111827] font-bold">{maskName(deal.buyer?.name)}</span></p>
+              <p className="text-sm text-gray-500">{isAr?'البائع':'Seller'}: <span className="text-[#111827] font-bold">{maskName(deal.business?.seller?.name)}</span></p>
             </div>
             <DashBadge color={allDone?'gray':'green'}>{allDone?(isAr?'مكتملة':'Completed'):(isAr?'قيد التنفيذ':'In Progress')}</DashBadge>
           </div>
@@ -860,6 +955,49 @@ const DealsView = () => {
             <p className="text-xs text-gray-400">{content.dashboard.deals.labels.start}: {fmtDate(deal.createdAt)}</p>
           </div>
         </div>
+
+        {/* ── Deal pipeline flow strip ── */}
+        {(() => {
+          const pipeline = [
+            { label: isAr ? 'تقديم العرض'    : 'Offer Sent',          done: true },
+            { label: isAr ? 'قبول العرض'     : 'Offer Accepted',      done: true },
+            { label: isAr ? 'توقيع الاتفاقية': 'NDA Signed',          done: deal.isDsaBuyer && deal.isDsaSeller },
+            { label: isAr ? 'التحقق من الوثائق': 'Docs Verified',     done: deal.isDocVedifiedBuyer && deal.isDocVedifiedSeller && deal.isDocVedifiedAdmin },
+            { label: isAr ? 'إتمام الصفقة'   : 'Deal Complete',       done: deal.isBuyerCompleted && deal.isSellerCompleted },
+          ];
+          const activeIdx = pipeline.findIndex(s => !s.done);
+          return (
+            <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm overflow-x-auto scrollbar-none">
+              <div className="flex items-center min-w-max mx-auto gap-0">
+                {pipeline.map((step, i) => {
+                  const isActive = i === activeIdx;
+                  const isDone   = step.done;
+                  return (
+                    <React.Fragment key={i}>
+                      <div className="flex flex-col items-center gap-1.5">
+                        <div className={cn(
+                          'w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 transition-all',
+                          isDone   ? 'bg-[#10B981] text-white' :
+                          isActive ? 'bg-orange-100 text-orange-600 ring-2 ring-orange-300 ring-offset-1' :
+                                     'bg-gray-100 text-gray-400'
+                        )}>
+                          {isDone ? <CheckCircle2 size={18}/> : <span>{i + 1}</span>}
+                        </div>
+                        <span className={cn(
+                          'text-[10px] font-bold text-center leading-tight max-w-[64px]',
+                          isDone ? 'text-[#10B981]' : isActive ? 'text-orange-600' : 'text-gray-400'
+                        )}>{step.label}</span>
+                      </div>
+                      {i < pipeline.length - 1 && (
+                        <div className={cn('h-[2px] w-10 mx-1 rounded-full shrink-0 mb-4', step.done ? 'bg-[#10B981]' : 'bg-gray-200')} />
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* NDA documents */}
         {(deal.ndaPdfPath || deal.arabicNdaPdfPath) && (
@@ -971,9 +1109,15 @@ const DealsView = () => {
         </div>
       }/>
       {loading ? (
-        <div className="text-center p-8 text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">{[1,2,3,4].map(i=><SkeletonCard key={i}/>)}</div>
+      ) : hasError ? (
+        <ErrorCard onRetry={refetch} isAr={isAr} />
       ) : filtered.length===0 ? (
-        <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center text-gray-400">{isAr?'لا توجد صفقات بعد':'No deals yet'}</div>
+        <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center">
+          <Handshake size={32} className="text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500 font-bold">{isAr?'لا توجد صفقات بعد':'No deals yet'}</p>
+          <p className="text-gray-400 text-sm mt-1">{isAr?'ستظهر صفقاتك هنا بعد قبول عرض':'Your deals will appear here after an offer is accepted'}</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {filtered.map((d: any) => {
@@ -984,8 +1128,14 @@ const DealsView = () => {
                   <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center text-blue-600"><Handshake size={24}/></div>
                   <DashBadge color={completed?'gray':'green'}>{completed?content.dashboard.deals.status.completed:content.dashboard.deals.status.inProgress}</DashBadge>
                 </div>
-                <h3 className="text-lg font-black text-[#111827] mb-1">{d.business?.businessTitle}</h3>
-                <p className="text-gray-500 text-sm mb-4">{content.dashboard.deals.labels.buyer}: {d.buyer?.name}</p>
+                <h3 className="text-lg font-black text-[#111827] mb-0.5">{d.business?.businessTitle}</h3>
+                <button
+                  onClick={e => { e.stopPropagation(); onNavigate?.('details', Number(d.business?.id)); }}
+                  className="text-xs text-[#10B981] font-bold hover:underline mb-3 block"
+                >
+                  {isAr ? 'عرض الإدراج' : 'View Listing'}
+                </button>
+                <p className="text-gray-500 text-sm mb-4">{content.dashboard.deals.labels.buyer}: {maskName(d.buyer?.name)}</p>
                 <div className="space-y-2">
                   <div className="flex justify-between text-xs font-bold">
                     <span className="text-gray-500">{content.dashboard.deals.labels.progress}</span>
@@ -1005,7 +1155,7 @@ const DealsView = () => {
   );
 };
 
-const MeetingsView = () => {
+const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
   const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
 
@@ -1017,11 +1167,10 @@ const MeetingsView = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
 
   // Queries
-  const { data: sentData,     loading: sentLoading,     refetch: refetchSent     } = useQuery(GET_SENT_MEETINGS,     { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
-  const { data: receivedData, loading: receivedLoading, refetch: refetchReceived } = useQuery(GET_RECEIVED_MEETINGS, { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
-  // P10: ready-for-scheduling + confirmed/scheduled meetings
-  const { data: readyData,     loading: readyLoading,     refetch: refetchReady     } = useQuery(GET_READY_SCHEDULED_MEETINGS, { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
-  const { data: scheduledData, loading: scheduledLoading, refetch: refetchScheduled } = useQuery(GET_SCHEDULED_MEETINGS,       { variables: { limit:50, offSet:0 }, errorPolicy: 'all' });
+  const { data: sentData,     loading: sentLoading,     error: sentErr,       refetch: refetchSent     } = useQuery(GET_SENT_MEETINGS,              { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: receivedData, loading: receivedLoading, error: receivedErr,   refetch: refetchReceived } = useQuery(GET_RECEIVED_MEETINGS,           { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: readyData,     loading: readyLoading,                          refetch: refetchReady     } = useQuery(GET_READY_SCHEDULED_MEETINGS, { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: scheduledData, loading: scheduledLoading,                      refetch: refetchScheduled } = useQuery(GET_SCHEDULED_MEETINGS,       { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
 
   // Mutations
   const [approveMeeting, { loading: approving }]  = useMutation(APPROVE_MEETING, { errorPolicy: 'all' });
@@ -1037,7 +1186,8 @@ const MeetingsView = () => {
     ...(scheduledData?.getScheduledMeetings?.items ?? []),
   ].filter((m: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === m.id) === i); // dedupe
 
-  const loading = sentLoading || receivedLoading || readyLoading || scheduledLoading;
+  const loading   = sentLoading || receivedLoading || readyLoading || scheduledLoading;
+  const hasError  = !!sentErr || !!receivedErr;
 
   const now = new Date();
   const rawMeetings =
@@ -1056,19 +1206,18 @@ const MeetingsView = () => {
   const selected = rawMeetings.find((m:any) => m.id === selectedId);
 
   // Helpers
-  const statusColor = (s: string) => s==='SCHEDULED'?'blue':['READY'].includes(s)?'green':s==='PENDING'?'yellow':s==='REJECTED'?'red':'gray';
-  const statusLabel = (s: string) => ({
-    SCHEDULED: isAr?'مجدول':'Scheduled',
-    PENDING:   isAr?'قيد الانتظار':'Pending',
-    READY:     isAr?'جاهز للجدولة':'Ready',
-    COMPLETED: isAr?'مكتمل':'Completed',
-    REJECTED:  isAr?'مرفوض':'Rejected',
-  })[s] ?? s;
-  const fmtDate   = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA':'en-SA') : '—';
-  const otherParty = (m: any) =>
-    (m.requestedTo?.name && m.requestedBy?.name)
-      ? `${m.requestedTo?.name ?? ''} / ${m.requestedBy?.name ?? ''}`
-      : (m.requestedTo?.name ?? m.requestedBy?.name ?? '—');
+  const statusColor = (s: string) => statusMeta(s, isAr).color;
+  const statusLabel = (s: string) => statusMeta(s, isAr).label;
+  const fmtDate   = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB') : '—';
+  const otherParty = (m: any): string | null => {
+    if (userId && m.requestedBy?.id && String(m.requestedBy.id) === String(userId)) {
+      return m.requestedTo?.name ?? null;
+    }
+    if (userId && m.requestedTo?.id && String(m.requestedTo.id) === String(userId)) {
+      return m.requestedBy?.name ?? null;
+    }
+    return m.requestedTo?.name ?? m.requestedBy?.name ?? null;
+  };
 
   // Actions
   const refetchAll = () => {
@@ -1128,8 +1277,30 @@ const MeetingsView = () => {
       {/* Main table — single source of truth for all meetings */}
       {(
         <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-          {loading ? <div className="p-6 text-center text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div> : filtered.length === 0 ? (
-            <div className="p-10 text-center text-gray-400">{content.dashboard.meetings.empty}</div>
+          {loading ? (
+            <>
+              <div className="md:hidden divide-y divide-gray-100">
+                {[1,2,3].map(i=>(
+                  <div key={i} className="p-4 animate-pulse flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gray-200 shrink-0"/>
+                    <div className="flex-1 space-y-2"><div className="h-3 bg-gray-200 rounded-full w-1/2"/><div className="h-2 bg-gray-100 rounded-full w-1/3"/></div>
+                    <div className="h-5 bg-gray-100 rounded-full w-16"/>
+                  </div>
+                ))}
+              </div>
+              <div className="hidden md:block overflow-x-auto">
+                <table className="w-full"><thead className="bg-gray-50 border-b border-gray-100"><tr>{[1,2,3,4,5].map(i=><th key={i} className="px-6 py-4"><div className="h-3 bg-gray-200 rounded-full w-20"/></th>)}</tr></thead>
+                <tbody>{[1,2,3,4,5].map(i=><SkeletonRow key={i} cols={5}/>)}</tbody></table>
+              </div>
+            </>
+          ) : hasError ? (
+            <div className="p-8"><ErrorCard onRetry={refetchAll} isAr={isAr} /></div>
+          ) : filtered.length === 0 ? (
+            <div className="p-10 text-center">
+              <Calendar size={32} className="text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500 font-bold">{content.dashboard.meetings.empty}</p>
+              <p className="text-gray-400 text-sm mt-1">{isAr?'ستظهر اجتماعاتك هنا':'Your meetings will appear here'}</p>
+            </div>
           ) : (
             <>
               {/* Mobile: card list */}
@@ -1139,11 +1310,16 @@ const MeetingsView = () => {
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="flex items-center gap-2 flex-1 min-w-0">
                         <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs shrink-0">
-                          {otherParty(m).charAt(0).toUpperCase()}
+                          {(otherParty(m) ?? '?').charAt(0).toUpperCase()}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-[#111827] truncate">{otherParty(m)}</p>
-                          <p className="text-xs text-gray-500 truncate">{m.business?.businessTitle}</p>
+                          <p className="text-sm font-bold text-[#111827] truncate">{maskName(otherParty(m))}</p>
+                          <button
+                            onClick={e => { e.stopPropagation(); onNavigate?.('details', Number(m.business?.id)); }}
+                            className="text-xs text-[#10B981] hover:underline truncate block text-right"
+                          >
+                            {m.business?.businessTitle}
+                          </button>
                         </div>
                       </div>
                       <DashBadge color={statusColor(m.status)}>{statusLabel(m.status)}</DashBadge>
@@ -1187,12 +1363,19 @@ const MeetingsView = () => {
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs">
-                              {otherParty(m).charAt(0).toUpperCase()}
+                              {(otherParty(m) ?? '?').charAt(0).toUpperCase()}
                             </div>
-                            <span className="text-sm font-bold text-[#111827]">{otherParty(m)}</span>
+                            <span className="text-sm font-bold text-[#111827]">{maskName(otherParty(m))}</span>
                           </div>
                         </td>
-                        <td className="px-6 py-4"><span className="text-sm text-gray-600">{m.business?.businessTitle}</span></td>
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => onNavigate?.('details', Number(m.business?.id))}
+                            className="text-sm text-[#10B981] hover:underline font-bold"
+                          >
+                            {m.business?.businessTitle}
+                          </button>
+                        </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className="text-sm font-bold text-[#111827]">
                             {fmtDate(m.adminAvailabilityDate ?? m.receiverAvailabilityDate ?? m.requestedDate)}
@@ -1232,11 +1415,16 @@ const MeetingsView = () => {
             {/* Header */}
             <div className="bg-gray-50 p-4 rounded-xl border border-gray-100 flex items-center gap-4">
               <div className="w-12 h-12 rounded-full bg-[#111827] text-white flex items-center justify-center font-bold text-xl">
-                {otherParty(selected).charAt(0).toUpperCase()}
+                {(otherParty(selected) ?? '?').charAt(0).toUpperCase()}
               </div>
               <div>
-                <h4 className="font-bold text-[#111827] text-lg">{otherParty(selected)}</h4>
-                <p className="text-gray-500 text-sm">{selected.business?.businessTitle}</p>
+                <h4 className="font-bold text-[#111827] text-lg">{maskName(otherParty(selected))}</h4>
+                <button
+                  onClick={() => { onNavigate?.('details', Number(selected.business?.id)); setSelectedId(null); }}
+                  className="text-sm text-[#10B981] hover:underline font-bold"
+                >
+                  {selected.business?.businessTitle}
+                </button>
               </div>
             </div>
 
@@ -1276,7 +1464,7 @@ const MeetingsView = () => {
             </div>
 
             {/* M-05: Seller sets availability date for received PENDING meetings */}
-            {tab==='received' && selected.status==='PENDING' && (
+            {userId && selected.requestedTo?.id && String(selected.requestedTo.id) === String(userId) && selected.status==='PENDING' && (
               <div className="space-y-3 pt-1">
                 {!showDatePicker ? (
                   <button onClick={() => setShowDatePicker(true)}
@@ -1319,14 +1507,20 @@ const MeetingsView = () => {
   );
 };
 
-const AlertsView = () => {
-  const { content, language, userId } = useApp();
+const ACTION_TO_VIEW: Record<string, string> = {
+  VIEW_OFFERS: 'offers', VIEW_DEALS: 'deals', VIEW_MEETINGS: 'meetings',
+  VIEW_LISTING: 'details', VIEW_LISTINGS: 'listings', VIEW_ALERTS: 'alerts',
+};
+
+const AlertsView = ({ onNavigate }: { onNavigate?: (view: string, id?: number) => void }) => {
+  const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
 
   // P6-FIX R-04: real notifications
-  const { data, loading, refetch } = useQuery(GET_NOTIFICATIONS, {
+  const { data, loading, error: notifError, refetch } = useQuery(GET_NOTIFICATIONS, {
     variables: { userId, limit:50, offSet:0 },
     skip: !userId,
+    fetchPolicy: 'network-only',
     errorPolicy: 'all',
   });
   const [markAllRead, { loading: marking }] = useMutation(MARK_NOTIFICATION_AS_READ);
@@ -1348,7 +1542,7 @@ const AlertsView = () => {
     if (n.includes('payment')||n.includes('دفع'))  return { Icon:Wallet,     bg:'bg-green-50 text-green-600',  bar:'bg-green-500'  };
     return                                                 { Icon:FileText,   bg:'bg-blue-50 text-blue-600',    bar:'bg-blue-400'   };
   };
-  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA':'en-SA'):'';
+  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB'):'';
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1358,21 +1552,39 @@ const AlertsView = () => {
         </button>
       }/>
       {loading ? (
-        <div className="text-center p-8 text-gray-400">{isAr?'جارٍ التحميل...':'Loading...'}</div>
+        <div className="space-y-4">{[1,2,3,4].map(i=><SkeletonNotification key={i}/>)}</div>
+      ) : notifError ? (
+        <ErrorCard onRetry={refetch} isAr={isAr} />
       ) : notifications.length===0 ? (
-        <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center text-gray-400">{isAr?'لا توجد إشعارات':'No notifications yet'}</div>
+        <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center">
+          <Bell size={32} className="text-gray-300 mx-auto mb-4" />
+          <p className="text-gray-500 font-bold">{isAr?'لا توجد إشعارات':'No notifications yet'}</p>
+          <p className="text-gray-400 text-sm mt-1">{isAr?'ستظهر إشعاراتك هنا':'Your notifications will appear here'}</p>
+        </div>
       ) : (
         <div className="space-y-4">
           {notifications.map((n: any) => {
             const { Icon, bg, bar } = iconFor(n.name);
+            const targetView = n.actionType ? ACTION_TO_VIEW[n.actionType] : null;
             return (
               <div key={n.id} className={cn("bg-white p-4 rounded-2xl border shadow-sm hover:shadow-md transition-all flex gap-4 items-start relative overflow-hidden", n.isRead?'border-gray-100':'border-[#10B981]/30')}>
                 <div className={cn("w-2 h-full absolute right-0 top-0 bottom-0", bar)}/>
                 <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shrink-0", bg)}><Icon size={20}/></div>
-                <div className="flex-1">
-                  <h4 className="font-bold text-[#111827] text-lg">{n.name}</h4>
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-bold text-[#111827] text-base">{n.name}</h4>
                   <p className="text-gray-500 text-sm mt-1">{n.message}</p>
-                  <p className="text-xs text-gray-400 mt-2">{fmtDate(n.createdAt)}</p>
+                  <div className="flex items-center gap-3 mt-2">
+                    <p className="text-xs text-gray-400">{fmtDate(n.createdAt)}</p>
+                    {targetView && onNavigate && (
+                      <button
+                        onClick={() => onNavigate(targetView, n.entityId ? Number(n.entityId) : undefined)}
+                        className="text-xs font-bold text-[#10B981] hover:text-[#008A66] flex items-center gap-1 transition-colors"
+                      >
+                        {isAr ? 'اذهب إلى' : 'Go to'}
+                        {direction === 'rtl' ? <ChevronLeft size={12}/> : <ChevronRight size={12}/>}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {!n.isRead && <div className="w-2.5 h-2.5 rounded-full bg-[#10B981] shrink-0 mt-1"/>}
               </div>
@@ -1397,7 +1609,7 @@ const SettingsView = () => {
   const { data: userData, loading: userLoading } = useQuery(GET_USER_DETAILS, {
     variables: { getUserDetailsId: userId }, skip: !userId, errorPolicy: 'all',
   });
-  const { data: banksData, loading: banksLoading, refetch: refetchBanks } = useQuery(GET_USER_BANKS, { errorPolicy: 'all' });
+  const { data: banksData, loading: banksLoading, refetch: refetchBanks } = useQuery(GET_USER_BANKS, { skip: !userId, errorPolicy: 'all' });
   const [updateUser,  { loading: savingProfile  }] = useMutation(UPDATE_USER,     { errorPolicy: 'all' });
   const [changePwd,   { loading: savingPassword }] = useMutation(CHANGE_PASSWORD, { errorPolicy: 'all' });
   const [addBank,     { loading: addingBank     }] = useMutation(ADD_BANK,         { errorPolicy: 'all' });
@@ -1555,7 +1767,8 @@ const SettingsView = () => {
 
 
 export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
-  const { content, language, logout, userId } = useApp();
+  const { content, language, direction, logout, userId } = useApp();
+  const isAr = language === 'ar';
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   // BUG-5 FIX: fetch notifications to drive the bell badge unread count
   const { data: notifData, refetch: refetchNotifications } = useQuery(GET_NOTIFICATIONS, {
@@ -1564,10 +1777,22 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
     fetchPolicy: 'cache-and-network',
     errorPolicy: 'all',
   });
-  // P14 S-01: real-time subscription — refetch badge count when a new notification arrives
   useSubscription(NEW_NOTIFICATION_SUBSCRIPTION, {
     skip: !userId,
-    onData: () => { if (userId) refetchNotifications(); },
+    onData: ({ data }) => {
+      if (!userId) return;
+      refetchNotifications();
+      const n = data?.data?.newNotification;
+      if (!n) return;
+      toast(n.name, {
+        description: n.message,
+        action: {
+          label: isAr ? 'عرض الإشعارات' : 'View Alerts',
+          onClick: () => setActiveTab('alerts'),
+        },
+        duration: 6000,
+      });
+    },
   });
   const unreadCount = (notifData?.getNotifications?.notifications ?? []).filter((n: any) => !n.isRead).length;
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
@@ -1638,105 +1863,210 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F9FAFB] font-sans">
       {/* BUG-20 FIX: useLightLogo was not passed — dark background needs dark logo (false = dark) */}
       <Navbar onNavigate={onNavigate} useLightLogo={false} />
-      
-      <main className="flex-grow pt-24 pb-16">
-        <div className="container mx-auto px-4 max-w-7xl">
-          {/* Header Profile Section */}
-          <div className="bg-white rounded-[2rem] p-4 md:p-8 shadow-sm border border-gray-100 mb-6 md:mb-8">
-             {/* Top Section: Profile & Actions */}
-             <div className="flex flex-row items-center justify-between gap-3 mb-4 md:mb-8">
-                {/* Profile Info */}
-                <div className="flex items-center gap-3 md:gap-5">
-                   {/* Avatar */}
-                   <div className="w-12 h-12 md:w-20 md:h-20 rounded-full bg-[#111827] text-white flex items-center justify-center text-xl md:text-3xl font-bold shadow-lg shadow-gray-200 shrink-0">
-                      {avatarLetter}
-                   </div>
-                   <div>
-                      <h1 className="text-lg md:text-3xl font-black text-[#111827] mb-0.5 md:mb-1">{displayName}</h1>
-                      <div className="hidden md:flex items-center gap-4 text-gray-500 text-sm font-medium">
-                         <span>{navUser?.email || ''}</span>
-                         <span className="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
-                         <span className="text-[#10B981]">{content.dashboard.accountStatus.verified}</span>
-                      </div>
-                      <p className="md:hidden text-xs text-[#10B981] font-medium">{content.dashboard.accountStatus.verified}</p>
-                   </div>
-                </div>
 
-                {/* Actions: Add Listing + Bell + Logout */}
-                <div className="flex items-center gap-2 md:gap-3 shrink-0">
-                   <button onClick={() => handleAddListing()} className="bg-[#10B981] hover:bg-[#008A66] text-white px-3 md:px-4 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-[#10B981]/20 flex items-center gap-2 text-sm whitespace-nowrap">
-                      <Plus size={18} />
-                      <span className="hidden md:inline">{content.dashboard.listings.addNew}</span>
-                   </button>
-                   
-                   <div className="w-px h-8 bg-gray-200 mx-1 hidden sm:block"></div>
+      <div className={cn('flex pt-24', direction === 'rtl' ? 'flex-row-reverse' : 'flex-row')}>
 
-                   <button onClick={() => setActiveTab('alerts')} aria-label={language === 'ar' ? 'الإشعارات' : 'Notifications'} className="w-10 h-10 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center text-gray-600 transition-colors relative focus-visible:ring-2 focus-visible:ring-[#008A66] focus-visible:outline-none">
-                      <Bell size={20} />
-                      {/* BUG-5 FIX: only show badge when there are unread notifications */}
-                      {unreadCount > 0 && (
-                        <span className="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border border-white"></span>
-                      )}
-                   </button>
-                   
-                   <button onClick={() => { logout(); onNavigate?.('home'); }} aria-label={language === 'ar' ? 'تسجيل الخروج' : 'Logout'} className="w-10 h-10 rounded-full bg-red-50 hover:bg-red-100 flex items-center justify-center text-red-600 transition-colors">
-                      <LogOut size={20} />
-                   </button>
-                </div>
-             </div>
-
-             {/* Bottom Section: Tabs */}
-             <div className="border-t border-gray-100 pt-4 -mx-2 px-2 overflow-x-auto scrollbar-none">
-                <div className="flex items-center gap-1.5 w-max md:w-auto">
-                  {tabs.map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id as TabType)}
-                      className={cn(
-                        "flex items-center gap-2 rounded-xl font-bold transition-all whitespace-nowrap",
-                        "px-3 py-2.5 text-xs md:px-5 md:py-3 md:text-sm",
-                        activeTab === tab.id
-                          ? "bg-[#111827] text-white shadow-md"
-                          : "bg-white text-gray-500 hover:bg-gray-50 hover:text-gray-900 border border-gray-200"
-                      )}
-                    >
-                      <tab.icon size={16} className="md:hidden" />
-                      <tab.icon size={18} className="hidden md:block" />
-                      <span className="hidden md:inline">{tab.label}</span>
-                    </button>
-                  ))}
-                </div>
-             </div>
+        {/* ── Desktop Sidebar ────────────────────────────────────────── */}
+        <aside className={cn(
+          'hidden md:flex flex-col fixed top-24 bottom-0 w-64 bg-white z-40 overflow-y-auto',
+          direction === 'rtl' ? 'right-0 border-l border-gray-100' : 'left-0 border-r border-gray-100'
+        )}>
+          {/* Brand */}
+          <div className="p-5 border-b border-gray-100 shrink-0">
+            <button
+              onClick={() => onNavigate?.('home')}
+              className="font-black text-[#008A66] text-2xl tracking-tight hover:opacity-80 transition-opacity"
+            >
+              {isAr ? 'جسور' : 'Jusoor'}
+            </button>
           </div>
 
-          {/* Tab Content */}
-          <div className="min-h-[500px]">
-             <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeTab}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.2 }}
+          {/* Nav items */}
+          <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as TabType)}
+                className={cn(
+                  'w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all',
+                  direction === 'rtl' ? 'text-right' : 'text-left',
+                  activeTab === tab.id
+                    ? 'bg-[#111827] text-white shadow-sm'
+                    : 'text-gray-500 hover:bg-gray-50 hover:text-[#111827]'
+                )}
+              >
+                <tab.icon size={18} className="shrink-0" />
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Bell / Alerts */}
+          <div className="px-3 pb-2 shrink-0">
+            <button
+              onClick={() => setActiveTab('alerts')}
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold text-sm transition-all relative',
+                direction === 'rtl' ? 'text-right' : 'text-left',
+                activeTab === 'alerts'
+                  ? 'bg-[#111827] text-white'
+                  : 'text-gray-500 hover:bg-gray-50 hover:text-[#111827]'
+              )}
+            >
+              <Bell size={18} className="shrink-0" />
+              {isAr ? 'الإشعارات' : 'Notifications'}
+              {unreadCount > 0 && (
+                <span className={cn(
+                  'absolute top-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white',
+                  direction === 'rtl' ? 'left-3' : 'right-3'
+                )} />
+              )}
+            </button>
+          </div>
+
+          {/* Add Listing CTA */}
+          <div className="px-3 pb-3 border-t border-gray-100 pt-3 shrink-0">
+            <button
+              onClick={handleAddListing}
+              className="w-full flex items-center justify-center gap-2 bg-[#10B981] hover:bg-[#008A66] text-white px-4 py-2.5 rounded-xl font-bold text-sm transition-colors shadow-lg shadow-[#10B981]/20"
+            >
+              <Plus size={16} />
+              {content.dashboard.listings.addNew}
+            </button>
+          </div>
+
+          {/* User profile + logout */}
+          <div className="p-4 border-t border-gray-100 shrink-0">
+            <div className="flex items-center gap-3 mb-3 min-w-0">
+              <div className="w-10 h-10 rounded-full bg-[#111827] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                {avatarLetter}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-bold text-[#111827] text-sm truncate">{displayName}</p>
+                <p className="text-xs text-gray-400 truncate">{navUser?.email || ''}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => logout().then(() => onNavigate?.('home'))}
+              className={cn(
+                'w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold text-sm text-red-500 hover:bg-red-50 transition-colors',
+                direction === 'rtl' ? 'text-right' : 'text-left'
+              )}
+            >
+              <LogOut size={16} className="shrink-0" />
+              {isAr ? 'تسجيل الخروج' : 'Log out'}
+            </button>
+          </div>
+        </aside>
+
+        {/* ── Main content ───────────────────────────────────────────── */}
+        <main className={cn(
+          'flex-1 min-w-0 pb-24 md:pb-10',
+          direction === 'rtl' ? 'md:mr-64' : 'md:ml-64'
+        )}>
+          <div className="container mx-auto px-4 max-w-5xl py-6">
+
+            {/* Mobile: compact profile strip */}
+            <div className="md:hidden flex items-center justify-between mb-5 bg-white rounded-2xl px-4 py-3 border border-gray-100 shadow-sm">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-full bg-[#111827] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                  {avatarLetter}
+                </div>
+                <p className="font-bold text-[#111827] text-sm truncate">{displayName}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={handleAddListing}
+                  className="bg-[#10B981] hover:bg-[#008A66] text-white p-2 rounded-xl transition-colors shadow-lg shadow-[#10B981]/20"
+                  aria-label={isAr ? 'إضافة إدراج' : 'Add listing'}
                 >
-                   {activeTab === 'dashboard' && <DashboardView />}
-                   {activeTab === 'listings' && <ListingsView onAddListing={handleAddListing} onEditListing={handleEditListing} onNavigate={onNavigate} />}
-                   {activeTab === 'offers' && <OffersView onNavigate={onNavigate} />}
-                   {activeTab === 'deals' && <DealsView />}
-                   {activeTab === 'meetings' && <MeetingsView />}
-                   {activeTab === 'favorites' && <ListingsView isFavorites onNavigate={onNavigate} />}
-                   {activeTab === 'alerts' && <AlertsView />}
-                   {activeTab === 'settings' && <SettingsView />}
-                </motion.div>
-             </AnimatePresence>
+                  <Plus size={16} />
+                </button>
+                <button
+                  onClick={() => setActiveTab('alerts')}
+                  className="w-9 h-9 rounded-full bg-gray-50 hover:bg-gray-100 flex items-center justify-center relative transition-colors"
+                  aria-label={isAr ? 'الإشعارات' : 'Notifications'}
+                >
+                  <Bell size={18} className="text-gray-600" />
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-white" />
+                  )}
+                </button>
+                <button
+                  onClick={() => logout().then(() => onNavigate?.('home'))}
+                  className="w-9 h-9 rounded-full bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors"
+                  aria-label={isAr ? 'تسجيل الخروج' : 'Log out'}
+                >
+                  <LogOut size={16} className="text-red-500" />
+                </button>
+              </div>
+            </div>
+
+            {/* Tab content */}
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.2 }}
+              >
+                {activeTab === 'dashboard'  && <DashboardView />}
+                {activeTab === 'listings'   && <ListingsView onAddListing={handleAddListing} onEditListing={handleEditListing} onNavigate={onNavigate} />}
+                {activeTab === 'offers'     && <OffersView onNavigate={onNavigate} />}
+                {activeTab === 'deals'      && <DealsView onNavigate={onNavigate} />}
+                {activeTab === 'meetings'   && <MeetingsView onNavigate={onNavigate} />}
+                {activeTab === 'favorites'  && <ListingsView isFavorites onNavigate={onNavigate} />}
+                {activeTab === 'alerts'     && <AlertsView onNavigate={onNavigate} />}
+                {activeTab === 'settings'   && <SettingsView />}
+              </motion.div>
+            </AnimatePresence>
           </div>
+        </main>
+      </div>
+
+      {/* ── Mobile Bottom Tab Bar ──────────────────────────────────── */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,138,102,0.10)]">
+        <div className="flex items-end pb-safe">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as TabType)}
+                className="flex-1 flex flex-col items-center justify-end gap-0.5 pt-1.5 pb-2 px-0.5 relative"
+              >
+                {/* Active top indicator */}
+                <span className={cn(
+                  'absolute top-0 left-1/2 -translate-x-1/2 h-0.5 rounded-full transition-all duration-300',
+                  isActive ? 'w-6 bg-[#008A66]' : 'w-0 bg-transparent'
+                )} />
+                {/* Icon bubble */}
+                <div className={cn(
+                  'flex items-center justify-center w-10 h-8 rounded-xl transition-all duration-200',
+                  isActive ? 'bg-[#008A66]/10' : 'bg-transparent'
+                )}>
+                  <tab.icon
+                    size={isActive ? 21 : 19}
+                    strokeWidth={isActive ? 2.5 : 1.8}
+                    className={cn('transition-colors duration-200', isActive ? 'text-[#008A66]' : 'text-gray-400')}
+                  />
+                </div>
+                {/* Label */}
+                <span className={cn(
+                  'text-[9px] font-bold leading-tight truncate max-w-[46px] text-center transition-colors duration-200',
+                  isActive ? 'text-[#008A66]' : 'text-gray-400'
+                )}>
+                  {tab.label}
+                </span>
+              </button>
+            );
+          })}
         </div>
-      </main>
-      
-      <Footer />
+      </nav>
     </div>
   );
 };
