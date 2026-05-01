@@ -38,20 +38,29 @@ const TOKEN_CONFIG = {
 
 // ─── Encryption ───────────────────────────────────────────────────────────────
 
-// R-07 FIX: VITE_ENCRYPTION_KEY env var is now required for production.
-// The hardcoded fallback 'J@$00r-S3cur3-K3y-2025' is kept ONLY so existing
-// user sessions continue working until you rotate the key on a coordinated release.
-// ACTION REQUIRED: Set VITE_ENCRYPTION_KEY=<new-secret> in Vercel environment variables.
-// NOTE: Changing the key logs out all current users — coordinate a release window.
-const ENCRYPTION_KEY = (import.meta as any).env?.VITE_ENCRYPTION_KEY || 'J@$00r-S3cur3-K3y-2025';
+// ─── Encryption key resolution ───────────────────────────────────────────────
+// Production builds MUST have VITE_ENCRYPTION_KEY set in Vercel env vars.
+// In development we fall back to a hardcoded key so the dev server starts.
+// NOTE: Rotating the key logs out all current users — coordinate a release window.
+const _envKey: string | undefined = (import.meta as any).env?.VITE_ENCRYPTION_KEY;
 
-// Warn in development if falling back to hardcoded key
-if (import.meta.env.DEV && !(import.meta as any).env?.VITE_ENCRYPTION_KEY) {
-  console.warn(
-    '[tokenManager] ⚠️  VITE_ENCRYPTION_KEY is not set — using insecure hardcoded fallback key.\n' +
-    'Add VITE_ENCRYPTION_KEY=<secret> to your .env file and Vercel environment variables before going live.'
-  );
+if (!_envKey) {
+  if (import.meta.env.PROD) {
+    // Hard fail in production — a missing key means tokens encrypt with a
+    // publicly-known string, which is a security breach.
+    throw new Error(
+      '[tokenManager] VITE_ENCRYPTION_KEY is not set in the production environment. ' +
+      'Add it to Vercel environment variables and redeploy.'
+    );
+  } else {
+    console.warn(
+      '[tokenManager] ⚠️  VITE_ENCRYPTION_KEY is not set — using insecure hardcoded fallback key.\n' +
+      'Add VITE_ENCRYPTION_KEY=<secret> to your .env file before going live.'
+    );
+  }
 }
+
+const ENCRYPTION_KEY: string = _envKey ?? 'J@$00r-S3cur3-K3y-2025';
 
 const encryptToken = (token: string): string => {
   if (!token) return '';

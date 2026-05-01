@@ -417,8 +417,8 @@ export const NEW_NOTIFICATION_SUBSCRIPTION = gql`
 // ── Completed deals ────────────────────────────────────────────────────────────
 
 export const GET_BUYER_COMPLETED_DEALS = gql`
-  query GetBuyerCompletedDeals($limit: Int, $offSet: Int, $search: String) {
-    getBuyerCompletedDeals(limit: $limit, offSet: $offSet, search: $search) {
+  query GetBuyerCompletedDeals($limit: Int, $offset: Int, $search: String) {
+    getBuyerCompletedDeals(limit: $limit, offset: $offset, search: $search) {
       totalCount
       deals {
         id
@@ -443,8 +443,8 @@ export const GET_BUYER_COMPLETED_DEALS = gql`
 `;
 
 export const GET_SELLER_COMPLETED_DEALS = gql`
-  query GetSellerCompletedDeals($limit: Int, $offSet: Int, $search: String) {
-    getSellerCompletedDeals(limit: $limit, offSet: $offSet, search: $search) {
+  query GetSellerCompletedDeals($limit: Int, $offset: Int, $search: String) {
+    getSellerCompletedDeals(limit: $limit, offset: $offset, search: $search) {
       totalCount
       deals {
         id

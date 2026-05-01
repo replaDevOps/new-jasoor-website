@@ -114,14 +114,16 @@ export const UPLOAD_DOCUMENT = gql`
 `;
 
 export const SEND_BANK_TO_BUYER = gql`
-  mutation SendBankToBuyer($dealId: ID!, $bankId: ID!) {
-    sendBankToBuyer(dealId: $dealId, bankId: $bankId)
+  mutation SendBankToBuyer($sendBankToBuyerId: ID) {
+    sendBankToBuyer(id: $sendBankToBuyerId) {
+      id
+    }
   }
 `;
 
 export const REJECT_MEETING = gql`
-  mutation RejectMeeting($rejectMeetingId: ID!) {
-    rejectMeeting(id: $rejectMeetingId)
+  mutation RejectMeeting($meetingId: ID!) {
+    rejectMeeting(meetingId: $meetingId)
   }
 `;
 

@@ -13,7 +13,7 @@ interface AppContextType {
   direction: 'rtl' | 'ltr';
   isLoggedIn: boolean;
   login: () => void;
-  logout: () => void;
+  logout: () => Promise<void>;
   // BUG-04 FIX: userId was missing from interface — Listings.tsx destructured it causing undefined
   userId: string | null;
 }
@@ -26,7 +26,7 @@ const defaultContext: AppContextType = {
   direction: 'rtl',
   isLoggedIn: false,
   login: () => {},
-  logout: () => {},
+  logout: async () => {},
   userId: null,
 };
 

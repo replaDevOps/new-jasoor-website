@@ -30,8 +30,17 @@ import { getMainDefinition } from '@apollo/client/utilities';
 import { getAccessToken, clearAuthTokens } from '../utils/tokenManager';
 import { refreshAccessToken, registerWSReconnect } from '../utils/tokenRefreshService';
 
-const GRAPHQL_URL = import.meta.env.VITE_GRAPHQL_URL || 'https://verify.jusoor-sa.co/graphql';
-const WS_URL = import.meta.env.VITE_WS_URL || 'wss://verify.jusoor-sa.co/subscriptions';
+const GRAPHQL_URL: string = import.meta.env.VITE_GRAPHQL_URL || 'https://verify.jusoor-sa.co/graphql';
+const WS_URL: string     = import.meta.env.VITE_WS_URL     || 'wss://verify.jusoor-sa.co/subscriptions';
+
+// Warn on staging/preview builds where env vars are missing — they will silently
+// hit production data. This is intentional for production but not for PR previews.
+if (!import.meta.env.VITE_GRAPHQL_URL && !import.meta.env.PROD) {
+  console.warn(
+    '[apolloClient] VITE_GRAPHQL_URL is not set — falling back to production API.\n' +
+    'Set VITE_GRAPHQL_URL in your environment to avoid hitting live data on preview builds.'
+  );
+}
 
 const httpLink = createHttpLink({
   uri: GRAPHQL_URL,
