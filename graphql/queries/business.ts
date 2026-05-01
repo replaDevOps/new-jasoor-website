@@ -310,3 +310,22 @@ export const GET_SIMILAR_BUSINESS_PROFIT_GRAPH = gql`
     }
   }
 `;
+
+export const GET_SUGGESTED_LISTINGS = gql`
+  query GetSuggestedListings($businessId: ID!, $limit: Int) {
+    getSuggestedListings(businessId: $businessId, limit: $limit) {
+      id
+      businessTitle
+      price
+      city
+      district
+      description
+      businessStatus
+      isSaved
+      isByTakbeer
+      reference
+      category { name arabicName }
+      savedBy { id }
+    }
+  }
+`;

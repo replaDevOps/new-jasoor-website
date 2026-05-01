@@ -80,6 +80,14 @@ export const CREATE_SAVE_BUSINESS = gql`
   }
 `;
 
+export const CREATE_DEAL = gql`
+  mutation CreateDeal($input: CreateDealInput!) {
+    createDeal(input: $input) {
+      id
+    }
+  }
+`;
+
 export const UPDATE_DEAL = gql`
   mutation UpdateDeal($input: UpdateDealInput!) {
     updateDeal(input: $input) {
@@ -99,6 +107,15 @@ export const UPDATE_DEAL = gql`
 export const UPLOAD_DOCUMENT = gql`
   mutation UploadDocument($input: UpdateDocumentInput!) {
     uploadDocument(input: $input) {
+      id
+      filePath
+    }
+  }
+`;
+
+export const UPLOAD_IDENTITY_DOCUMENT = gql`
+  mutation UploadIdentityDocument($input: UploadIdentityInput!) {
+    uploadIdentityDocument(input: $input) {
       id
       filePath
     }
