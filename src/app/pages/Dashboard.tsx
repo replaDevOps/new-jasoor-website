@@ -64,6 +64,8 @@ import {
   REJECT_MEETING,
   // P10: meeting mutations
   UPDATE_MEETING,
+  // Fix 7: identity document upload
+  UPLOAD_IDENTITY_DOCUMENT,
 } from '../../graphql/mutations/dashboard';
 import { REQUEST_MEETING } from '../../graphql/mutations/business';
 import { maskName } from '../../utils/maskName';
@@ -364,7 +366,7 @@ const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =
   const [doCounter]    = useMutation(COUNTER_OFFER,       { errorPolicy: 'all' });
   const [reqMeeting]   = useMutation(REQUEST_MEETING,     { errorPolicy: 'all' });
 
-  const allOffers = directionFilter === 'sent' ? (buyerData?.getOffersByUser??[]) : (sellerData?.getOffersBySeller??[]);
+  const allOffers = directionFilter === 'sent' ? (buyerData?.getOffersByUser?.offers ?? []) : (sellerData?.getOffersBySeller ?? []);
   const loading   = directionFilter === 'sent' ? buyerLoading : sellerLoading;
   const hasError  = directionFilter === 'sent' ? !!buyerError  : !!sellerError;
   const refetch   = directionFilter === 'sent' ? refetchBuyer  : refetchSeller;
@@ -665,14 +667,13 @@ const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =
 const DealsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
   const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
-  const [tab, setTab]       = useState<'buyer'|'seller'>('buyer');
   const [filter, setFilter] = useState<'in-progress'|'completed'>('in-progress');
   const [selectedId, setSelectedId] = useState<string|null>(null);
 
-  const { data: buyerData,  loading: buyerLoading,  error: buyerDealsErr,  refetch: refetchBuyer  } = useQuery(GET_BUYER_INPROGRESS_DEALS,  { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
-  const { data: sellerData, loading: sellerLoading, error: sellerDealsErr, refetch: refetchSeller } = useQuery(GET_SELLER_INPROGRESS_DEALS, { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
-  const { data: buyerCompData,  loading: buyerCompLoading,  error: buyerCompErr,  refetch: refetchBuyerComp  } = useQuery(GET_BUYER_COMPLETED_DEALS,  { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
-  const { data: sellerCompData, loading: sellerCompLoading, error: sellerCompErr, refetch: refetchSellerComp } = useQuery(GET_SELLER_COMPLETED_DEALS, { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: buyerData,  loading: buyerLoading,  error: buyerDealsErr,  refetch: refetchBuyer  } = useQuery(GET_BUYER_INPROGRESS_DEALS,  { skip: !userId, variables: { limit:50, offset:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: sellerData, loading: sellerLoading, error: sellerDealsErr, refetch: refetchSeller } = useQuery(GET_SELLER_INPROGRESS_DEALS, { skip: !userId, variables: { limit:50, offset:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: buyerCompData,  loading: buyerCompLoading,  error: buyerCompErr,  refetch: refetchBuyerComp  } = useQuery(GET_BUYER_COMPLETED_DEALS,  { skip: !userId, variables: { limit:50, offset:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: sellerCompData, loading: sellerCompLoading, error: sellerCompErr, refetch: refetchSellerComp } = useQuery(GET_SELLER_COMPLETED_DEALS, { skip: !userId, variables: { limit:50, offset:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
 
   // P9: single deal detail query — only fires when a deal is selected
   const { data: dealDetailData, loading: dealDetailLoading, refetch: refetchDeal } = useQuery(GET_DEAL, {
@@ -704,21 +705,23 @@ const DealsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =>
   const [uploadDocument,   { loading: uploadingDoc }]  = useMutation(UPLOAD_DOCUMENT,   { errorPolicy: 'all' });
   const [sendBankToBuyer,  { loading: sendingBank }]   = useMutation(SEND_BANK_TO_BUYER,{ errorPolicy: 'all' });
 
-  // P9: use correct query based on both tab and filter
-  const rawDeals = filter==='in-progress'
-    ? (tab==='buyer' ? (buyerData?.getBuyerInprogressDeals?.deals??[]) : (sellerData?.getSellerInprogressDeals?.deals??[]))
-    : (tab==='buyer' ? (buyerCompData?.getBuyerCompletedDeals?.deals??[])  : (sellerCompData?.getSellerCompletedDeals?.deals??[]));
-  const loading = filter==='in-progress'
-    ? (tab==='buyer' ? buyerLoading : sellerLoading)
-    : (tab==='buyer' ? buyerCompLoading : sellerCompLoading);
-  const hasError = filter==='in-progress'
-    ? (tab==='buyer' ? !!buyerDealsErr : !!sellerDealsErr)
-    : (tab==='buyer' ? !!buyerCompErr  : !!sellerCompErr);
-  const filtered = rawDeals;
+  // Fix 3: merge buyer + seller from all 4 queries, deduplicate by id
+  const mergedRaw: any[] = filter === 'in-progress'
+    ? [...(buyerData?.getBuyerInprogressDeals?.deals ?? []), ...(sellerData?.getSellerInprogressDeals?.deals ?? [])]
+    : [...(buyerCompData?.getBuyerCompletedDeals?.deals ?? []), ...(sellerCompData?.getSellerCompletedDeals?.deals ?? [])];
+  const seen = new Set<string>();
+  const filtered = mergedRaw.filter(d => { if (seen.has(d.id)) return false; seen.add(d.id); return true; });
+
+  const loading = filter === 'in-progress'
+    ? (buyerLoading || sellerLoading)
+    : (buyerCompLoading || sellerCompLoading);
+  const hasError = filter === 'in-progress'
+    ? (!!buyerDealsErr || !!sellerDealsErr)
+    : (!!buyerCompErr || !!sellerCompErr);
 
   const refetch = () => {
-    if (filter === 'in-progress') { tab==='buyer' ? refetchBuyer() : refetchSeller(); }
-    else { tab==='buyer' ? refetchBuyerComp() : refetchSellerComp(); }
+    if (filter === 'in-progress') { refetchBuyer(); refetchSeller(); }
+    else { refetchBuyerComp(); refetchSellerComp(); }
     if (selectedId) refetchDeal();
   };
   const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB') : '—';
@@ -782,8 +785,13 @@ const DealsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =>
 
   const handleSellerSendBank = async () => {
     if (!deal || !userBank) return;
+    const unsentDealBank = dealBanks.find((b: any) => !b.isSend);
+    if (!unsentDealBank?.id) {
+      toast.error(isAr ? 'لا توجد تفاصيل بنك مرتبطة بهذه الصفقة بعد' : 'No bank detail is attached to this deal yet');
+      return;
+    }
     try {
-      await sendBankToBuyer({ variables: { dealId: deal.id, bankId: userBank.id } });
+      await sendBankToBuyer({ variables: { sendBankToBuyerId: unsentDealBank.id } });
       toast.success(isAr ? 'تم إرسال تفاصيل البنك للمشتري' : 'Bank details sent to buyer');
       refetch();
     } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
@@ -867,7 +875,7 @@ const DealsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =>
         ? (dealBanks.length > 0 ? `تم الإرسال — ${dealBanks[0]?.bank?.bankName ?? ''}` : (userBank ? `${userBank.bankName} — IBAN: ${userBank.iban}` : 'أضف حساباً بنكياً أولاً'))
         : (dealBanks.length > 0 ? `Sent — ${dealBanks[0]?.bank?.bankName ?? ''}` : (userBank ? `${userBank.bankName} — IBAN: ${userBank.iban}` : 'Add a bank account first')),
       done:  dealBanks.some((b: any) => b.isSend),
-      action: !dealBanks.some((b: any) => b.isSend) && userBank && d.isDsaSeller ? handleSellerSendBank : null,
+      action: dealBanks.some((b: any) => !b.isSend) && userBank && d.isDsaSeller ? handleSellerSendBank : null,
       actionLabel: isAr ? 'إرسال تفاصيل البنك' : 'Send Bank Details',
       loading: sendingBank,
     },
@@ -1097,15 +1105,9 @@ const DealsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =>
   return (
     <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <SectionHeader title={content.dashboard.deals.title} action={
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <div className="flex bg-white rounded-xl border border-gray-200 p-1">
-            <button onClick={() => setTab('buyer')}  className={cn("flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", tab==='buyer' ?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{isAr?'كمشترٍ':'As Buyer'}</button>
-            <button onClick={() => setTab('seller')} className={cn("flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", tab==='seller'?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{isAr?'كبائعٍ':'As Seller'}</button>
-          </div>
-          <div className="flex bg-white rounded-xl border border-gray-200 p-1">
-            <button onClick={() => setFilter('in-progress')} className={cn("flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", filter==='in-progress'?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{content.dashboard.deals.filters.inProgress}</button>
-            <button onClick={() => setFilter('completed')}   className={cn("flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", filter==='completed'  ?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{content.dashboard.deals.filters.completed}</button>
-          </div>
+        <div className="flex bg-white rounded-xl border border-gray-200 p-1">
+          <button onClick={() => setFilter('in-progress')} className={cn("flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", filter==='in-progress'?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{content.dashboard.deals.filters.inProgress}</button>
+          <button onClick={() => setFilter('completed')}   className={cn("flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap", filter==='completed'  ?"bg-[#111827] text-white":"text-gray-500 hover:bg-gray-50")}>{content.dashboard.deals.filters.completed}</button>
         </div>
       }/>
       {loading ? (
@@ -1226,7 +1228,7 @@ const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number)
 
   const handleApprove = async (id: string) => {
     try {
-      await approveMeeting({ variables: { approveMeetingId: id } });
+      await approveMeeting({ variables: { meetingId: id } });
       toast.success(isAr ? 'تمت الموافقة على الاجتماع' : 'Meeting approved');
       refetchAll(); setSelectedId(null);
     } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
@@ -1234,7 +1236,7 @@ const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number)
 
   const handleReject = async (id: string) => {
     try {
-      await rejectMeeting({ variables: { rejectMeetingId: id } });
+      await rejectMeeting({ variables: { meetingId: id } });
       toast.success(isAr ? 'تم رفض الاجتماع' : 'Meeting rejected');
       refetchAll(); setSelectedId(null);
     } catch { toast.error(isAr ? 'حدث خطأ' : 'Something went wrong'); }
@@ -1518,7 +1520,7 @@ const AlertsView = ({ onNavigate }: { onNavigate?: (view: string, id?: number) =
 
   // P6-FIX R-04: real notifications
   const { data, loading, error: notifError, refetch } = useQuery(GET_NOTIFICATIONS, {
-    variables: { userId, limit:50, offSet:0 },
+    variables: { limit: 50, offSet: 0 },
     skip: !userId,
     fetchPolicy: 'network-only',
     errorPolicy: 'all',
@@ -1610,10 +1612,11 @@ const SettingsView = () => {
     variables: { getUserDetailsId: userId }, skip: !userId, errorPolicy: 'all',
   });
   const { data: banksData, loading: banksLoading, refetch: refetchBanks } = useQuery(GET_USER_BANKS, { skip: !userId, errorPolicy: 'all' });
-  const [updateUser,  { loading: savingProfile  }] = useMutation(UPDATE_USER,     { errorPolicy: 'all' });
-  const [changePwd,   { loading: savingPassword }] = useMutation(CHANGE_PASSWORD, { errorPolicy: 'all' });
-  const [addBank,     { loading: addingBank     }] = useMutation(ADD_BANK,         { errorPolicy: 'all' });
-  const [deleteBank                               ] = useMutation(DELETE_BANK,      { errorPolicy: 'all' });
+  const [updateUser,        { loading: savingProfile    }] = useMutation(UPDATE_USER,              { errorPolicy: 'all' });
+  const [changePwd,         { loading: savingPassword   }] = useMutation(CHANGE_PASSWORD,          { errorPolicy: 'all' });
+  const [addBank,           { loading: addingBank       }] = useMutation(ADD_BANK,                 { errorPolicy: 'all' });
+  const [deleteBank                                      ] = useMutation(DELETE_BANK,               { errorPolicy: 'all' });
+  const [uploadIdentityDoc, { loading: uploadingIdentity }] = useMutation(UPLOAD_IDENTITY_DOCUMENT, { errorPolicy: 'all' });
 
   React.useEffect(() => {
     const u = userData?.getUserDetails;
@@ -1651,10 +1654,42 @@ const SettingsView = () => {
     refetchBanks();
   };
 
+  // Fix 7: identity document upload
+  const handleUploadIdentity = async (file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch(import.meta.env.VITE_UPLOAD_URL || 'https://verify.jusoor-sa.co/upload', {
+        method: 'POST', body: formData,
+      });
+      if (!res.ok) throw new Error('Upload failed');
+      const data = await res.json();
+      const { errors } = await uploadIdentityDoc({
+        variables: {
+          input: {
+            title: isAr ? 'وثيقة الهوية' : 'Identity Document',
+            fileName: file.name,
+            fileType: file.type,
+            filePath: data.fileUrl,
+            description: isAr ? 'وثيقة التحقق من الهوية' : 'Identity verification document',
+          },
+        },
+      });
+      if (errors?.length) throw new Error('Mutation failed');
+      toast.success(isAr ? 'تم رفع وثيقة الهوية بنجاح' : 'Identity document uploaded successfully');
+    } catch {
+      toast.error(isAr ? 'فشل رفع الوثيقة' : 'Upload failed');
+    }
+  };
+
+  const userStatus = userData?.getUserDetails?.status ?? 'inactive';
+  const identityDocs = userData?.getUserDetails?.documents ?? [];
+
   const tabs = [
     { id:'profile',  label:content.dashboard.settings.tabs.profile,  icon:User },
     { id:'wallet',   label:content.dashboard.settings.tabs.wallet,    icon:CreditCard },
     { id:'password', label:content.dashboard.settings.tabs.password,  icon:Lock },
+    { id:'identity', label:isAr?'الهوية':'Identity',                  icon:ShieldCheck },
   ];
 
   return (
@@ -1758,6 +1793,102 @@ const SettingsView = () => {
                 </div>
               </div>
             )}
+
+            {/* Fix 7: Identity verification tab */}
+            {activeTab==='identity' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
+                <h3 className="text-xl font-bold text-[#111827] border-b border-gray-100 pb-4 flex items-center gap-2">
+                  <ShieldCheck size={22} className="text-[#10B981]"/>
+                  {isAr ? 'التحقق من الهوية' : 'Identity Verification'}
+                </h3>
+
+                {/* Status badge */}
+                {(() => {
+                  const statusConfig = {
+                    verified:     { color:'bg-[#E6F3EF] text-[#10B981] border-[#10B981]/20', icon:<ShieldCheck size={18}/>, label: isAr?'تم التحقق':'Verified' },
+                    under_review: { color:'bg-yellow-50 text-yellow-700 border-yellow-200',   icon:<ShieldCheck size={18}/>, label: isAr?'قيد المراجعة':'Under Review' },
+                    pending:      { color:'bg-blue-50 text-blue-600 border-blue-200',          icon:<ShieldCheck size={18}/>, label: isAr?'بانتظار الرفع':'Pending Upload' },
+                    inactive:     { color:'bg-red-50 text-red-500 border-red-200',             icon:<ShieldCheck size={18}/>, label: isAr?'غير موثق':'Not Verified' },
+                  } as Record<string, any>;
+                  const cfg = statusConfig[userStatus] ?? statusConfig.inactive;
+                  return (
+                    <div className={cn('flex items-center gap-3 px-5 py-4 rounded-2xl border font-bold text-sm', cfg.color)}>
+                      {cfg.icon}
+                      <div>
+                        <p className="font-black">{isAr ? 'حالة حسابك' : 'Account Status'}: {cfg.label}</p>
+                        {userStatus !== 'verified' && (
+                          <p className="text-xs font-normal mt-0.5 opacity-80">
+                            {userStatus === 'under_review'
+                              ? (isAr ? 'فريق جسور يراجع وثيقتك — سيتم إشعارك عند الانتهاء' : 'The Jusoor team is reviewing your document — you\'ll be notified when done')
+                              : (isAr ? 'ارفع وثيقة هويتك لتفعيل حسابك كاملاً والتمكن من تقديم عروض وصفقات' : 'Upload your ID to fully activate your account and be able to submit offers and deals')}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Already uploaded documents */}
+                {identityDocs.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-bold text-gray-600">{isAr ? 'الوثائق المرفوعة' : 'Uploaded Documents'}</p>
+                    {identityDocs.map((doc: any) => (
+                      <a key={doc.id} href={doc.filePath} target="_blank" rel="noopener noreferrer"
+                        className="flex items-center gap-3 p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+                        <ShieldCheck size={18} className="text-[#10B981] shrink-0"/>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-[#111827] text-sm truncate">{doc.title || doc.fileName}</p>
+                          {doc.description && <p className="text-xs text-gray-400 truncate">{doc.description}</p>}
+                        </div>
+                        <Download size={16} className="text-gray-400 shrink-0"/>
+                      </a>
+                    ))}
+                  </div>
+                )}
+
+                {/* Upload section — hide if already verified */}
+                {userStatus !== 'verified' && (
+                  <div className="border-t border-gray-100 pt-6">
+                    <p className="text-sm font-bold text-[#111827] mb-1">
+                      {isAr ? 'رفع وثيقة الهوية' : 'Upload Identity Document'}
+                    </p>
+                    <p className="text-xs text-gray-400 mb-4">
+                      {isAr
+                        ? 'يُقبل: الهوية الوطنية، الإقامة، جواز السفر — PDF أو صورة (JPG/PNG)'
+                        : 'Accepted: National ID, Iqama, Passport — PDF or image (JPG/PNG)'}
+                    </p>
+                    <label className={cn(
+                      'flex flex-col items-center justify-center gap-3 w-full py-10 border-2 border-dashed rounded-2xl cursor-pointer transition-all',
+                      uploadingIdentity
+                        ? 'border-gray-200 bg-gray-50 cursor-wait'
+                        : 'border-[#10B981]/40 hover:border-[#10B981] hover:bg-[#F0FDF4]'
+                    )}>
+                      <input
+                        type="file"
+                        className="hidden"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        disabled={uploadingIdentity}
+                        onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadIdentity(f); }}
+                      />
+                      {uploadingIdentity ? (
+                        <>
+                          <div className="w-8 h-8 rounded-full border-4 border-[#10B981] border-t-transparent animate-spin"/>
+                          <p className="text-sm font-bold text-gray-500">{isAr ? 'جارٍ الرفع...' : 'Uploading...'}</p>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-14 h-14 rounded-full bg-[#E6F3EF] flex items-center justify-center">
+                            <Upload size={24} className="text-[#10B981]"/>
+                          </div>
+                          <p className="text-sm font-bold text-[#111827]">{isAr ? 'اضغط لرفع الوثيقة' : 'Click to upload document'}</p>
+                          <p className="text-xs text-gray-400">{isAr ? 'الحد الأقصى: 10 ميغابايت' : 'Max size: 10 MB'}</p>
+                        </>
+                      )}
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1766,15 +1897,15 @@ const SettingsView = () => {
 };
 
 
-export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
+export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void; onEditListing?: (id: string | number) => void }) => {
   const { content, language, direction, logout, userId } = useApp();
   const isAr = language === 'ar';
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   // BUG-5 FIX: fetch notifications to drive the bell badge unread count
   const { data: notifData, refetch: refetchNotifications } = useQuery(GET_NOTIFICATIONS, {
-    variables: { userId, limit: 50, offSet: 0 },
+    variables: { limit: 50, offSet: 0 },
     skip: !userId,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'network-only',
     errorPolicy: 'all',
   });
   useSubscription(NEW_NOTIFICATION_SUBSCRIPTION, {
@@ -1818,6 +1949,9 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
     // Removed Alerts from tabs array as requested
     { id: 'settings', label: content.dashboard.tabs.settings, icon: Settings },
   ];
+
+  // Mobile bottom bar excludes Settings (accessed via avatar in top strip)
+  const mobileTabs = tabs.filter(t => t.id !== 'settings');
 
   const handleAddListing = () => {
     setViewMode('create-listing');
@@ -1950,7 +2084,7 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
               </div>
             </div>
             <button
-              onClick={() => logout().then(() => onNavigate?.('home'))}
+              onClick={async () => { await logout(); onNavigate?.('home'); }}
               className={cn(
                 'w-full flex items-center gap-3 px-4 py-2.5 rounded-xl font-bold text-sm text-red-500 hover:bg-red-50 transition-colors',
                 direction === 'rtl' ? 'text-right' : 'text-left'
@@ -1972,9 +2106,19 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
             {/* Mobile: compact profile strip */}
             <div className="md:hidden flex items-center justify-between mb-5 bg-white rounded-2xl px-4 py-3 border border-gray-100 shadow-sm">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-full bg-[#111827] text-white flex items-center justify-center font-bold text-sm shrink-0">
+                {/* Avatar → opens Settings */}
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className={cn(
+                    'w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm shrink-0 transition-all ring-2',
+                    activeTab === 'settings'
+                      ? 'bg-[#008A66] text-white ring-[#008A66]/30'
+                      : 'bg-[#111827] text-white ring-transparent'
+                  )}
+                  aria-label={isAr ? 'الإعدادات' : 'Settings'}
+                >
                   {avatarLetter}
-                </div>
+                </button>
                 <p className="font-bold text-[#111827] text-sm truncate">{displayName}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -1996,7 +2140,7 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
                   )}
                 </button>
                 <button
-                  onClick={() => logout().then(() => onNavigate?.('home'))}
+                  onClick={async () => { await logout(); onNavigate?.('home'); }}
                   className="w-9 h-9 rounded-full bg-red-50 hover:bg-red-100 flex items-center justify-center transition-colors"
                   aria-label={isAr ? 'تسجيل الخروج' : 'Log out'}
                 >
@@ -2030,41 +2174,45 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
 
       {/* ── Mobile Bottom Tab Bar ──────────────────────────────────── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,138,102,0.10)]">
-        <div className="flex items-end pb-safe">
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as TabType)}
-                className="flex-1 flex flex-col items-center justify-end gap-0.5 pt-1.5 pb-2 px-0.5 relative"
-              >
-                {/* Active top indicator */}
-                <span className={cn(
-                  'absolute top-0 left-1/2 -translate-x-1/2 h-0.5 rounded-full transition-all duration-300',
-                  isActive ? 'w-6 bg-[#008A66]' : 'w-0 bg-transparent'
-                )} />
-                {/* Icon bubble */}
-                <div className={cn(
-                  'flex items-center justify-center w-10 h-8 rounded-xl transition-all duration-200',
-                  isActive ? 'bg-[#008A66]/10' : 'bg-transparent'
-                )}>
-                  <tab.icon
-                    size={isActive ? 21 : 19}
-                    strokeWidth={isActive ? 2.5 : 1.8}
-                    className={cn('transition-colors duration-200', isActive ? 'text-[#008A66]' : 'text-gray-400')}
-                  />
-                </div>
-                {/* Label */}
-                <span className={cn(
-                  'text-[9px] font-bold leading-tight truncate max-w-[46px] text-center transition-colors duration-200',
-                  isActive ? 'text-[#008A66]' : 'text-gray-400'
-                )}>
-                  {tab.label}
-                </span>
-              </button>
-            );
-          })}
+        {/* Swipeable scroll container — hides scrollbar, touch-friendly */}
+        <div className="overflow-x-auto scrollbar-none pb-safe" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="flex items-end" style={{ minWidth: 'max-content' }}>
+            {mobileTabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as TabType)}
+                  className="flex flex-col items-center justify-end gap-0.5 pt-1.5 pb-2 px-1 relative"
+                  style={{ minWidth: '72px' }}
+                >
+                  {/* Active top indicator */}
+                  <span className={cn(
+                    'absolute top-0 left-1/2 -translate-x-1/2 h-0.5 rounded-full transition-all duration-300',
+                    isActive ? 'w-6 bg-[#008A66]' : 'w-0 bg-transparent'
+                  )} />
+                  {/* Icon bubble */}
+                  <div className={cn(
+                    'flex items-center justify-center w-10 h-8 rounded-xl transition-all duration-200',
+                    isActive ? 'bg-[#008A66]/10' : 'bg-transparent'
+                  )}>
+                    <tab.icon
+                      size={isActive ? 21 : 19}
+                      strokeWidth={isActive ? 2.5 : 1.8}
+                      className={cn('transition-colors duration-200', isActive ? 'text-[#008A66]' : 'text-gray-400')}
+                    />
+                  </div>
+                  {/* Label */}
+                  <span className={cn(
+                    'text-[9px] font-bold leading-tight text-center transition-colors duration-200 whitespace-nowrap',
+                    isActive ? 'text-[#008A66]' : 'text-gray-400'
+                  )}>
+                    {tab.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </nav>
     </div>

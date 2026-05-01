@@ -39,7 +39,7 @@ export const BusinessDetails = ({
   onNavigate,
 }: {
   onBack?: () => void;
-  businessId?: number | null;
+  businessId?: string | number | null;
   onNavigate?: (page: string, id?: number) => void;
 }) => {
   const { language, direction, userId } = useApp();
@@ -70,7 +70,7 @@ export const BusinessDetails = ({
     errorPolicy: 'all',
     fetchPolicy: 'cache-and-network',
   });
-  const hasActivePendingOffer = (myOffersData?.getOffersByUser ?? []).some(
+  const hasActivePendingOffer = (myOffersData?.getOffersByUser?.offers ?? []).some(
     (o: any) => String(o.business?.id) === String(businessId)
   );
 
