@@ -24,3 +24,10 @@
 /* ── RTL/LTR utility helpers ────────────────────────────────────────────────── */
 .dir-rtl { direction: rtl; }
 .dir-ltr { direction: ltr; }
+
+/* ── Safe area inset (iPhone X+ home indicator) ─────────────────────────────── */
+.pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* ── Scrollbar hide ─────────────────────────────────────────────────────────── */
+.scrollbar-none { scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
