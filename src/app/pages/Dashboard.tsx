@@ -103,18 +103,27 @@ const DashBadge = ({ children, color }: { children: React.ReactNode, color: stri
 
 const statusMeta = (status: string, isAr: boolean): { color: string; label: string } => {
   switch (status) {
-    case 'ACCEPTED':  return { color: 'green',  label: isAr ? 'مقبول'         : 'Accepted' };
-    case 'REJECTED':  return { color: 'red',    label: isAr ? 'مرفوض'         : 'Rejected' };
-    case 'PENDING':   return { color: 'yellow', label: isAr ? 'قيد الانتظار'  : 'Pending' };
-    case 'COUNTERED': return { color: 'orange', label: isAr ? 'عرض مضاد'      : 'Countered' };
-    case 'CANCELLED': return { color: 'gray',   label: isAr ? 'ملغى'          : 'Cancelled' };
-    case 'MEETING':   return { color: 'blue',   label: isAr ? 'اجتماع مجدول' : 'Meeting Scheduled' };
-    case 'SCHEDULED': return { color: 'blue',   label: isAr ? 'مجدول'         : 'Scheduled' };
-    case 'READY':     return { color: 'green',  label: isAr ? 'جاهز للجدولة' : 'Ready' };
-    case 'COMPLETED': return { color: 'gray',   label: isAr ? 'مكتمل'         : 'Completed' };
-    case 'ACTIVE':    return { color: 'green',  label: isAr ? 'نشط'           : 'Active' };
-    case 'SOLD':      return { color: 'gray',   label: isAr ? 'مباع'          : 'Sold' };
-    default:          return { color: 'gray',   label: status };
+    // ── Offer statuses ────────────────────────────────────────────────────────
+    case 'PENDING':      return { color: 'yellow', label: isAr ? 'قيد الانتظار'   : 'Pending' };
+    case 'ACCEPTED':     return { color: 'green',  label: isAr ? 'مقبول'          : 'Accepted' };
+    case 'REJECTED':     return { color: 'red',    label: isAr ? 'مرفوض'          : 'Rejected' };
+    case 'COUNTERED':    return { color: 'orange', label: isAr ? 'عرض مضاد'       : 'Countered' };
+    case 'MEETING':      return { color: 'blue',   label: isAr ? 'اجتماع مجدول'  : 'Meeting Scheduled' };
+    // ── Meeting statuses (backend enum) ───────────────────────────────────────
+    case 'REQUESTED':    return { color: 'yellow', label: isAr ? 'قيد الانتظار'   : 'Pending' };
+    case 'APPROVED':     return { color: 'blue',   label: isAr ? 'مجدول'          : 'Scheduled' };
+    case 'HELD':         return { color: 'gray',   label: isAr ? 'مكتمل'          : 'Completed' };
+    case 'CANCELED':     return { color: 'gray',   label: isAr ? 'ملغى'           : 'Cancelled' };
+    case 'RESCHEDULED':  return { color: 'orange', label: isAr ? 'معاد جدولته'    : 'Rescheduled' };
+    case 'TIMELAPSED':   return { color: 'red',    label: isAr ? 'انتهت المهلة'   : 'Timed Out' };
+    // ── Shared ────────────────────────────────────────────────────────────────
+    case 'CANCELLED':    return { color: 'gray',   label: isAr ? 'ملغى'           : 'Cancelled' };
+    case 'SCHEDULED':    return { color: 'blue',   label: isAr ? 'مجدول'          : 'Scheduled' };
+    case 'READY':        return { color: 'green',  label: isAr ? 'جاهز للجدولة'  : 'Ready' };
+    case 'COMPLETED':    return { color: 'gray',   label: isAr ? 'مكتمل'          : 'Completed' };
+    case 'ACTIVE':       return { color: 'green',  label: isAr ? 'نشط'            : 'Active' };
+    case 'SOLD':         return { color: 'gray',   label: isAr ? 'مباع'           : 'Sold' };
+    default:             return { color: 'gray',   label: status };
   }
 };
 
@@ -402,7 +411,7 @@ const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =
   const handleCounter = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedOffer||!counterPrice) return;
-    const { errors } = await doCounter({ variables: { input: { offerId: selectedOffer.id, price: parseFloat(counterPrice) } } });
+    const { errors } = await doCounter({ variables: { input: { parentOfferId: selectedOffer.id, price: parseFloat(counterPrice) } } });
     if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
     toast.success(content.dashboard.offers.actions.successCounter); setSelectedId(null); refetch();
   };
@@ -1465,8 +1474,8 @@ const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number)
               )}
             </div>
 
-            {/* M-05: Seller sets availability date for received PENDING meetings */}
-            {userId && selected.requestedTo?.id && String(selected.requestedTo.id) === String(userId) && selected.status==='PENDING' && (
+            {/* M-05: Seller sets availability date for received REQUESTED meetings */}
+            {userId && selected.requestedTo?.id && String(selected.requestedTo.id) === String(userId) && selected.status==='REQUESTED' && (
               <div className="space-y-3 pt-1">
                 {!showDatePicker ? (
                   <button onClick={() => setShowDatePicker(true)}
@@ -1510,8 +1519,24 @@ const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number)
 };
 
 const ACTION_TO_VIEW: Record<string, string> = {
+  // View-navigate actions
   VIEW_OFFERS: 'offers', VIEW_DEALS: 'deals', VIEW_MEETINGS: 'meetings',
   VIEW_LISTING: 'details', VIEW_LISTINGS: 'listings', VIEW_ALERTS: 'alerts',
+  // Backend-emitted action types
+  NEW_OFFER: 'offers', OFFER_ACCEPTED: 'offers', OFFER_REJECTED: 'offers',
+  COUNTER_OFFER: 'offers', OFFER_WITHDRAWN: 'offers',
+  NEW_MEETING: 'meetings', MEETING_ACCEPTED: 'meetings', MEETING_APPROVED: 'meetings',
+  MEETING_REJECTED: 'meetings', MEETING_RESCHEDULED: 'meetings', MEETING_HELD: 'meetings',
+  NEW_DEAL: 'deals', DEAL_UPDATED: 'deals', DEAL_COMPLETED: 'deals',
+  NDA_SIGNED: 'deals', PAYMENT_UPLOADED: 'deals', COMMISSION_VERIFIED: 'deals',
+};
+
+/** Fallback: route by entity type when actionType has no mapping. */
+const ENTITY_TO_VIEW: Record<string, string> = {
+  offer: 'offers', Offer: 'offers',
+  meeting: 'meetings', Meeting: 'meetings',
+  deal: 'deals', Deal: 'deals',
+  business: 'listings', Business: 'listings',
 };
 
 const AlertsView = ({ onNavigate }: { onNavigate?: (view: string, id?: number) => void }) => {
@@ -1567,7 +1592,10 @@ const AlertsView = ({ onNavigate }: { onNavigate?: (view: string, id?: number) =
         <div className="space-y-4">
           {notifications.map((n: any) => {
             const { Icon, bg, bar } = iconFor(n.name);
-            const targetView = n.actionType ? ACTION_TO_VIEW[n.actionType] : null;
+            const targetView =
+              (n.actionType && ACTION_TO_VIEW[n.actionType]) ||
+              (n.entityType && ENTITY_TO_VIEW[n.entityType]) ||
+              null;
             return (
               <div key={n.id} className={cn("bg-white p-4 rounded-2xl border shadow-sm hover:shadow-md transition-all flex gap-4 items-start relative overflow-hidden", n.isRead?'border-gray-100':'border-[#10B981]/30')}>
                 <div className={cn("w-2 h-full absolute right-0 top-0 bottom-0", bar)}/>
@@ -1624,7 +1652,12 @@ const SettingsView = () => {
   }, [userData]);
 
   const handleSaveProfile = async () => {
-    const { errors } = await updateUser({ variables: { input: { name:profileForm.name, email:profileForm.email, phone:profileForm.phone, city:profileForm.city, district:profileForm.region } } });
+    if (!userId) { toast.error(isAr ? 'يرجى تسجيل الدخول' : 'Not logged in'); return; }
+    const nameParts = (profileForm.name ?? '').trim().split(/\s+/);
+    const firstName = nameParts[0] || undefined;
+    const lastName  = nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined;
+    // UpdateUserInput requires id: String!
+    const { errors } = await updateUser({ variables: { input: { id: String(userId), name: profileForm.name, firstName, lastName, email: profileForm.email, phone: profileForm.phone, city: profileForm.city, district: profileForm.region } } });
     if (errors?.length) { toast.error(isAr?'حدث خطأ أثناء الحفظ':'Error saving'); return; }
     toast.success(isAr?'تم حفظ التغييرات بنجاح':'Changes saved');
   };

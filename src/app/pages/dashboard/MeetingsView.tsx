@@ -167,7 +167,7 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
   };
 
   const handleRejectMeeting = async (meetingId: string) => {
-    const { errors } = await rejectMeeting({ variables: { rejectMeetingId: meetingId } });
+    const { errors } = await rejectMeeting({ variables: { meetingId } });
     if (errors?.length) { toast.error(isAr ? 'حدث خطأ' : 'Error'); return; }
     toast.success(isAr ? 'تم رفض الاجتماع' : 'Meeting rejected');
     refetch();
@@ -584,7 +584,7 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
                   <button
                     onClick={async () => {
                       try {
-                        await rejectMeeting({ variables: { rejectMeetingId: selected.id } });
+                        await rejectMeeting({ variables: { meetingId: selected.id } });
                         toast.success(isAr ? 'تم رفض الاجتماع' : 'Meeting rejected');
                         refetch(); setSelectedId(null);
                       } catch { toast.error(isAr ? 'حدث خطأ' : 'Error'); }

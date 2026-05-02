@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 // BUG-07 FIX: wire real GraphQL mutations for account creation + OTP verification
 import { useMutation } from '@apollo/client';
 import { CREATE_USER, VERIFY_EMAIL, VERIFY_EMAIL_OTP } from '../../../graphql/mutations/auth';
+import { UPLOAD_IDENTITY_DOCUMENT } from '../../../graphql/mutations/dashboard';
 import { setAuthTokens } from '../../../utils/tokenManager';
 
 export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) => {
@@ -36,6 +37,7 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
   // BUG-4 FIX: missing step — tell server to send OTP email after account created
   const [verifyEmail] = useMutation(VERIFY_EMAIL, { errorPolicy: 'all' });
   const [verifyEmailOTP] = useMutation(VERIFY_EMAIL_OTP, { errorPolicy: 'all' });
+  const [uploadIdentityDoc] = useMutation(UPLOAD_IDENTITY_DOCUMENT, { errorPolicy: 'all' });
 
   const regionsList = Object.values(content.auth.signUp.regions);
   // BUG-17 FIX: ID upload field had no state — file was never captured or validated
@@ -139,7 +141,7 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
       const { data, errors: gqlErrors } = await createUser({
         variables: {
           input: {
-            name: fullName,
+            name: fullName,   // privacy resolver splits name→firstName/lastName at read time
             email,
             phone: (() => {
               const p = phone.replace(/[\s\-]/g, '');
@@ -167,6 +169,35 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
       // Account created — store tokens, trigger OTP email, then advance
       const { token, refreshToken, user } = data.createUser;
       setAuthTokens(token, refreshToken, user);
+
+      // Upload identity document if the user selected one during signup
+      if (idFile) {
+        try {
+          const formData = new FormData();
+          formData.append('file', idFile);
+          const uploadRes = await fetch(
+            (import.meta as any).env?.VITE_UPLOAD_URL || 'https://verify.jusoor-sa.co/upload',
+            { method: 'POST', body: formData }
+          );
+          if (uploadRes.ok) {
+            const uploadData = await uploadRes.json();
+            await uploadIdentityDoc({
+              variables: {
+                input: {
+                  title: isAr ? 'وثيقة الهوية' : 'Identity Document',
+                  fileName: idFile.name,
+                  fileType: idFile.type,
+                  filePath: uploadData.fileUrl,
+                  description: isAr ? 'وثيقة التحقق من الهوية' : 'Identity verification document',
+                },
+              },
+            });
+          }
+        } catch {
+          // Non-fatal — user can upload from Settings later
+        }
+      }
+
       // BUG-4 FIX: call VERIFY_EMAIL so server generates + sends OTP to user's email
       try { await verifyEmail({ variables: { email } }); } catch { /* proceed even if OTP send fails */ }
       setStep('otp');
