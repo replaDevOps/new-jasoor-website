@@ -12,7 +12,13 @@ import Cookies from 'js-cookie';
 
 interface Errors { identifier?: string; password?: string; }
 
-export const SignIn = ({ onNavigate }: { onNavigate: (page: string) => void }) => {
+export const SignIn = ({
+  onNavigate,
+  returnTo,
+}: {
+  onNavigate: (page: string, id?: number) => void;
+  returnTo?: { view: string; id?: string | number };
+}) => {
   const { login, content, direction, language, setLanguage } = useApp();
   const [loading, setLoading]           = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -74,7 +80,12 @@ export const SignIn = ({ onNavigate }: { onNavigate: (page: string) => void }) =
       }
       login();
       toast.success(content.auth.signIn.success);
-      onNavigate('dashboard');
+      // Return to where the user came from (e.g. a listing they were viewing when auth was required)
+      if (returnTo?.view) {
+        onNavigate(returnTo.view, returnTo.id != null ? Number(returnTo.id) : undefined);
+      } else {
+        onNavigate('dashboard');
+      }
     } catch (err: unknown) {
       console.error('Login error:', err);
       toast.error(isAr ? 'تعذر الاتصال بالخادم، تحقق من اتصالك' : 'Could not connect to server, check your connection');

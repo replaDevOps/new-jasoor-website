@@ -3,6 +3,8 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../Button';
 import { DollarSign } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
+import { useQuery } from '@apollo/client';
+import { PREVIEW_COMMISSION } from '../../../graphql/queries/dashboard';
 
 interface OfferModalProps {
   isOpen: boolean;
@@ -16,14 +18,28 @@ export const OfferModal = ({ isOpen, onClose, type, onSubmit }: OfferModalProps)
   const [amount, setAmount] = useState('');
   const isAr = language === 'ar';
 
+  const parsedAmount = parseFloat(amount);
+  const validAmount = !isNaN(parsedAmount) && parsedAmount > 0;
+
+  // Live commission from backend — only fires for make-offer with a valid amount
+  const { data: commissionData, loading: commissionLoading } = useQuery(PREVIEW_COMMISSION, {
+    variables: { price: validAmount ? parsedAmount : 0 },
+    skip: type !== 'make-offer' || !validAmount,
+    fetchPolicy: 'network-only',
+  });
+
+  const commission: number = commissionData?.previewCommission ?? 0;
+  const total = validAmount ? parsedAmount + commission : 0;
+
   const t = {
     titleMakeOffer:    isAr ? 'تقديم عرض'              : 'Make an Offer',
     titleCounter:      isAr ? 'عرض مضاد'               : 'Counter Offer',
     labelMakeOffer:    isAr ? 'مبلغ العرض (ر.س)'       : 'Offer Amount (SAR)',
     labelCounter:      isAr ? 'مبلغ العرض المضاد (ر.س)': 'Counter Offer Amount (SAR)',
-    commission:        isAr ? 'عمولة المنصة (2.5٪)'    : 'Platform Commission (2.5%)',
+    commission:        isAr ? 'عمولة المنصة'            : 'Platform Commission',
     totalValue:        isAr ? 'القيمة الإجمالية'        : 'Total Value',
     commissionNote:    isAr ? '* يشمل عمولة منصة جسور' : '* Includes Jusoor platform commission',
+    calculating:       isAr ? 'جارٍ الحساب...'          : 'Calculating...',
     submit:            isAr ? 'إرسال العرض'             : 'Submit Offer',
     send:              isAr ? 'إرسال'                   : 'Send',
     cancel:            isAr ? 'إلغاء'                   : 'Cancel',
@@ -33,11 +49,9 @@ export const OfferModal = ({ isOpen, onClose, type, onSubmit }: OfferModalProps)
 
   const handleSubmit = () => {
     onSubmit(amount);
+    setAmount('');
     onClose();
   };
-
-  const commission = parseFloat(amount) * 0.025 || 0;
-  const total = parseFloat(amount) + commission || 0;
 
   return (
     <Modal
@@ -62,22 +76,30 @@ export const OfferModal = ({ isOpen, onClose, type, onSubmit }: OfferModalProps)
           </div>
         </div>
 
-        {type === 'make-offer' && (
+        {type === 'make-offer' && validAmount && (
           <div className="bg-[#E6F3EF] p-4 rounded-xl space-y-3">
             <div className="flex justify-between text-sm text-gray-600">
               <span>{t.commission}</span>
-              <span className="dir-ltr">{commission.toLocaleString()} {t.sar}</span>
+              <span className="dir-ltr">
+                {commissionLoading
+                  ? t.calculating
+                  : `${commission.toLocaleString(isAr ? 'ar-SA-u-ca-gregory' : 'en-GB')} ${t.sar}`}
+              </span>
             </div>
             <div className="flex justify-between font-bold text-[#008A66] pt-3 border-t border-[#008A66]/10">
               <span>{t.totalValue}</span>
-              <span className="dir-ltr">{total.toLocaleString()} {t.sar}</span>
+              <span className="dir-ltr">
+                {commissionLoading
+                  ? t.calculating
+                  : `${total.toLocaleString(isAr ? 'ar-SA-u-ca-gregory' : 'en-GB')} ${t.sar}`}
+              </span>
             </div>
             <p className="text-xs text-gray-500 mt-2">{t.commissionNote}</p>
           </div>
         )}
 
         <div className="flex gap-3">
-          <Button onClick={handleSubmit} className="flex-1">
+          <Button onClick={handleSubmit} className="flex-1" disabled={!validAmount}>
             {type === 'make-offer' ? t.submit : t.send}
           </Button>
           <Button variant="outline" onClick={onClose} className="flex-1">

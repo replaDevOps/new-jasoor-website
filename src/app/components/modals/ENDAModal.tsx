@@ -34,8 +34,8 @@ export const ENDAModal = ({ isOpen, onClose, onConfirm, buyerName }: ENDAModalPr
       : 'The Second Party (Buyer) is committed to maintaining the confidentiality of the information provided by the First Party (Seller) and not disclosing it to any third party without written consent.',
     section2Title:    isAr ? '٢. عمولة المنصة'                  : '2. Platform Commission',
     section2Body:     isAr
-      ? 'يوافق المشتري على دفع عمولة منصة جسور في حال إتمام الصفقة، والمقدرة بـ 2.5٪ من إجمالي قيمة الصفقة.'
-      : 'The Buyer agrees to pay Jusoor platform commission in case the deal is finalized, which is estimated at 2.5% of the total deal value.',
+      ? 'يوافق المشتري على دفع عمولة منصة جسور المعتمدة في حال إتمام الصفقة، وفقًا لشرائح العمولة السارية على المنصة وقت إبرام الاتفاقية.'
+      : 'The Buyer agrees to pay the applicable Jusoor platform commission in case the deal is finalized, as per the active commission brackets at the time this agreement is signed.',
     section3Title:    isAr ? '٣. شروط وأحكام جسور'              : '3. Jusoor Terms & Conditions',
     section3Body:     isAr
       ? 'بقبول هذه الاتفاقية، تقر بأنك قرأت ووافقت على جميع شروط وأحكام استخدام منصة جسور.'

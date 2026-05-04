@@ -11,6 +11,8 @@ import { ArrowRight, ArrowLeft } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { useRandomBusinesses } from '../../hooks/useRandomBusinesses';
 import type { BusinessListItem } from '../../types/api';
+import { useMutation } from '@apollo/client';
+import { CREATE_SAVE_BUSINESS } from '../../graphql/mutations/dashboard';
 
 function fmt(v: number | null | undefined): string {
   if (v == null) return '—';
@@ -22,6 +24,7 @@ function fmt(v: number | null | undefined): string {
 export const Listings = ({ onViewAll, onNavigate }: { onViewAll?: () => void; onNavigate?: (page: string, id?: number) => void }) => {
   const { content, direction, language, userId, isLoggedIn } = useApp();
   const { businesses, loading } = useRandomBusinesses(userId);
+  const [saveBusinessMutation] = useMutation(CREATE_SAVE_BUSINESS, { errorPolicy: 'all' });
 
   const labels = useMemo(() => ({
     revenue: language === 'ar' ? 'الإيرادات' : 'Revenue',
@@ -84,15 +87,25 @@ export const Listings = ({ onViewAll, onNavigate }: { onViewAll?: () => void; on
                 <Card
                   variant="listing"
                   hideFavorite={!isLoggedIn}
+                  isSaved={b.isSaved ?? false}
+                  onSave={(e) => {
+                    e.stopPropagation();
+                    if (!isLoggedIn) { onNavigate?.('signin'); return; }
+                    saveBusinessMutation({ variables: { saveBusinessId: b.id } });
+                  }}
                   title={b.businessTitle}
                   description={b.description || ''}
+                  image={b.image}
                   number={fmt(b.price)}
                   badge={renderBadge(b.isByTakbeer)}
                   listingData={{
                     category: language === 'ar' ? b.category?.arabicName || b.category?.name : b.category?.name || '',
+                    location: language === 'ar' ? ((b as any).district || (b as any).city || '') : ((b as any).city || (b as any).district || ''),
+
                     revenue: fmt(b.revenue) + ' ' + labels.currency,
                     profit: fmt(b.profit) + ' ' + labels.currency,
                     recovery: b.capitalRecovery ? Math.round(b.capitalRecovery) + ' ' + labels.month : '—',
+                    refNumber: b.reference ? `#${b.reference}` : '',
                   }}
                   labels={labels}
                   // P5-FIX R-03: clicking the card navigates to the specific business details

@@ -47,14 +47,16 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
   } = useListings();
 
   // Local UI state for filter inputs (committed to hook on Apply)
-  const [selectedRegion, setSelectedRegion] = useState<string>('all');
+  const [selectedRegion, setSelectedRegion] = useState<string>('all'); // → backend district
+  const [selectedCity,   setSelectedCity]   = useState<string>('all'); // → backend city
   const [priceMinInput, setPriceMinInput]   = useState<string>('');
   const [priceMaxInput, setPriceMaxInput]   = useState<string>('');
   const [revenueMinInput, setRevenueMinInput] = useState<string>('');
 
   const handleApplyFilters = () => {
     applyFilters({
-      city: selectedRegion !== 'all' ? selectedRegion : null,
+      district: selectedRegion !== 'all' ? selectedRegion : null,
+      city:     selectedCity   !== 'all' ? selectedCity   : null,
       minPrice: priceMinInput ? Number(priceMinInput) : null,
       maxPrice: priceMaxInput ? Number(priceMaxInput) : null,
       minRevenue: revenueMinInput ? Number(revenueMinInput) : null,
@@ -64,6 +66,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
 
   const handleResetFilters = () => {
     setSelectedRegion('all');
+    setSelectedCity('all');
     setPriceMinInput('');
     setPriceMaxInput('');
     setRevenueMinInput('');
@@ -95,7 +98,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
       region: isAr ? 'المنطقة' : 'Region',
       city: isAr ? 'المدينة' : 'City',
       priceRange: isAr ? 'نطاق السعر (ر.س)' : 'Price Range (SAR)',
-      revenue: isAr ? 'الإيرادات الشهرية' : 'Monthly Revenue',
+      revenue: isAr ? 'الإيرادات السنوية' : 'Annual Revenue',
       
       moreThan: isAr ? 'أكثر من' : 'More than',
       lessThan: isAr ? 'أقل من' : 'Less than',
@@ -205,14 +208,16 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
         <h4 className="text-sm font-bold text-gray-900 mb-3">{t.city}</h4>
         <div className="relative">
             <select
-                value={selectedRegion}
-                onChange={(e) => setSelectedRegion(e.target.value)}
+                value={selectedCity}
+                onChange={(e) => setSelectedCity(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#008A66] transition-colors appearance-none text-gray-700"
               >
                 <option value="all">{t.all}</option>
                 <option value="riyadh">{t.riyadh}</option>
                 <option value="jeddah">{t.jeddah}</option>
                 <option value="khobar">{t.khobar}</option>
+                <option value="dammam">{t.dammam}</option>
+                <option value="makkah">{t.makkah}</option>
                 <option value="qassim">{t.qassim}</option>
               </select>
             <ChevronDown className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none", direction === 'rtl' ? "left-3" : "right-3")} />

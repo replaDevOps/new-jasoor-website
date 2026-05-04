@@ -8,17 +8,18 @@ import { DashBadge, SectionHeader } from './DashboardView';
 import { maskName } from '../../../utils/maskName';
 
 export const DealsView = ({ onNavigate }: { onNavigate?: (view: string, id?: string) => void }) => {
-  const { content, language, direction } = useApp();
+  const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
 
   const [filter, setFilter]   = useState<'in-progress' | 'completed'>('in-progress');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // P6-FIX R-04: real deals data — in-progress + completed
-  const { data: buyerData,     loading: buyerLoading     } = useQuery(GET_BUYER_INPROGRESS_DEALS,  { variables: { limit: 50, offset: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
-  const { data: sellerData,    loading: sellerLoading    } = useQuery(GET_SELLER_INPROGRESS_DEALS, { variables: { limit: 50, offset: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
-  const { data: buyerDoneData, loading: buyerDoneLoading } = useQuery(GET_BUYER_COMPLETED_DEALS,   { variables: { limit: 50, offset: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all', skip: filter !== 'completed' });
-  const { data: sellerDoneData,loading: sellerDoneLoading} = useQuery(GET_SELLER_COMPLETED_DEALS,  { variables: { limit: 50, offset: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all', skip: filter !== 'completed' });
+  // skip: !userId prevents unauthenticated requests before the session is ready
+  const { data: buyerData,     loading: buyerLoading     } = useQuery(GET_BUYER_INPROGRESS_DEALS,  { variables: { limit: 50, offset: 0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
+  const { data: sellerData,    loading: sellerLoading    } = useQuery(GET_SELLER_INPROGRESS_DEALS, { variables: { limit: 50, offset: 0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
+  const { data: buyerDoneData, loading: buyerDoneLoading } = useQuery(GET_BUYER_COMPLETED_DEALS,   { variables: { limit: 50, offset: 0 }, fetchPolicy: 'network-only', skip: !userId || filter !== 'completed', errorPolicy: 'all' });
+  const { data: sellerDoneData,loading: sellerDoneLoading} = useQuery(GET_SELLER_COMPLETED_DEALS,  { variables: { limit: 50, offset: 0 }, fetchPolicy: 'network-only', skip: !userId || filter !== 'completed', errorPolicy: 'all' });
 
   // Merge buyer + seller deals (in-progress or completed), deduplicate
   const buyerDeals      = (buyerData?.getBuyerInprogressDeals?.deals     ?? []).map((d: any) => ({ ...d, _role: 'buyer'  }));

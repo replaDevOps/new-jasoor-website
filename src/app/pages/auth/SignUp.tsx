@@ -141,7 +141,9 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
       const { data, errors: gqlErrors } = await createUser({
         variables: {
           input: {
-            name: fullName,   // privacy resolver splits name→firstName/lastName at read time
+            name: fullName,
+            firstName: fullName.trim().split(/\s+/)[0] || undefined,
+            lastName: fullName.trim().split(/\s+/).slice(1).join(' ') || undefined,
             email,
             phone: (() => {
               const p = phone.replace(/[\s\-]/g, '');

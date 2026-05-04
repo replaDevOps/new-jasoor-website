@@ -56,6 +56,7 @@ import {
   APPROVE_MEETING,
   ADD_BANK,
   DELETE_BANK,
+  SET_ACTIVE_BANK,
   MARK_NOTIFICATION_AS_READ,
   // P9: deal flow mutations
   UPDATE_DEAL,
@@ -66,6 +67,7 @@ import {
   UPDATE_MEETING,
   // Fix 7: identity document upload
   UPLOAD_IDENTITY_DOCUMENT,
+  CREATE_SAVE_BUSINESS,
 } from '../../graphql/mutations/dashboard';
 import { REQUEST_MEETING } from '../../graphql/mutations/business';
 import { maskName } from '../../utils/maskName';
@@ -285,6 +287,7 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
   // G-09: seller sold businesses tab
   const { data: soldData,   loading: soldLoading,   refetch: refetchSold   } = useQuery(GET_SELLER_SOLD_BUSINESSES, { skip: isFavorites  || !userId, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
   const { data: favData,    loading: favLoading,    refetch: refetchFav    } = useQuery(GET_FAVORITE_BUSINESSES,    { skip: !isFavorites || !userId, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const [saveBusinessMutation] = useMutation(CREATE_SAVE_BUSINESS, { errorPolicy: 'all' });
 
   const rawListings = isFavorites
     ? (favData?.getFavoritBusiness?.businesses ?? [])
@@ -334,10 +337,37 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
           {filtered.map((b: any) => {
             const sl = statusLabel(b.businessStatus);
             return (
-              <Card key={b.id} variant="listing" title={b.businessTitle} number={fmt(b.price)}
-                badge={<UiBadge variant={sl.variant} className="backdrop-blur-md bg-white/90 shadow-sm">{sl.text}</UiBadge>}
+              <Card
+                key={b.id}
+                variant="listing"
+                title={b.businessTitle}
+                description={b.description || ''}
+                image={b.image}
+                number={fmt(b.price)}
+                onClick={() => onNavigate?.('details', Number(b.id))}
+                badge={isFavorites
+                  ? (
+                    <div className="bg-white/95 text-[#111827] border-gray-100/50 backdrop-blur-md px-3 py-1.5 rounded-lg text-[11px] font-bold shadow-sm border">
+                      {b.isByTakbeer ? (isAr ? 'تقبيل' : 'Taqbeel') : (isAr ? 'استحواذ' : 'Acquisition')}
+                    </div>
+                  )
+                  : <UiBadge variant={sl.variant} className="backdrop-blur-md bg-white/90 shadow-sm">{sl.text}</UiBadge>
+                }
                 hideFavorite={!isFavorites}
-                listingData={{ category: isAr?b.category?.arabicName:b.category?.name, revenue: isFavorites?fmt(b.revenue):(b.offerCount??0).toString(), profit: isFavorites?fmt(b.profit):'—', recovery:'—', refNumber:b.reference?`#${b.reference}`:'' }}
+                isSaved={isFavorites ? (b.isSaved ?? false) : false}
+                onSave={isFavorites ? async (e) => {
+                  e.stopPropagation();
+                  await saveBusinessMutation({ variables: { saveBusinessId: b.id } });
+                  refetchFav();
+                } : undefined}
+                listingData={{
+                  category:  isAr ? b.category?.arabicName : b.category?.name,
+                  location:  isAr ? (b.district || b.city || '') : (b.city || b.district || ''),
+                  revenue:   isFavorites ? fmt(b.revenue) : (b.offerCount ?? 0).toString(),
+                  profit:    isFavorites ? fmt(b.profit)  : '—',
+                  recovery:  isFavorites ? (b.capitalRecovery ? fmt(b.capitalRecovery) : '—') : '—',
+                  refNumber: b.reference ? `#${b.reference}` : '',
+                }}
                 labels={labels}
                 footer={!isFavorites ? (
                   <div className="flex gap-2 w-full">
@@ -359,7 +389,7 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
 };
 
 
-const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
+const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string, id?: number) => void; onGoToIdentity?: () => void }) => {
   const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
   const [directionFilter, setDirectionFilter] = useState<'received'|'sent'>('received');
@@ -389,7 +419,26 @@ const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =
   const handleAccept = async () => {
     if (!selectedOffer) return;
     const { errors } = await updateStatus({ variables: { input: { id: selectedOffer.id, status: 'ACCEPTED' } } });
-    if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
+    if (errors?.length) {
+      const msg = errors[0]?.message ?? '';
+      if (msg.includes('VERIFICATION_REQUIRED')) {
+        toast.error(
+          isAr ? 'يجب التحقق من هويتك أولاً لقبول العرض' : 'Identity verification required to accept this offer',
+          { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onGoToIdentity?.() } }
+        );
+      } else if (msg.includes('NDA_NOT_SIGNED')) {
+        toast.error(isAr
+          ? 'يجب توقيع اتفاقية السرية (NDA) أولاً قبل قبول العرض'
+          : 'You must sign the NDA for this listing before accepting the offer');
+      } else if (msg.includes('MULTIPLE_ACCEPTED_OFFERS')) {
+        toast.error(isAr
+          ? 'لا يمكن قبول أكثر من عرض على نفس الإعلان'
+          : 'You cannot accept more than one offer for the same listing');
+      } else {
+        toast.error(isAr ? 'حدث خطأ' : 'Error');
+      }
+      return;
+    }
     toast.success(isAr?'تم قبول العرض':'Offer accepted'); setSelectedId(null); refetch();
   };
 
@@ -412,16 +461,49 @@ const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =
     e.preventDefault();
     if (!selectedOffer||!counterPrice) return;
     const { errors } = await doCounter({ variables: { input: { parentOfferId: selectedOffer.id, price: parseFloat(counterPrice) } } });
-    if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
+    if (errors?.length) {
+      const msg = errors[0]?.message ?? '';
+      if (msg.includes('VERIFICATION_REQUIRED')) {
+        toast.error(
+          isAr ? 'يجب التحقق من هويتك أولاً لإرسال عرض مضاد' : 'Identity verification required to send a counter-offer',
+          { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onGoToIdentity?.() } }
+        );
+      } else if (msg.includes('OFFER_ALREADY_EXISTS')) {
+        toast.error(isAr ? 'عرض موجود بالفعل على هذا الإعلان' : 'An offer already exists for this listing');
+      } else {
+        toast.error(isAr ? 'حدث خطأ' : 'Error');
+      }
+      return;
+    }
     toast.success(content.dashboard.offers.actions.successCounter); setSelectedId(null); refetch();
   };
 
   const handleMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedOffer||!meetingDate) return;
-    const iso = `${meetingDate}T${meetingTime||'09:00'}:00.000Z`;
-    const { errors } = await reqMeeting({ variables: { input: { businessId: selectedOffer.business.id, requestedDate: iso, requestedEndDate: iso } } });
-    if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
+    if (!selectedOffer||!meetingDate||!meetingTime) return;
+    const iso = `${meetingDate}T${meetingTime}:00.000Z`;
+    const endDate = new Date(iso); endDate.setHours(endDate.getHours() + 1);
+    const { errors } = await reqMeeting({ variables: { input: { businessId: selectedOffer.business.id, offerId: selectedOffer.id, requestedDate: iso, requestedEndDate: endDate.toISOString() } } });
+    if (errors?.length) {
+      const msg = errors[0]?.message ?? '';
+      if (msg.includes('VERIFICATION_REQUIRED')) {
+        toast.error(
+          isAr ? 'يجب التحقق من هويتك أولاً لطلب اجتماع' : 'Identity verification required to request a meeting',
+          { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onGoToIdentity?.() } }
+        );
+      } else if (msg.includes('NDA_NOT_SIGNED')) {
+        toast.error(isAr
+          ? 'يجب توقيع اتفاقية السرية (NDA) لهذا الإعلان أولاً'
+          : 'You must sign the NDA for this listing before requesting a meeting');
+      } else if (msg.includes('MEETING_REQUEST_OUTSIDE_ALLOWED_HOURS') || msg.includes('MEETING_TIME_INVALID')) {
+        toast.error(isAr
+          ? 'الوقت المحدد خارج نطاق أوقات الاجتماعات المسموح بها. (الأحد–الجمعة ٤:٣٠م–١١م / السبت ٢م–١١م)'
+          : 'Selected time is outside allowed meeting hours. (Sun–Fri 4:30 PM–11 PM / Sat 2 PM–11 PM)');
+      } else {
+        toast.error(isAr ? 'حدث خطأ' : 'Error');
+      }
+      return;
+    }
     toast.success(content.dashboard.offers.actions.successMeeting); setSelectedId(null);
   };
 
@@ -624,14 +706,7 @@ const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =
                   </div>
                 )}
 
-                {/* Buyer actions: sent PENDING offer — can withdraw */}
-                {selectedOffer.status==='PENDING' && directionFilter==='sent' && (
-                  <div className="mt-6">
-                    <button onClick={handleCancelOffer} className="w-full py-3 rounded-xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2">
-                      <Ban size={18}/>{isAr?'سحب العرض':'Withdraw Offer'}
-                    </button>
-                  </div>
-                )}
+                {/* Withdraw Offer: hidden until backend adds CANCELLED/WITHDRAWN to OfferStatus enum */}
               </>
             )}
 
@@ -673,11 +748,19 @@ const OffersView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =
 };
 
 
-const DealsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
+const DealsView = ({
+  onNavigate,
+  onGoToWallet,
+  initialSelectedId,
+}: {
+  onNavigate?: (page: string, id?: number) => void;
+  onGoToWallet?: (dealId: string) => void;
+  initialSelectedId?: string | null;
+}) => {
   const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
   const [filter, setFilter] = useState<'in-progress'|'completed'>('in-progress');
-  const [selectedId, setSelectedId] = useState<string|null>(null);
+  const [selectedId, setSelectedId] = useState<string|null>(() => initialSelectedId ?? null);
 
   const { data: buyerData,  loading: buyerLoading,  error: buyerDealsErr,  refetch: refetchBuyer  } = useQuery(GET_BUYER_INPROGRESS_DEALS,  { skip: !userId, variables: { limit:50, offset:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
   const { data: sellerData, loading: sellerLoading, error: sellerDealsErr, refetch: refetchSeller } = useQuery(GET_SELLER_INPROGRESS_DEALS, { skip: !userId, variables: { limit:50, offset:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
@@ -761,16 +844,38 @@ const DealsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =>
   const handleUploadPaymentProof = async (file: File) => {
     if (!deal) return;
     try {
+      // Step 1: upload the file to storage
       const formData = new FormData();
       formData.append('file', file);
-      const res = await fetch(import.meta.env.VITE_UPLOAD_URL || 'https://verify.jusoor-sa.co/upload', { method: 'POST', body: formData });
+      const res = await fetch(import.meta.env.VITE_UPLOAD_URL || 'https://verify.jusoor-sa.co/upload', {
+        method: 'POST',
+        body: formData,
+        headers: { Authorization: `Bearer ${document.cookie.match(/_at=([^;]+)/)?.[1] ?? ''}` },
+      });
       if (!res.ok) throw new Error('Upload failed');
-      const data = await res.json();
-      await uploadDocument({ variables: { input: { dealId: deal.id, filePath: data.fileUrl, type: 'PAYMENT_PROOF' } } });
-      await updateDeal({ variables: { input: { id: deal.id, isCommissionUploaded: true } } });
-      toast.success(isAr ? 'تم رفع إثبات الدفع' : 'Payment proof uploaded');
+      const uploaded = await res.json();
+
+      // Step 2: persist the document tied to the deal.
+      // Backend sets isCommissionUploaded = true and notifies admins automatically.
+      const { errors } = await uploadDocument({
+        variables: {
+          input: {
+            title:       isAr ? 'إثبات دفع العمولة' : 'Commission Payment Proof',
+            fileName:    file.name,
+            fileType:    file.type,
+            filePath:    uploaded.fileUrl,
+            dealId:      deal.id,
+            type:        'PAYMENT_PROOF',
+          },
+        },
+      });
+      if (errors?.length) throw new Error(errors[0]?.message ?? 'Mutation failed');
+
+      toast.success(isAr ? 'تم رفع إثبات الدفع بنجاح — سيراجعه الفريق قريباً' : 'Payment proof uploaded — the team will review it shortly');
       refetch();
-    } catch { toast.error(isAr ? 'فشل رفع الملف' : 'Upload failed'); }
+    } catch (err: any) {
+      toast.error(isAr ? 'فشل رفع الملف، يرجى المحاولة مجدداً' : 'Upload failed, please try again');
+    }
   };
 
   const handleBuyerComplete = async () => {
@@ -794,7 +899,10 @@ const DealsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =>
 
   const handleSellerSendBank = async () => {
     if (!deal || !userBank) return;
-    const unsentDealBank = dealBanks.find((b: any) => !b.isSend);
+    // Prefer the DealBank whose bank matches the current active bank; fall back to any unsent row.
+    const unsentDealBank =
+      dealBanks.find((b: any) => !b.isSend && b.bank?.id === userBank.id) ??
+      dealBanks.find((b: any) => !b.isSend);
     if (!unsentDealBank?.id) {
       toast.error(isAr ? 'لا توجد تفاصيل بنك مرتبطة بهذه الصفقة بعد' : 'No bank detail is attached to this deal yet');
       return;
@@ -887,6 +995,10 @@ const DealsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =>
       action: dealBanks.some((b: any) => !b.isSend) && userBank && d.isDsaSeller ? handleSellerSendBank : null,
       actionLabel: isAr ? 'إرسال تفاصيل البنك' : 'Send Bank Details',
       loading: sendingBank,
+      // If no active bank, show an "Add Bank Account" button that navigates to Settings → Wallet
+      addBankAction: !userBank && !dealBanks.some((b: any) => b.isSend) && selectedId
+        ? () => onGoToWallet?.(selectedId)
+        : null,
     },
     {
       id: 3,
@@ -1083,6 +1195,14 @@ const DealsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =>
                         {step.loading?(isAr?'جارٍ...':'Processing...'):step.actionLabel}
                       </button>
                     )}
+
+                    {/* Add Bank Account — shown when seller has no active bank set */}
+                    {step.addBankAction && isActive && !step.done && (
+                      <button onClick={step.addBankAction}
+                        className="mt-2 flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm bg-[#008A66] text-white hover:bg-[#007053] transition-colors">
+                        <CreditCard size={16}/>{isAr ? 'إضافة حساب بنكي' : 'Add Bank Account'}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1106,6 +1226,36 @@ const DealsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) =>
             </div>
           </div>
         )}
+
+        {/* Deal documents — payment proofs uploaded by buyer */}
+        {(() => {
+          const dealDocs = (deal.documents ?? []).filter((doc: any) => doc.type === 'PAYMENT_PROOF');
+          if (!dealDocs.length) return null;
+          return (
+            <div className="bg-white p-5 rounded-3xl border border-[#10B981]/20 shadow-sm">
+              <h4 className="font-bold text-[#111827] mb-3 flex items-center gap-2">
+                <CheckCircle2 size={18} className="text-[#10B981]"/>
+                {isAr ? 'إثباتات دفع العمولة' : 'Commission Payment Proofs'}
+                <span className="ml-auto text-xs font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                  {isAr ? 'قيد المراجعة' : 'Under Review'}
+                </span>
+              </h4>
+              <div className="space-y-2">
+                {dealDocs.map((doc: any) => (
+                  <a key={doc.id} href={doc.filePath} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-gray-50 transition-colors">
+                    <Upload size={16} className="text-[#10B981] shrink-0"/>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-bold text-[#111827] block truncate">{doc.title}</span>
+                      {doc.createdAt && <span className="text-xs text-gray-400">{new Date(doc.createdAt).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB')}</span>}
+                    </div>
+                    <Download size={14} className="text-gray-400 shrink-0"/>
+                  </a>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }
@@ -1180,8 +1330,8 @@ const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number)
   // Queries
   const { data: sentData,     loading: sentLoading,     error: sentErr,       refetch: refetchSent     } = useQuery(GET_SENT_MEETINGS,              { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
   const { data: receivedData, loading: receivedLoading, error: receivedErr,   refetch: refetchReceived } = useQuery(GET_RECEIVED_MEETINGS,           { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
-  const { data: readyData,     loading: readyLoading,                          refetch: refetchReady     } = useQuery(GET_READY_SCHEDULED_MEETINGS, { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
-  const { data: scheduledData, loading: scheduledLoading,                      refetch: refetchScheduled } = useQuery(GET_SCHEDULED_MEETINGS,       { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: readyData,     loading: readyLoading,     error: readyErr,     refetch: refetchReady     } = useQuery(GET_READY_SCHEDULED_MEETINGS, { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: scheduledData, loading: scheduledLoading, error: scheduledErr, refetch: refetchScheduled } = useQuery(GET_SCHEDULED_MEETINGS,       { skip: !userId, variables: { limit:50, offSet:0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
 
   // Mutations
   const [approveMeeting, { loading: approving }]  = useMutation(APPROVE_MEETING, { errorPolicy: 'all' });
@@ -1198,7 +1348,7 @@ const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number)
   ].filter((m: any, i: number, arr: any[]) => arr.findIndex((x: any) => x.id === m.id) === i); // dedupe
 
   const loading   = sentLoading || receivedLoading || readyLoading || scheduledLoading;
-  const hasError  = !!sentErr || !!receivedErr;
+  const hasError  = !!sentErr || !!receivedErr || !!readyErr || !!scheduledErr;
 
   const now = new Date();
   const rawMeetings =
@@ -1340,7 +1490,7 @@ const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number)
                         {fmtDate(m.adminAvailabilityDate ?? m.receiverAvailabilityDate ?? m.requestedDate)}
                       </span>
                       <div className="flex items-center gap-2">
-                        {m.status === 'SCHEDULED' && m.meetingLink && (
+                        {(m.status === 'APPROVED' || m.status === 'SCHEDULED') && m.meetingLink && (
                           <a href={m.meetingLink} target="_blank" rel="noopener noreferrer"
                             className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700">
                             <Video size={12}/>{isAr?'انضم':'Join'}
@@ -1395,7 +1545,7 @@ const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number)
                         <td className="px-6 py-4 whitespace-nowrap"><DashBadge color={statusColor(m.status)}>{statusLabel(m.status)}</DashBadge></td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-2">
-                            {m.status === 'SCHEDULED' && m.meetingLink && (
+                            {(m.status === 'APPROVED' || m.status === 'SCHEDULED') && m.meetingLink && (
                               <a href={m.meetingLink} target="_blank" rel="noopener noreferrer"
                                 className="flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white rounded-lg font-bold text-xs hover:bg-blue-700 transition-colors">
                                 <Video size={13}/>{isAr?'انضم':'Join'}
@@ -1464,15 +1614,37 @@ const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number)
                 </div>
               )}
               {selected.meetingLink && (
-                <div className="flex justify-between py-2.5 border-b border-gray-50">
+                <div className="flex justify-between items-center py-2.5 border-b border-gray-50">
                   <span className="text-gray-500">{content.dashboard.meetings.table.meetingLink}</span>
                   <a href={selected.meetingLink} target="_blank" rel="noopener noreferrer"
                     className="text-blue-600 hover:underline flex items-center gap-1 text-sm font-bold">
-                    <Video size={16}/>Zoom Link
+                    <Video size={16}/>{isAr ? 'رابط الاجتماع' : 'Meeting Link'}
                   </a>
                 </div>
               )}
             </div>
+
+            {/* Prominent Join button — shown for APPROVED (admin confirmed) meetings with a link */}
+            {(selected.status === 'APPROVED' || selected.status === 'SCHEDULED') && selected.meetingLink && (
+              <a
+                href={selected.meetingLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-center gap-2 w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-md"
+              >
+                <Video size={18}/>
+                {isAr ? 'انضم إلى الاجتماع' : 'Join Meeting'}
+              </a>
+            )}
+
+            {/* Cancel / reschedule note — users cannot do this themselves */}
+            {!['HELD', 'CANCELED', 'TIMELAPSED'].includes(selected.status) && (
+              <p className="text-xs text-gray-400 text-center">
+                {isAr
+                  ? 'لإلغاء الاجتماع أو إعادة جدولته، يرجى التواصل مع فريق جسور عبر الدعم.'
+                  : 'To cancel or reschedule, please contact Jusoor support.'}
+              </p>
+            )}
 
             {/* M-05: Seller sets availability date for received REQUESTED meetings */}
             {userId && selected.requestedTo?.id && String(selected.requestedTo.id) === String(userId) && selected.status==='REQUESTED' && (
@@ -1522,6 +1694,7 @@ const ACTION_TO_VIEW: Record<string, string> = {
   // View-navigate actions
   VIEW_OFFERS: 'offers', VIEW_DEALS: 'deals', VIEW_MEETINGS: 'meetings',
   VIEW_LISTING: 'details', VIEW_LISTINGS: 'listings', VIEW_ALERTS: 'alerts',
+  VIEW_IDENTITY: 'settings:identity',  // navigates to Settings → Identity subtab
   // Backend-emitted action types
   NEW_OFFER: 'offers', OFFER_ACCEPTED: 'offers', OFFER_REJECTED: 'offers',
   COUNTER_OFFER: 'offers', OFFER_WITHDRAWN: 'offers',
@@ -1537,9 +1710,14 @@ const ENTITY_TO_VIEW: Record<string, string> = {
   meeting: 'meetings', Meeting: 'meetings',
   deal: 'deals', Deal: 'deals',
   business: 'listings', Business: 'listings',
+  document: 'settings:identity', Document: 'settings:identity',
 };
 
-const AlertsView = ({ onNavigate }: { onNavigate?: (view: string, id?: number) => void }) => {
+const AlertsView = ({ onNavigate, onTabChange, onSettingsIdentity }: {
+  onNavigate?: (view: string, id?: number) => void;
+  onTabChange?: (tab: string) => void;
+  onSettingsIdentity?: () => void;
+}) => {
   const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
 
@@ -1557,7 +1735,7 @@ const AlertsView = ({ onNavigate }: { onNavigate?: (view: string, id?: number) =
   const handleMarkAllRead = async () => {
     if (!userId) return;
     try {
-      await markAllRead({ variables: { userId } });
+      await markAllRead({ variables: { id: userId } });
       toast.success(isAr?'تم تحديد جميع الإشعارات كمقروءة':'All notifications marked as read');
       refetch();
     } catch { toast.error(isAr?'حدث خطأ':'Something went wrong'); }
@@ -1592,22 +1770,33 @@ const AlertsView = ({ onNavigate }: { onNavigate?: (view: string, id?: number) =
         <div className="space-y-4">
           {notifications.map((n: any) => {
             const { Icon, bg, bar } = iconFor(n.name);
-            const targetView =
+            const rawTarget =
               (n.actionType && ACTION_TO_VIEW[n.actionType]) ||
               (n.entityType && ENTITY_TO_VIEW[n.entityType]) ||
               null;
+            const targetView = rawTarget;
+            const handleGoTo = () => {
+              if (!rawTarget) return;
+              if (rawTarget === 'settings:identity') {
+                onSettingsIdentity?.();
+              } else if (rawTarget === 'details') {
+                onNavigate?.(rawTarget, n.entityId ? Number(n.entityId) : undefined);
+              } else {
+                onTabChange?.(rawTarget);
+              }
+            };
             return (
               <div key={n.id} className={cn("bg-white p-4 rounded-2xl border shadow-sm hover:shadow-md transition-all flex gap-4 items-start relative overflow-hidden", n.isRead?'border-gray-100':'border-[#10B981]/30')}>
                 <div className={cn("w-2 h-full absolute right-0 top-0 bottom-0", bar)}/>
                 <div className={cn("w-12 h-12 rounded-full flex items-center justify-center shrink-0", bg)}><Icon size={20}/></div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-[#111827] text-base">{n.name}</h4>
-                  <p className="text-gray-500 text-sm mt-1">{n.message}</p>
+                  <h4 className="font-bold text-[#111827] text-base">{isAr ? (n.nameAr || n.name) : n.name}</h4>
+                  <p className="text-gray-500 text-sm mt-1">{isAr ? (n.messageAr || n.message) : n.message}</p>
                   <div className="flex items-center gap-3 mt-2">
                     <p className="text-xs text-gray-400">{fmtDate(n.createdAt)}</p>
-                    {targetView && onNavigate && (
+                    {targetView && (onNavigate || onTabChange || onSettingsIdentity) && (
                       <button
-                        onClick={() => onNavigate(targetView, n.entityId ? Number(n.entityId) : undefined)}
+                        onClick={handleGoTo}
                         className="text-xs font-bold text-[#10B981] hover:text-[#008A66] flex items-center gap-1 transition-colors"
                       >
                         {isAr ? 'اذهب إلى' : 'Go to'}
@@ -1627,23 +1816,24 @@ const AlertsView = ({ onNavigate }: { onNavigate?: (view: string, id?: number) =
 };
 
 
-const SettingsView = () => {
+const SettingsView = ({ defaultTab, onReturnToDeal }: { defaultTab?: string; onReturnToDeal?: () => void }) => {
   const { content, language, userId } = useApp();
   const isAr = language === 'ar';
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState(defaultTab ?? 'profile');
   const [profileForm, setProfileForm] = useState({ name:'', email:'', phone:'', city:'', region:'' });
   const [pwdForm, setPwdForm] = useState({ current:'', new:'', confirm:'' });
   const [bankForm, setBankForm] = useState({ bankName:'', accountNumber:'', accountTitle:'', iban:'' });
 
   // P6-FIX R-04: real user + banks data
-  const { data: userData, loading: userLoading } = useQuery(GET_USER_DETAILS, {
-    variables: { getUserDetailsId: userId }, skip: !userId, errorPolicy: 'all',
+  const { data: userData, loading: userLoading, refetch: refetchUserData } = useQuery(GET_USER_DETAILS, {
+    variables: { getUserDetailsId: userId }, skip: !userId, fetchPolicy: 'network-only', errorPolicy: 'all',
   });
   const { data: banksData, loading: banksLoading, refetch: refetchBanks } = useQuery(GET_USER_BANKS, { skip: !userId, errorPolicy: 'all' });
   const [updateUser,        { loading: savingProfile    }] = useMutation(UPDATE_USER,              { errorPolicy: 'all' });
   const [changePwd,         { loading: savingPassword   }] = useMutation(CHANGE_PASSWORD,          { errorPolicy: 'all' });
   const [addBank,           { loading: addingBank       }] = useMutation(ADD_BANK,                 { errorPolicy: 'all' });
   const [deleteBank                                      ] = useMutation(DELETE_BANK,               { errorPolicy: 'all' });
+  const [setActiveBankMut,  { loading: settingActiveBank }] = useMutation(SET_ACTIVE_BANK,          { errorPolicy: 'all' });
   const [uploadIdentityDoc, { loading: uploadingIdentity }] = useMutation(UPLOAD_IDENTITY_DOCUMENT, { errorPolicy: 'all' });
 
   React.useEffect(() => {
@@ -1687,6 +1877,13 @@ const SettingsView = () => {
     refetchBanks();
   };
 
+  const handleSetActiveBank = async (id: string) => {
+    const { errors } = await setActiveBankMut({ variables: { setActiveBankId: id } });
+    if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
+    toast.success(isAr?'تم تعيين الحساب كحساب فعّال':'Account set as active');
+    refetchBanks();
+  };
+
   // Fix 7: identity document upload
   const handleUploadIdentity = async (file: File) => {
     try {
@@ -1710,6 +1907,8 @@ const SettingsView = () => {
       });
       if (errors?.length) throw new Error('Mutation failed');
       toast.success(isAr ? 'تم رفع وثيقة الهوية بنجاح' : 'Identity document uploaded successfully');
+      // Immediately refresh user data so status + document list update without page reload
+      await refetchUserData();
     } catch {
       toast.error(isAr ? 'فشل رفع الوثيقة' : 'Upload failed');
     }
@@ -1780,16 +1979,66 @@ const SettingsView = () => {
             {activeTab==='wallet' && (
               <div className="space-y-6 animate-in fade-in slide-in-from-left-4 duration-300">
                 <h3 className="text-xl font-bold text-[#111827] mb-6 border-b border-gray-100 pb-4">{content.dashboard.settings.wallet.title}</h3>
+
+                {/* Return-to-deal banner — shown when user arrived from deal step */}
+                {onReturnToDeal && (
+                  <div className="bg-[#E6F3EF] border border-[#10B981]/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <Wallet size={20} className="text-[#008A66] shrink-0"/>
+                      <p className="text-sm font-bold text-[#004E39]">
+                        {isAr
+                          ? 'أضف حسابك البنكي وفعّله، ثم عد للصفقة لإرسال تفاصيله للمشتري'
+                          : 'Add and activate your bank account, then return to your deal to send it to the buyer'}
+                      </p>
+                    </div>
+                    <button onClick={onReturnToDeal}
+                      className="shrink-0 flex items-center gap-1.5 text-sm font-bold text-[#008A66] bg-white border border-[#10B981]/40 px-3 py-2 rounded-xl hover:bg-[#d0ebe5] transition-colors">
+                      <ArrowRight size={15} className={isAr ? '' : 'rotate-180'}/>
+                      {isAr ? 'العودة للصفقة' : 'Back to Deal'}
+                    </button>
+                  </div>
+                )}
+
                 {banksLoading ? <div className="text-gray-400 text-center py-8">{isAr?'جارٍ التحميل...':'Loading...'}</div> : (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
+                    {(banksData?.getUserBanks??[]).length === 0 && (
+                      <div className="text-center py-8 text-gray-400 text-sm font-bold">
+                        {isAr ? 'لا توجد حسابات بنكية بعد' : 'No bank accounts yet'}
+                      </div>
+                    )}
                     {(banksData?.getUserBanks??[]).map((b:any) => (
-                      <div key={b.id} className="p-4 rounded-xl border border-gray-200 flex justify-between items-center">
-                        <div><p className="font-bold text-[#111827]">{b.bankName}</p><p className="text-sm text-gray-500 mt-1">{b.iban||b.accountNumber}</p></div>
-                        <button onClick={() => handleDeleteBank(b.id)} className="text-red-500 hover:bg-red-50 p-2 rounded-lg"><Trash2 size={18}/></button>
+                      <div key={b.id} className={cn(
+                        "p-4 rounded-2xl border flex justify-between items-start gap-3 transition-all",
+                        b.isActive ? "border-[#10B981] bg-[#F0FDF4]" : "border-gray-200 bg-white"
+                      )}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <p className="font-bold text-[#111827]">{b.bankName}</p>
+                            {b.isActive && (
+                              <span className="bg-[#E6F3EF] text-[#008A66] text-xs font-bold px-2 py-0.5 rounded-full">
+                                {isAr ? 'الحساب الفعّال' : 'Active'}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-500">{b.accountTitle}</p>
+                          <p className="text-xs text-gray-400 mt-0.5">{b.iban || b.accountNumber}</p>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {!b.isActive && (
+                            <button onClick={() => handleSetActiveBank(b.id)} disabled={settingActiveBank}
+                              className="text-xs font-bold text-[#008A66] hover:bg-[#E6F3EF] px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                              {isAr ? 'تفعيل' : 'Set Active'}
+                            </button>
+                          )}
+                          <button onClick={() => handleDeleteBank(b.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors">
+                            <Trash2 size={17}/>
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
                 )}
+
                 <div className="border-t border-gray-100 pt-6">
                   <h4 className="text-base font-bold text-[#111827] mb-4 flex items-center gap-2"><Plus size={18} className="text-[#10B981]"/>{content.dashboard.settings.wallet.addAccount}</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1879,45 +2128,69 @@ const SettingsView = () => {
                   </div>
                 )}
 
-                {/* Upload section — hide if already verified */}
+                {/* Upload section — rules:
+                    verified     → hidden entirely (account already approved)
+                    under_review → locked: doc submitted, waiting for admin
+                    pending/inactive with doc already uploaded → locked (doc exists, awaiting review)
+                    pending/inactive with no doc → show uploader */}
                 {userStatus !== 'verified' && (
                   <div className="border-t border-gray-100 pt-6">
-                    <p className="text-sm font-bold text-[#111827] mb-1">
-                      {isAr ? 'رفع وثيقة الهوية' : 'Upload Identity Document'}
-                    </p>
-                    <p className="text-xs text-gray-400 mb-4">
-                      {isAr
-                        ? 'يُقبل: الهوية الوطنية، الإقامة، جواز السفر — PDF أو صورة (JPG/PNG)'
-                        : 'Accepted: National ID, Iqama, Passport — PDF or image (JPG/PNG)'}
-                    </p>
-                    <label className={cn(
-                      'flex flex-col items-center justify-center gap-3 w-full py-10 border-2 border-dashed rounded-2xl cursor-pointer transition-all',
-                      uploadingIdentity
-                        ? 'border-gray-200 bg-gray-50 cursor-wait'
-                        : 'border-[#10B981]/40 hover:border-[#10B981] hover:bg-[#F0FDF4]'
-                    )}>
-                      <input
-                        type="file"
-                        className="hidden"
-                        accept=".pdf,.jpg,.jpeg,.png"
-                        disabled={uploadingIdentity}
-                        onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadIdentity(f); }}
-                      />
-                      {uploadingIdentity ? (
-                        <>
-                          <div className="w-8 h-8 rounded-full border-4 border-[#10B981] border-t-transparent animate-spin"/>
-                          <p className="text-sm font-bold text-gray-500">{isAr ? 'جارٍ الرفع...' : 'Uploading...'}</p>
-                        </>
-                      ) : (
-                        <>
-                          <div className="w-14 h-14 rounded-full bg-[#E6F3EF] flex items-center justify-center">
-                            <Upload size={24} className="text-[#10B981]"/>
-                          </div>
-                          <p className="text-sm font-bold text-[#111827]">{isAr ? 'اضغط لرفع الوثيقة' : 'Click to upload document'}</p>
-                          <p className="text-xs text-gray-400">{isAr ? 'الحد الأقصى: 10 ميغابايت' : 'Max size: 10 MB'}</p>
-                        </>
-                      )}
-                    </label>
+                    {userStatus === 'under_review' || identityDocs.length > 0 ? (
+                      /* Document already submitted — prevent duplicate upload */
+                      <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200">
+                        <ShieldCheck size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-bold text-amber-700 text-sm">
+                            {isAr ? 'وثيقتك قيد المراجعة' : 'Document under review'}
+                          </p>
+                          <p className="text-xs text-amber-600 mt-0.5">
+                            {isAr
+                              ? 'تم رفع وثيقتك بالفعل وهي قيد المراجعة من قِبل فريق جسور. لا يمكن رفع وثيقة أخرى حتى اكتمال المراجعة.'
+                              : 'Your document has been submitted and is being reviewed by the Jusoor team. You cannot upload another document until the review is complete.'}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      /* No document yet — show upload zone */
+                      <>
+                        <p className="text-sm font-bold text-[#111827] mb-1">
+                          {isAr ? 'رفع وثيقة الهوية' : 'Upload Identity Document'}
+                        </p>
+                        <p className="text-xs text-gray-400 mb-4">
+                          {isAr
+                            ? 'يُقبل: الهوية الوطنية، الإقامة، جواز السفر — PDF أو صورة (JPG/PNG)'
+                            : 'Accepted: National ID, Iqama, Passport — PDF or image (JPG/PNG)'}
+                        </p>
+                        <label className={cn(
+                          'flex flex-col items-center justify-center gap-3 w-full py-10 border-2 border-dashed rounded-2xl cursor-pointer transition-all',
+                          uploadingIdentity
+                            ? 'border-gray-200 bg-gray-50 cursor-wait'
+                            : 'border-[#10B981]/40 hover:border-[#10B981] hover:bg-[#F0FDF4]'
+                        )}>
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            disabled={uploadingIdentity}
+                            onChange={e => { const f = e.target.files?.[0]; if (f) handleUploadIdentity(f); }}
+                          />
+                          {uploadingIdentity ? (
+                            <>
+                              <div className="w-8 h-8 rounded-full border-4 border-[#10B981] border-t-transparent animate-spin"/>
+                              <p className="text-sm font-bold text-gray-500">{isAr ? 'جارٍ الرفع...' : 'Uploading...'}</p>
+                            </>
+                          ) : (
+                            <>
+                              <div className="w-14 h-14 rounded-full bg-[#E6F3EF] flex items-center justify-center">
+                                <Upload size={24} className="text-[#10B981]"/>
+                              </div>
+                              <p className="text-sm font-bold text-[#111827]">{isAr ? 'اضغط لرفع الوثيقة' : 'Click to upload document'}</p>
+                              <p className="text-xs text-gray-400">{isAr ? 'الحد الأقصى: 10 ميغابايت' : 'Max size: 10 MB'}</p>
+                            </>
+                          )}
+                        </label>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -1930,13 +2203,22 @@ const SettingsView = () => {
 };
 
 
-export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void; onEditListing?: (id: string | number) => void }) => {
+export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: string, id?: number) => void; onEditListing?: (id: string | number) => void; defaultTab?: string }) => {
   const { content, language, direction, logout, userId } = useApp();
   const isAr = language === 'ar';
-  const [activeTab, setActiveTab] = useState<TabType>('dashboard');
+  // When arriving via intent-routing (e.g. 'settings:identity'), open the right tab immediately
+  const [activeTab, setActiveTab] = useState<TabType>(() =>
+    defaultTab === 'settings:identity' ? 'settings' : 'dashboard'
+  );
+  // Track which Settings sub-tab to open when navigating from a notification or intent-routing
+  const [settingsDefaultTab, setSettingsDefaultTab] = useState<string>(() =>
+    defaultTab === 'settings:identity' ? 'identity' : 'profile'
+  );
+  // When seller navigates to Wallet from a deal, remember the deal ID so we can reopen it on return
+  const [pendingDealId, setPendingDealId] = useState<string | null>(null);
   // BUG-5 FIX: fetch notifications to drive the bell badge unread count
   const { data: notifData, refetch: refetchNotifications } = useQuery(GET_NOTIFICATIONS, {
-    variables: { limit: 50, offSet: 0 },
+    variables: { userId: String(userId), limit: 50, offSet: 0 },
     skip: !userId,
     fetchPolicy: 'network-only',
     errorPolicy: 'all',
@@ -1945,14 +2227,31 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
     skip: !userId,
     onData: ({ data }) => {
       if (!userId) return;
-      refetchNotifications();
       const n = data?.data?.newNotification;
       if (!n) return;
-      toast(n.name, {
-        description: n.message,
+      // Defence-in-depth: even if server-side withFilter passes this through,
+      // drop any notification not addressed to the current user
+      if (n.user?.id && String(n.user.id) !== String(userId)) return;
+      refetchNotifications();
+      // Resolve best navigation target from routing fields
+      const rawTarget =
+        (n.actionType && ACTION_TO_VIEW[n.actionType]) ||
+        (n.entityType && ENTITY_TO_VIEW[n.entityType]) ||
+        'alerts';
+      const title   = isAr ? (n.nameAr    || n.name)    : n.name;
+      const message = isAr ? (n.messageAr || n.message)  : n.message;
+      toast(title, {
+        description: message,
         action: {
-          label: isAr ? 'عرض الإشعارات' : 'View Alerts',
-          onClick: () => setActiveTab('alerts'),
+          label: isAr ? 'عرض' : 'View',
+          onClick: () => {
+            if (rawTarget === 'settings:identity') {
+              setSettingsDefaultTab('identity');
+              setActiveTab('settings');
+            } else {
+              setActiveTab(rawTarget as any);
+            }
+          },
         },
         duration: 6000,
       });
@@ -2193,12 +2492,33 @@ export const Dashboard = ({ onNavigate }: { onNavigate?: (page: string, id?: num
               >
                 {activeTab === 'dashboard'  && <DashboardView />}
                 {activeTab === 'listings'   && <ListingsView onAddListing={handleAddListing} onEditListing={handleEditListing} onNavigate={onNavigate} />}
-                {activeTab === 'offers'     && <OffersView onNavigate={onNavigate} />}
-                {activeTab === 'deals'      && <DealsView onNavigate={onNavigate} />}
+                {activeTab === 'offers'     && <OffersView onNavigate={onNavigate} onGoToIdentity={() => { setSettingsDefaultTab('identity'); setActiveTab('settings'); }} />}
+                {activeTab === 'deals'      && <DealsView
+                  onNavigate={onNavigate}
+                  initialSelectedId={pendingDealId}
+                  onGoToWallet={(dealId) => {
+                    setPendingDealId(dealId);
+                    setSettingsDefaultTab('wallet');
+                    setActiveTab('settings');
+                  }}
+                />}
                 {activeTab === 'meetings'   && <MeetingsView onNavigate={onNavigate} />}
                 {activeTab === 'favorites'  && <ListingsView isFavorites onNavigate={onNavigate} />}
-                {activeTab === 'alerts'     && <AlertsView onNavigate={onNavigate} />}
-                {activeTab === 'settings'   && <SettingsView />}
+                {activeTab === 'alerts'     && <AlertsView
+                  onNavigate={onNavigate}
+                  onTabChange={(tab) => setActiveTab(tab as TabType)}
+                  onSettingsIdentity={() => {
+                    setSettingsDefaultTab('identity');
+                    setActiveTab('settings');
+                  }}
+                />}
+                {activeTab === 'settings'   && <SettingsView
+                  defaultTab={settingsDefaultTab}
+                  onReturnToDeal={pendingDealId ? () => {
+                    setPendingDealId(null);
+                    setActiveTab('deals');
+                  } : undefined}
+                />}
               </motion.div>
             </AnimatePresence>
           </div>

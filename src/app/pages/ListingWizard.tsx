@@ -11,7 +11,7 @@ import { useApp } from '../../context/AppContext';
 import { SAUDI_REGIONS } from '../../data/saudiRegions';
 // P5-FIX R-06: wire real createBusiness mutation + file upload
 import { useMutation, useQuery } from '@apollo/client';
-import { CREATE_BUSINESS } from '../../graphql/mutations/business';
+import { CREATE_BUSINESS, UPDATE_BUSINESS } from '../../graphql/mutations/business';
 import { GET_CATEGORIES, GET_BUSINESS } from '../../graphql/queries/business';
 import { useFileUpload } from '../../hooks/useFileUpload';
 
@@ -31,7 +31,9 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
   const [currentStep, setCurrentStep] = useState(1);
   const [stepErrors, setStepErrors] = useState<Record<string, string>>({});
   // P5-FIX R-06: real submission hooks
-  const [createBusiness, { loading: submitting }] = useMutation(CREATE_BUSINESS, { errorPolicy: 'all' });
+  const [createBusiness, { loading: createSubmitting }] = useMutation(CREATE_BUSINESS, { errorPolicy: 'all' });
+  const [updateBusiness, { loading: updateSubmitting }] = useMutation(UPDATE_BUSINESS, { errorPolicy: 'all' });
+  const submitting = createSubmitting || updateSubmitting;
   const { uploadFile, uploading: fileUploading } = useFileUpload();
 
   // BUG-9 FIX: real category IDs from API (same pattern as BrowseBusinesses.tsx R-05)
@@ -440,6 +442,11 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
         toast.success(t.successTitleCreate);
         // isSubmitted = true — success screen shown; user clicks Continue → onSuccess()
       } else {
+        const { errors } = await updateBusiness({ variables: { input: { id: editId, ...input } } });
+        if (errors?.length) {
+          toast.error(language === 'ar' ? 'حدث خطأ أثناء حفظ التعديلات' : 'Error saving changes');
+          return;
+        }
         toast.success(t.changesSaved);
         onSuccess();
       }

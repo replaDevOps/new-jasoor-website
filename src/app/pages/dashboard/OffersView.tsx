@@ -124,7 +124,12 @@ export const OffersView = ({
     const { errors } = await updateStatus({ variables: { input: { id: o.id, status: 'ACCEPTED' } } });
     if (errors?.length) {
       const errMsg = errors[0]?.message ?? '';
-      if (errMsg.includes('NDA_NOT_SIGNED')) {
+      if (errMsg.includes('VERIFICATION_REQUIRED')) {
+        toast.error(
+          isAr ? 'يجب التحقق من هويتك أولاً لقبول العرض' : 'Identity verification required to accept this offer',
+          { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onNavigate?.('settings:identity') } }
+        );
+      } else if (errMsg.includes('NDA_NOT_SIGNED')) {
         // C14/C15: NDA not signed — redirect to offers with message
         toast.error(isAr
           ? 'يجب توقيع اتفاقية السرية (NDA) أولاً قبل قبول العرض'
@@ -162,7 +167,12 @@ export const OffersView = ({
     const { errors } = await counterOffer({ variables: { input: { parentOfferId: selectedOffer.id, price: parseFloat(counterPrice) } } });
     if (errors?.length) {
       const errMsg = errors[0]?.message ?? '';
-      if (errMsg.includes('OFFER_ALREADY_EXISTS')) {
+      if (errMsg.includes('VERIFICATION_REQUIRED')) {
+        toast.error(
+          isAr ? 'يجب التحقق من هويتك أولاً لإرسال عرض مضاد' : 'Identity verification required to send a counter-offer',
+          { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onNavigate?.('settings:identity') } }
+        );
+      } else if (errMsg.includes('OFFER_ALREADY_EXISTS')) {
         toast.error(isAr ? 'عرض موجود بالفعل على هذا الإعلان' : 'An offer already exists for this listing');
       } else {
         toast.error(isAr ? 'حدث خطأ' : 'Error');
@@ -223,7 +233,12 @@ export const OffersView = ({
     const { errors } = await reqMeeting({ variables: { input: { businessId: selectedOffer.business.id, offerId: selectedOffer.id, requestedDate: startIso, requestedEndDate: endIso } } });
     if (errors?.length) {
       const msg = errors[0]?.message ?? '';
-      if (msg.includes('MEETING_REQUEST_OUTSIDE_ALLOWED_HOURS') || msg.includes('MEETING_TIME_INVALID')) {
+      if (msg.includes('VERIFICATION_REQUIRED')) {
+        toast.error(
+          isAr ? 'يجب التحقق من هويتك أولاً لطلب اجتماع' : 'Identity verification required to request a meeting',
+          { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onNavigate?.('settings:identity') } }
+        );
+      } else if (msg.includes('MEETING_REQUEST_OUTSIDE_ALLOWED_HOURS') || msg.includes('MEETING_TIME_INVALID')) {
         // C4: server-side time window validation error
         const localMsg = isAr
           ? 'الوقت المحدد خارج نطاق أوقات الاجتماعات المسموح بها.'

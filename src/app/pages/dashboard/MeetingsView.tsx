@@ -65,7 +65,7 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
   };
 
   // Admin: fetch all SCHEDULED meetings needing approval
-  const { data: scheduledData, refetch: refetchScheduled } = useQuery(GET_SCHEDULED_MEETINGS, {
+  const { data: scheduledData, refetch: refetchScheduled, error: scheduledError } = useQuery(GET_SCHEDULED_MEETINGS, {
     variables: { limit: 50, offSet: 0 },
     fetchPolicy: 'network-only',
     skip: !userId,
@@ -76,7 +76,7 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
 
   const { data: sentData,     loading: sentLoading,     refetch: refetchSent,     error: sentError     } = useQuery(GET_SENT_MEETINGS,     { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
   const { data: receivedData, loading: receivedLoading, refetch: refetchReceived, error: receivedError } = useQuery(GET_RECEIVED_MEETINGS, { variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', skip: !userId, errorPolicy: 'all' });
-  const queryError = sentError || receivedError;
+  const queryError = sentError || receivedError || scheduledError;
 
   const [updateMeeting]  = useMutation(UPDATE_MEETING,  { errorPolicy: 'all' });
   const [approveMeeting] = useMutation(APPROVE_MEETING, { errorPolicy: 'all' });
@@ -94,10 +94,11 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
 
   const loading = sentLoading || receivedLoading;
 
-  // Effective status: if READY but end time has passed → show COMPLETED
+  // Effective status: if APPROVED but end time has passed → treat as HELD (completed)
+  // Accepts both backend value (APPROVED) and legacy display alias (READY) for safety.
   const effectiveStatus = (m: any): string => {
-    if (m.status === 'READY' && m.requestedEndDate) {
-      if (Date.now() > new Date(m.requestedEndDate).getTime()) return 'COMPLETED';
+    if ((m.status === 'APPROVED' || m.status === 'READY') && m.requestedEndDate) {
+      if (Date.now() > new Date(m.requestedEndDate).getTime()) return 'HELD';
     }
     return m.status;
   };
@@ -106,28 +107,39 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
     ? rawMeetings
     : rawMeetings.filter((m: any) => {
         const es = effectiveStatus(m);
-        if (filter === 'scheduled') return ['PENDING', 'SCHEDULED', 'READY'].includes(es);
-        return ['COMPLETED', 'REJECTED'].includes(es);
+        if (filter === 'scheduled') return ['REQUESTED', 'ACCEPTED', 'APPROVED', 'RESCHEDULED'].includes(es);
+        return ['HELD', 'CANCELED', 'TIMELAPSED', 'REJECTED'].includes(es);
       });
 
   const selected = rawMeetings.find((m: any) => m.id === selectedId);
 
   const statusColor = (s: string) => {
-    if (s === 'READY')      return 'green';
-    if (s === 'SCHEDULED')  return 'blue';
-    if (s === 'PENDING')    return 'yellow';
-    if (s === 'REJECTED')   return 'red';
-    if (s === 'COMPLETED')  return 'gray';
+    if (s === 'APPROVED' || s === 'READY')           return 'green';
+    if (s === 'ACCEPTED' || s === 'RESCHEDULED'
+        || s === 'SCHEDULED')                         return 'blue';
+    if (s === 'REQUESTED' || s === 'PENDING')         return 'yellow';
+    if (s === 'REJECTED'  || s === 'CANCELED')        return 'red';
+    if (s === 'HELD' || s === 'TIMELAPSED'
+        || s === 'COMPLETED')                         return 'gray';
     return 'gray';
   };
 
   const statusLabel = (s: string) => {
     const m: Record<string, string> = {
-      PENDING:   isAr ? 'قيد الانتظار'            : 'Pending Confirmation',
-      SCHEDULED: isAr ? 'بانتظار موافقة الإدارة'  : 'Awaiting Admin Approval',
-      READY:     isAr ? 'مؤكد'                     : 'Confirmed',
-      COMPLETED: isAr ? 'مكتمل'                    : 'Completed',
-      REJECTED:  isAr ? 'مرفوض'                    : 'Rejected',
+      // Backend enum values
+      REQUESTED:   isAr ? 'قيد الانتظار'            : 'Pending Confirmation',
+      ACCEPTED:    isAr ? 'بانتظار موافقة الإدارة'  : 'Awaiting Admin Approval',
+      APPROVED:    isAr ? 'مؤكد'                     : 'Confirmed',
+      HELD:        isAr ? 'مكتمل'                    : 'Completed',
+      CANCELED:    isAr ? 'ملغى'                     : 'Cancelled',
+      RESCHEDULED: isAr ? 'معاد جدولته'              : 'Rescheduled',
+      TIMELAPSED:  isAr ? 'انتهت المهلة'             : 'Timed Out',
+      REJECTED:    isAr ? 'مرفوض'                    : 'Rejected',
+      // Legacy display aliases kept for safety
+      PENDING:     isAr ? 'قيد الانتظار'            : 'Pending Confirmation',
+      SCHEDULED:   isAr ? 'بانتظار موافقة الإدارة'  : 'Awaiting Admin Approval',
+      READY:       isAr ? 'مؤكد'                     : 'Confirmed',
+      COMPLETED:   isAr ? 'مكتمل'                    : 'Completed',
     };
     return m[s] ?? s;
   };
@@ -145,7 +157,8 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
 
   // 24h meeting reminder banners
   const upcomingReminders = rawMeetings.filter((m: any) => {
-    if (effectiveStatus(m) !== 'READY') return false;
+    const es = effectiveStatus(m);
+    if (es !== 'APPROVED' && es !== 'READY') return false;
     const meetingTime = new Date(meetingDateStr(m)).getTime();
     const diff = meetingTime - Date.now();
     return diff > 0 && diff <= 24 * 60 * 60 * 1000;
@@ -363,11 +376,11 @@ export const MeetingsView = ({ onNavigate }: { onNavigate?: (view: string, id?: 
       >
         {selected && (() => {
           const es = effectiveStatus(selected);
-          const isCompleted = es === 'COMPLETED';
-          const isRejected  = es === 'REJECTED';
-          const isReady     = es === 'READY';
-          const isScheduled = es === 'SCHEDULED'; // awaiting admin approval
-          const isPending   = es === 'PENDING';
+          const isCompleted = es === 'HELD'     || es === 'TIMELAPSED' || es === 'COMPLETED';
+          const isRejected  = es === 'REJECTED' || es === 'CANCELED';
+          const isReady     = es === 'APPROVED' || es === 'READY';     // admin approved
+          const isScheduled = es === 'ACCEPTED' || es === 'SCHEDULED'; // awaiting admin approval
+          const isPending   = es === 'REQUESTED'|| es === 'PENDING';
           const canJoin     = isReady && !!selected.meetingLink;
           const canReschedule = (isScheduled || isReady) && !rescheduleMode;
 
