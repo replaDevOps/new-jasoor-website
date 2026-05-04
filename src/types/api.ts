@@ -10,6 +10,7 @@ export interface BusinessListItem {
   id: string;
   businessTitle: string;
   description: string;
+  image?: string;
   revenue: number;
   profit: number;
   price: number;
@@ -37,6 +38,7 @@ export interface BusinessDocument {
 
 export interface BusinessDetail {
   id: string; businessTitle: string; isSupportVerified?: boolean;
+  image?: string;
   reference?: string; district?: string; city?: string; description?: string;
   foundedDate?: string; growthOpportunities?: string; isByTakbeer: boolean;
   isAbleInActive?: boolean; multiple?: number; numberOfEmployees?: string;

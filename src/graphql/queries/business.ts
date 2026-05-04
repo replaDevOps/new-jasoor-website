@@ -31,6 +31,7 @@ export const GET_ALL_BUSINESSES = gql`
         isByTakbeer
         isSaved
         id
+        image
         category {
           name
           arabicName
@@ -71,6 +72,7 @@ export const GET_BUSINESS_BY_CATEGORY = gql`
     ) {
       businesses {
         id
+        image
         businessTitle
         description
         revenue
@@ -104,6 +106,7 @@ export const GET_BUSINESS = gql`
       totalViews
       business {
         id
+        image
         businessTitle
         isSupportVerified
         reference
@@ -181,6 +184,7 @@ export const GET_RANDOM_BUSINESSES = gql`
   query GetRandomBusinesses($userId: ID) {
     getRandomBusinesses(userId: $userId) {
       id
+      image
       category {
         name
         arabicName
@@ -194,6 +198,8 @@ export const GET_RANDOM_BUSINESSES = gql`
       revenue
       profit
       capitalRecovery
+      city
+      district
     }
   }
 `;
@@ -306,16 +312,15 @@ export const GET_BUSINESSES_BY_CITY = gql`
     $city: String!
     $limit: Int
     $offSet: Int
-    $sort: BusinessSortInput
   ) {
     getAllBusinessesByCity(
       city: $city
       limit: $limit
       offSet: $offSet
-      sort: $sort
     ) {
       businesses {
         id
+        image
         businessTitle
         description
         revenue
@@ -325,6 +330,9 @@ export const GET_BUSINESSES_BY_CITY = gql`
         isByTakbeer
         isSaved
         multiple
+        city
+        district
+        reference
         savedBy {
           id
         }
@@ -343,16 +351,15 @@ export const GET_BUSINESSES_BY_DISTRICT = gql`
     $district: String!
     $limit: Int
     $offSet: Int
-    $sort: BusinessSortInput
   ) {
     getAllBusinessesByDistrict(
       district: $district
       limit: $limit
       offSet: $offSet
-      sort: $sort
     ) {
       businesses {
         id
+        image
         businessTitle
         description
         revenue
@@ -362,6 +369,9 @@ export const GET_BUSINESSES_BY_DISTRICT = gql`
         isByTakbeer
         isSaved
         multiple
+        city
+        district
+        reference
         savedBy {
           id
         }
@@ -380,16 +390,15 @@ export const GET_BUSINESSES_BY_PROFIT = gql`
     $profit: [Float]!
     $limit: Int
     $offSet: Int
-    $sort: BusinessSortInput
   ) {
     getAllBusinessesByProfit(
       profit: $profit
       limit: $limit
       offSet: $offSet
-      sort: $sort
     ) {
       businesses {
         id
+        image
         businessTitle
         description
         revenue
@@ -399,6 +408,9 @@ export const GET_BUSINESSES_BY_PROFIT = gql`
         isByTakbeer
         isSaved
         multiple
+        city
+        district
+        reference
         savedBy {
           id
         }
@@ -427,6 +439,7 @@ export const GET_BUSINESSES_BY_REVENUE = gql`
     ) {
       businesses {
         id
+        image
         businessTitle
         description
         revenue
@@ -436,6 +449,9 @@ export const GET_BUSINESSES_BY_REVENUE = gql`
         isByTakbeer
         isSaved
         multiple
+        city
+        district
+        reference
         savedBy {
           id
         }
@@ -465,6 +481,7 @@ export const GET_SUGGESTED_LISTINGS = gql`
   query GetSuggestedListings($businessId: ID!, $limit: Int) {
     getSuggestedListings(businessId: $businessId, limit: $limit) {
       id
+      image
       businessTitle
       description
       price

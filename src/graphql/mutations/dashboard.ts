@@ -43,8 +43,8 @@ export const COUNTER_OFFER = gql`
 `;
 
 export const MARK_NOTIFICATION_AS_READ = gql`
-  mutation MarkNotificationAsRead($userId: ID!) {
-    markNotificationAsRead(id: $userId)
+  mutation MarkNotificationAsRead($id: ID!) {
+    markNotificationAsRead(id: $id)
   }
 `;
 
@@ -114,7 +114,7 @@ export const UPLOAD_DOCUMENT = gql`
 `;
 
 export const SEND_BANK_TO_BUYER = gql`
-  mutation SendBankToBuyer($sendBankToBuyerId: ID) {
+  mutation SendBankToBuyer($sendBankToBuyerId: ID!) {
     sendBankToBuyer(id: $sendBankToBuyerId) {
       id
     }

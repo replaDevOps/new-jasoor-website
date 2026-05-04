@@ -4,6 +4,14 @@
  */
 import { gql } from "@apollo/client";
 
+// ── Commission ────────────────────────────────────────────────────────────────
+
+export const PREVIEW_COMMISSION = gql`
+  query PreviewCommission($price: Float!) {
+    previewCommission(price: $price)
+  }
+`;
+
 // ── User ──────────────────────────────────────────────────────────────────────
 
 export const GET_USER_DETAILS = gql`
@@ -362,7 +370,6 @@ export const GET_RECEIVED_MEETINGS = gql`
           name
         }
         meetingLink
-        notes
         business {
           id
           businessTitle
@@ -427,9 +434,14 @@ export const NEW_NOTIFICATION_SUBSCRIPTION = gql`
     newNotification {
       id
       name
+      nameAr
       message
+      messageAr
       createdAt
       isRead
+      entityType
+      entityId
+      actionType
       user {
         id
         name
@@ -461,6 +473,13 @@ export const GET_BUYER_COMPLETED_DEALS = gql`
         }
         price
         createdAt
+        isDsaBuyer
+        isDsaSeller
+        isDocVedifiedBuyer
+        isDocVedifiedSeller
+        isCommissionVerified
+        isBuyerCompleted
+        isSellerCompleted
       }
     }
   }
@@ -479,9 +498,20 @@ export const GET_SELLER_COMPLETED_DEALS = gql`
         business {
           id
           businessTitle
+          seller {
+            id
+            name
+          }
         }
         price
         createdAt
+        isDsaBuyer
+        isDsaSeller
+        isDocVedifiedBuyer
+        isDocVedifiedSeller
+        isCommissionVerified
+        isBuyerCompleted
+        isSellerCompleted
       }
     }
   }
@@ -529,6 +559,13 @@ export const GET_DEAL = gql`
         price
         status
         commission
+      }
+      documents {
+        id
+        title
+        filePath
+        type
+        createdAt
       }
     }
   }
@@ -697,3 +734,4 @@ export const GET_SCHEDULED_MEETINGS = gql`
     }
   }
 `;
+

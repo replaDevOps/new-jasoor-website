@@ -479,12 +479,16 @@ export const CONTENT = {
             desc: "تمت الموافقة على نشر \"سلسلة مطاعم برجر فاخرة\"",
             time: "منذ يومين"
           }
-        }
+        },
+        label: "آخر الأنشطة",
+        empty: "لا يوجد نشاط بعد"
       },
       accountStatus: {
         title: "حالة الحساب",
         verified: "موثق بالكامل",
         verifiedDesc: "هويتك التجارية موثقة",
+        underReview: "قيد المراجعة",
+        underReviewDesc: "يتم مراجعة حسابك حالياً",
         message: "حسابك جاهز لإجراء الصفقات. تأكد من تحديث بياناتك البنكية لتسهيل عمليات التحويل."
       }
     }
@@ -966,12 +970,16 @@ export const CONTENT = {
             desc: "\"Premium Burger Restaurant Chain\" has been approved and published",
             time: "2 days ago"
           }
-        }
+        },
+        label: "Recent Activity",
+        empty: "No recent activity"
       },
       accountStatus: {
         title: "Account Status",
         verified: "Fully Verified",
         verifiedDesc: "Your business identity is verified",
+        underReview: "Under Review",
+        underReviewDesc: "Your account is being reviewed",
         message: "Your account is ready for transactions. Make sure to update your bank details to facilitate transfers."
       }
     },
