@@ -87,6 +87,10 @@ function AppContent() {
 
   const [view, setView] = useState<ViewType>(getInitialView);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | number | null>(getInitialBusinessId);
+  // Stores where to return after a forced sign-in (e.g. signed-out user clicking Make Offer)
+  const [pendingReturn, setPendingReturn] = useState<{ view: ViewType; id?: string | number } | null>(null);
+  // Intent-routing: when navigating to dashboard with a specific sub-tab target (e.g. settings:identity)
+  const [dashboardDefaultTab, setDashboardDefaultTab] = useState<string | undefined>(undefined);
 
   // BUG-16: Sync URL when view changes
   useEffect(() => {
@@ -123,11 +127,28 @@ function AppContent() {
 
   const handleNavigate = (page: string, id?: string | number) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Intent-route: 'dashboard:settings:identity' → open Dashboard directly on Settings → Identity
+    if (page === 'dashboard:settings:identity') {
+      setDashboardDefaultTab('settings:identity');
+      setPendingReturn(null);
+      setView('dashboard');
+      return;
+    }
+    // Clear dashboard intent for all other navigations
+    setDashboardDefaultTab(undefined);
     if (page === 'details' && id != null) setSelectedBusinessId(id);
     // P2-FIX-BUG2: unauthenticated users trying to list a business are sent to sign-in first
     if (page === 'list-business' && !isLoggedIn) {
+      setPendingReturn({ view: 'list-business' });
       setView('signin');
       return;
+    }
+    // Signed-out user redirected to signin from a listing action — capture return destination
+    if (page === 'signin' && view === 'details' && selectedBusinessId) {
+      setPendingReturn({ view: 'details', id: selectedBusinessId });
+    } else if (page !== 'signin') {
+      // Clear pending return when navigating to any page other than signin
+      setPendingReturn(null);
     }
     // BUG-15: any unknown page now lands on not-found instead of silently showing home
     const target = VIEW_TO_PATH[page] ? (page as ViewType) : 'not-found';
@@ -186,19 +207,20 @@ function AppContent() {
           {view === 'articles' && <Articles onNavigate={handleNavigate} />}
 
           {view === 'signup' && <SignUp onNavigate={handleNavigate} />}
-          {view === 'signin' && <SignIn onNavigate={handleNavigate} />}
+          {view === 'signin' && <SignIn onNavigate={handleNavigate} returnTo={pendingReturn ?? undefined} />}
           {view === 'forgot-password' && <ForgotPassword onNavigate={handleNavigate} />}
 
           {view === 'dashboard' && (
             isLoggedIn
               ? <Dashboard
                   onNavigate={handleNavigate}
+                  defaultTab={dashboardDefaultTab}
                   onEditListing={(id: string | number) => {
                     setSelectedBusinessId(id);
                     setView('list-business');
                   }}
                 />
-              : <SignIn onNavigate={handleNavigate} />
+              : <SignIn onNavigate={handleNavigate} returnTo={pendingReturn ?? undefined} />
           )}
         </Suspense>
 
