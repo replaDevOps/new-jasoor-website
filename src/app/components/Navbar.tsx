@@ -23,7 +23,7 @@ export const Navbar = ({ onNavigate }: NavbarProps) => {
   };
 
   const navLinks = [
-    { name: content.nav.browse,   action: () => handleNavClick('browse'),   hasDropdown: true },
+    { name: content.nav.browse,   action: () => handleNavClick('browse') },
     { name: content.nav.about,    action: () => handleNavClick('about') },
     { name: content.nav.articles, action: () => handleNavClick('articles') },
     { name: content.nav.contact,  action: () => handleNavClick('support') },
