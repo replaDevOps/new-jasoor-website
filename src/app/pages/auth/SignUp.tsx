@@ -278,9 +278,9 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
 
             <div className="space-y-5 md:space-y-6">
               {/* Nafath Button - Text Only, Teal Background */}
-              <button className="w-full bg-[#39A997] text-white font-bold py-3.5 rounded-xl hover:bg-[#2D8D7E] transition-all duration-300 flex items-center justify-center gap-3 relative overflow-hidden group shadow-md hover:shadow-lg">
+              <button className="w-full bg-[#39A997] text-white font-bold pt-6 pb-3.5 rounded-xl hover:bg-[#2D8D7E] transition-all duration-300 flex items-center justify-center gap-3 relative overflow-hidden group shadow-md hover:shadow-lg">
                 <span className="text-lg">{content.auth.signUp.nafath}</span>
-                <div className={`absolute top-0 bg-[#FBAA1A] text-white text-[10px] font-bold px-3 py-1 shadow-sm ${direction === 'rtl' ? 'right-0 rounded-bl-xl' : 'left-0 rounded-br-xl'}`}>
+                <div className={`absolute top-0 bg-[#FBAA1A] text-white text-xs font-bold px-3 py-1 shadow-sm ${direction === 'rtl' ? 'right-0 rounded-bl-lg' : 'left-0 rounded-br-lg'}`}>
                   {content.auth.signUp.soon}
                 </div>
               </button>
@@ -312,24 +312,28 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1.5 md:mb-2">{content.auth.signUp.phone}</label>
+                  {/* Flex-wrapper compound input — immune to RTL overlap; no absolute positioning + dynamic padding */}
                   <div className="relative" ref={countryPickerRef}>
-                    {/* Country code button */}
-                    <button
-                      type="button"
-                      onClick={() => setShowCountryPicker(v => !v)}
-                      className="absolute top-1/2 -translate-y-1/2 left-3 z-10 flex items-center gap-1 bg-gray-100 hover:bg-gray-200 rounded-lg px-2 py-1 transition-colors"
-                    >
-                      <span className="text-base leading-none">{COUNTRIES.find(c => c.code === countryCode)?.flag}</span>
-                      <span className="text-xs font-bold text-gray-700 dir-ltr">{countryCode}</span>
-                      <ChevronDown size={12} className="text-gray-500"/>
-                    </button>
-                    <input
-                      type="tel"
-                      className={`w-full bg-gray-50 border rounded-xl py-3 md:py-3.5 focus:outline-none transition-all dir-ltr text-sm md:text-base pr-4 ${errors.phone ? 'border-red-400 focus:border-red-400 focus:ring-4 focus:ring-red-400/10' : 'border-gray-200 focus:border-[#008A66] focus:ring-4 focus:ring-[#008A66]/10'}`}
-                      style={{ paddingLeft: `${countryCode.length * 8 + 56}px` }}
-                      value={phone} onChange={(e) => { setPhone(e.target.value); clearError("phone"); }}
-                      placeholder="5XXXXXXXX"
-                    />
+                    <div className={`flex items-stretch bg-gray-50 border rounded-xl overflow-hidden transition-all focus-within:ring-4 ${errors.phone ? 'border-red-400 focus-within:border-red-400 focus-within:ring-red-400/10' : 'border-gray-200 focus-within:border-[#008A66] focus-within:ring-[#008A66]/10'}`}>
+                      {/* Country selector — always LTR, left side */}
+                      <button
+                        type="button"
+                        onClick={() => setShowCountryPicker(v => !v)}
+                        className="flex-shrink-0 flex items-center gap-1 bg-gray-100 hover:bg-gray-200 transition-colors px-3 border-r border-gray-200"
+                        style={{ direction: 'ltr' }}
+                      >
+                        <span className="text-base leading-none">{COUNTRIES.find(c => c.code === countryCode)?.flag}</span>
+                        <span className="text-xs font-bold text-gray-700">{countryCode}</span>
+                        <ChevronDown size={12} className="text-gray-500 ml-0.5"/>
+                      </button>
+                      {/* Digits input — always LTR regardless of page direction */}
+                      <input
+                        type="tel"
+                        className="flex-1 bg-transparent py-3 md:py-3.5 px-3 focus:outline-none dir-ltr text-sm md:text-base"
+                        value={phone} onChange={(e) => { setPhone(e.target.value); clearError("phone"); }}
+                        placeholder="5XXXXXXXX"
+                      />
+                    </div>
                     {/* Dropdown */}
                     {showCountryPicker && (
                       <div className="absolute top-full left-0 mt-1 z-50 bg-white border border-gray-200 rounded-2xl shadow-xl w-64 max-h-64 overflow-y-auto">

@@ -125,10 +125,10 @@ export const SignIn = ({
         <div className="space-y-5 md:space-y-6">
           {/* Nafath */}
           <button
-            className="w-full bg-[#39A997] text-white font-bold py-3.5 rounded-xl hover:bg-[#2D8D7E] transition-all flex items-center justify-center gap-3 relative overflow-hidden shadow-md"
+            className="w-full bg-[#39A997] text-white font-bold pt-6 pb-3.5 rounded-xl hover:bg-[#2D8D7E] transition-all flex items-center justify-center gap-3 relative overflow-hidden shadow-md"
           >
             <span className="text-lg">{content.auth.signIn.nafath}</span>
-            <div className={`absolute top-0 bg-[#FBAA1A] text-white text-[10px] font-bold px-3 py-1 shadow-sm ${direction === 'rtl' ? 'right-0 rounded-bl-xl' : 'left-0 rounded-br-xl'}`}>
+            <div className={`absolute top-0 bg-[#FBAA1A] text-white text-xs font-bold px-3 py-1 shadow-sm ${direction === 'rtl' ? 'right-0 rounded-bl-lg' : 'left-0 rounded-br-lg'}`}>
               {content.auth.signIn.soon}
             </div>
           </button>
@@ -163,7 +163,7 @@ export const SignIn = ({
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setErrors(ev => ({...ev, password: undefined})); }}
-                className={`${inputBase} ${errors.password ? inputErr : inputOk}`}
+                className={`${inputBase} ${errors.password ? inputErr : inputOk} ${direction === 'rtl' ? 'pl-11' : 'pr-11'}`}
                 placeholder={content.auth.signIn.passwordPlaceholder}
               />
               <button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Hide password' : 'Show password'} className={`absolute top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#008A66] transition-colors ${direction === 'rtl' ? 'left-4' : 'right-4'}`}>
