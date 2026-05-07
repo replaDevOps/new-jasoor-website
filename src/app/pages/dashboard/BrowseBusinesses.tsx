@@ -10,11 +10,21 @@ import type { BusinessListItem } from '../../types/api';
 // R-05 FIX: real categories from API instead of local string IDs
 import { useQuery, useMutation } from '@apollo/client';
 import { CREATE_SAVE_BUSINESS } from '../../../graphql/mutations/dashboard';
-import { GET_CATEGORIES } from '../../graphql/queries/business';
+import { GET_CATEGORIES } from '../../../graphql/queries/business';
+
+// Format a number using the correct locale — Arabic-Indic digits in AR, Western in EN
+const fmtNum = (n: number | string, isAr: boolean): string => {
+  const num = Number(n);
+  if (isNaN(num)) return String(n);
+  return isAr
+    ? num.toLocaleString('ar-SA-u-ca-gregory')
+    : num.toLocaleString('en-US');
+};
 
 export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
   const [saveBusiness] = useMutation(CREATE_SAVE_BUSINESS, { errorPolicy: 'all' });
-  const { direction, language, content , isLoggedIn } = useApp();
+  const { direction, language, content, isLoggedIn } = useApp();
+  const isAr = language === 'ar';
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isDesktopFilterOpen, setIsDesktopFilterOpen] = useState(false);
 
@@ -38,26 +48,38 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
   } = useListings();
 
   // Local UI state for filter inputs (committed to hook on Apply)
-  const [selectedRegion, setSelectedRegion] = useState<string>('all');
+  const [selectedRegion, setSelectedRegion] = useState<string>('all'); // → backend district
+  const [selectedCity,   setSelectedCity]   = useState<string>('all'); // → backend city (FIX: was colliding with selectedRegion)
+  const [districtInput, setDistrictInput]   = useState<string>('');
   const [priceMinInput, setPriceMinInput]   = useState<string>('');
   const [priceMaxInput, setPriceMaxInput]   = useState<string>('');
   const [revenueMinInput, setRevenueMinInput] = useState<string>('');
+  const [profitMinInput, setProfitMinInput] = useState<string>('');
+  const [profitMaxInput, setProfitMaxInput] = useState<string>('');
 
   const handleApplyFilters = () => {
+    const district = districtInput.trim() || (selectedRegion !== 'all' ? selectedRegion : '');
     applyFilters({
-      city: selectedRegion !== 'all' ? selectedRegion : null,
+      district: district || null,
+      city:     selectedCity !== 'all' ? selectedCity : null,
       minPrice: priceMinInput ? Number(priceMinInput) : null,
       maxPrice: priceMaxInput ? Number(priceMaxInput) : null,
       minRevenue: revenueMinInput ? Number(revenueMinInput) : null,
+      minProfit: profitMinInput ? Number(profitMinInput) : null,
+      maxProfit: profitMaxInput ? Number(profitMaxInput) : null,
     });
     setIsFilterOpen(false);
   };
 
   const handleResetFilters = () => {
     setSelectedRegion('all');
+    setSelectedCity('all');
+    setDistrictInput('');
     setPriceMinInput('');
     setPriceMaxInput('');
     setRevenueMinInput('');
+    setProfitMinInput('');
+    setProfitMaxInput('');
     resetFilters();
   };
 
@@ -76,22 +98,24 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
     return {
       title: isAr ? 'اعثر على الشركة المناسبة لك' : 'Find the Right Business',
       subtitle: isAr ? 'تصفح العديد من الفرص الاستثمارية الواعدة في مختلف القطاعات والمناطق' : 'Browse promising investment opportunities across various sectors and regions',
-      
+
       // Filters
       filterTitle: isAr ? 'تصفية النتائج' : 'Filter Results',
       showFilter: isAr ? 'إظهار الفلتر' : 'Show Filter',
       hideFilter: isAr ? 'إخفاء الفلتر' : 'Hide Filter',
       apply: isAr ? 'تطبيق الفلاتر' : 'Apply Filters',
-      
+
       region: isAr ? 'المنطقة' : 'Region',
       city: isAr ? 'المدينة' : 'City',
+      district: isAr ? 'الحي' : 'District',
       priceRange: isAr ? 'نطاق السعر (ر.س)' : 'Price Range (SAR)',
-      revenue: isAr ? 'الإيرادات الشهرية' : 'Monthly Revenue',
-      
+      revenue: isAr ? 'الإيرادات السنوية' : 'Annual Revenue',   // FIX: was "Monthly Revenue"
+      profitRange: isAr ? 'الأرباح السنوية' : 'Annual Profit',
+
       moreThan: isAr ? 'أكثر من' : 'More than',
       lessThan: isAr ? 'أقل من' : 'Less than',
       all: isAr ? 'الكل' : 'All',
-      
+
       // Regions & Cities
       riyadh: isAr ? 'الرياض' : 'Riyadh',
       makkah: isAr ? 'مكة المكرمة' : 'Makkah',
@@ -100,14 +124,15 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
       dammam: isAr ? 'الدمام' : 'Dammam',
       khobar: isAr ? 'الخبر' : 'Khobar',
       qassim: isAr ? 'القصيم' : 'Qassim',
-      
+      districtPlaceholder: isAr ? 'مثال: العليا، التحلية، الشاطئ' : 'e.g. Olaya, Tahlia, Corniche',
+
       // Controls
       sortBy: isAr ? 'ترتيب حسب:' : 'Sort by:',
       newest: isAr ? 'الأحدث' : 'Newest',
       highestPrice: isAr ? 'الأعلى سعراً' : 'Highest Price',
       lowestPrice: isAr ? 'الأقل سعراً' : 'Lowest Price',
       rows: isAr ? 'عدد الصفوف:' : 'Rows:',
-      
+
       // Card
       details: isAr ? 'التفاصيل' : 'Details',
       viewDetails: isAr ? 'عرض التفاصيل' : 'View Details',
@@ -117,7 +142,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
       recoveryLabel: isAr ? 'الاسترداد' : 'Recovery',
       month: isAr ? 'شهر' : 'mo',
       askingPrice: isAr ? 'السعر المطلوب' : 'Asking Price',
-      
+
       // Badges
       acquisition: isAr ? 'استحواذ' : 'Acquisition',
       taqbeel: isAr ? 'تقبيل' : 'Taqbeel',
@@ -158,9 +183,8 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
   const renderBadge = (type: string) => {
     const isAcquisition = type === 'acquisition';
     const text = isAcquisition ? t.acquisition : t.taqbeel;
-    // White background for both, distinct text color if needed, or just dark text
-    const colorClass = "bg-white/95 text-[#111827] border-gray-100/50 backdrop-blur-md"; 
-    
+    const colorClass = "bg-white/95 text-[#111827] border-gray-100/50 backdrop-blur-md";
+
     return (
       <div className={cn("px-3 py-1.5 rounded-lg text-[11px] font-bold shadow-sm border", colorClass)}>
          {text}
@@ -191,23 +215,37 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
         </div>
       </div>
 
-      {/* City Filter */}
+      {/* City Filter — FIX: was bound to selectedRegion state (collision) */}
       <div>
         <h4 className="text-sm font-bold text-gray-900 mb-3">{t.city}</h4>
         <div className="relative">
             <select
-                value={selectedRegion}
-                onChange={(e) => setSelectedRegion(e.target.value)}
+                value={selectedCity}
+                onChange={(e) => setSelectedCity(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#008A66] transition-colors appearance-none text-gray-700"
               >
                 <option value="all">{t.all}</option>
                 <option value="riyadh">{t.riyadh}</option>
                 <option value="jeddah">{t.jeddah}</option>
                 <option value="khobar">{t.khobar}</option>
+                <option value="dammam">{t.dammam}</option>
+                <option value="makkah">{t.makkah}</option>
                 <option value="qassim">{t.qassim}</option>
               </select>
             <ChevronDown className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none", direction === 'rtl' ? "left-3" : "right-3")} />
         </div>
+      </div>
+
+      {/* District Filter — FIX: was missing entirely */}
+      <div>
+        <h4 className="text-sm font-bold text-gray-900 mb-3">{t.district}</h4>
+        <input
+          type="text"
+          value={districtInput}
+          onChange={(e) => setDistrictInput(e.target.value)}
+          placeholder={t.districtPlaceholder}
+          className={cn("w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#008A66] placeholder:text-gray-300", direction === 'rtl' ? 'text-right' : 'text-left')}
+        />
       </div>
 
       {/* Price Range */}
@@ -253,7 +291,34 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
           </div>
         </div>
       </div>
-      
+
+      {/* Profit Range — FIX: was missing entirely */}
+      <div>
+        <h4 className="text-sm font-bold text-gray-900 mb-4">{t.profitRange}</h4>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">{t.moreThan}</label>
+            <input
+              type="number"
+              value={profitMinInput}
+              onChange={(e) => setProfitMinInput(e.target.value)}
+              placeholder="0"
+              className={cn("w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#008A66] placeholder:text-gray-300 dir-ltr", direction === 'rtl' ? 'text-right' : 'text-left')}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">{t.lessThan}</label>
+            <input
+              type="number"
+              value={profitMaxInput}
+              onChange={(e) => setProfitMaxInput(e.target.value)}
+              placeholder="5,000,000"
+              className={cn("w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#008A66] placeholder:text-gray-300 dir-ltr", direction === 'rtl' ? 'text-right' : 'text-left')}
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="pt-2">
          <button
             onClick={handleApplyFilters}
@@ -271,7 +336,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
       </div>
     </div>
   );
-  
+
   return (
     <div className="min-h-screen bg-[#eceff2] pb-20" dir={direction}>
       {/* Header Section */}
@@ -288,7 +353,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
       </div>
 
       <div className="container mx-auto px-4 -mt-16 relative z-20">
-        
+
         {/* Categories Grid - Squares, Text Only */}
         <div className="bg-white rounded-[24px] p-6 shadow-xl border border-gray-100 mb-8">
           <div className="grid grid-cols-4 md:grid-cols-8 gap-4">
@@ -298,8 +363,8 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                 onClick={() => selectCategory(selectedCategoryId === cat.id ? null : cat.id, selectedCategoryId === cat.id ? null : (cat as any).englishName ?? cat.name)}
                 className={cn(
                   "aspect-square flex flex-col items-center justify-center p-2 rounded-xl transition-all duration-200 group border",
-                  selectedCategoryId === cat.id 
-                    ? "bg-[#008A66] text-white border-[#008A66] shadow-md scale-105" 
+                  selectedCategoryId === cat.id
+                    ? "bg-[#008A66] text-white border-[#008A66] shadow-md scale-105"
                     : "bg-gray-50 text-gray-700 border-gray-100 hover:border-[#008A66] hover:text-[#008A66]"
                 )}
               >
@@ -310,11 +375,11 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
         </div>
 
         <div className="flex flex-col lg:flex-row gap-8 items-start">
-          
+
           {/* Desktop Sidebar Filters */}
           <AnimatePresence>
             {isDesktopFilterOpen && (
-              <motion.div 
+              <motion.div
                 initial={{ opacity: 0, width: 0 }}
                 animate={{ opacity: 1, width: '25%' }}
                 exit={{ opacity: 0, width: 0 }}
@@ -341,16 +406,16 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
             {isFilterOpen && (
               <>
                  {/* Backdrop */}
-                 <motion.div 
+                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     onClick={() => setIsFilterOpen(false)}
                     className="fixed inset-0 bg-black/50 z-50 lg:hidden backdrop-blur-sm"
                  />
-                 
+
                  {/* Sheet */}
-                 <motion.div 
+                 <motion.div
                     initial={{ y: "100%" }}
                     animate={{ y: 0 }}
                     exit={{ y: "100%" }}
@@ -378,12 +443,12 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
 
           {/* Listings Area */}
           <motion.div layout className="flex-1 w-full">
-            
+
             {/* Controls Bar */}
             <div className="flex flex-wrap items-center justify-between gap-4 mb-6 bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
-              
+
               {/* Filter Buttons (Mobile vs Desktop) */}
-              <button 
+              <button
                 onClick={() => setIsFilterOpen(true)}
                 className="lg:hidden flex items-center gap-2 px-4 py-2 bg-[#008A66] text-white rounded-xl font-bold text-sm shadow-md hover:bg-[#007053] transition-all"
               >
@@ -391,14 +456,14 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                 <span>{t.filterTitle}</span>
               </button>
 
-              <button 
+              <button
                 onClick={() => setIsDesktopFilterOpen(!isDesktopFilterOpen)}
                 className="hidden lg:flex items-center gap-2 px-4 py-2 rounded-lg font-bold text-sm transition-all bg-gray-100 text-gray-600 hover:bg-gray-200"
               >
                 <SlidersHorizontal size={18} />
                 <span>{isDesktopFilterOpen ? t.hideFilter : t.showFilter}</span>
               </button>
-              
+
               <div className="flex items-center gap-3 ml-auto">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-500 font-medium hidden sm:inline">{t.sortBy}</span>
@@ -420,9 +485,9 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
               "grid gap-6 transition-all items-stretch",
               isDesktopFilterOpen ? "grid-cols-1 lg:grid-cols-2 xl:grid-cols-3" : "grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
             )}>
-              {/* BUG-09 FIX: show loading skeletons while API fetches */}
+              {/* BUG-09 FIX: show loading skeletons while API fetches — FIX: was 8, matched PAGE_SIZE=12 */}
               {loading ? (
-                Array.from({ length: 8 }).map((_, i) => (
+                Array.from({ length: 12 }).map((_, i) => (
                   <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden animate-pulse">
                     <div className="h-44 bg-gray-200" />
                     <div className="p-4 space-y-3">
@@ -453,10 +518,10 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                 <Card
                   key={listing.id}
                   variant="listing"
-                  title={language === 'ar' ? listing.businessTitle : listing.businessTitle}
+                  title={listing.businessTitle}
                   description={listing.description}
                   image={listing.image}
-                  number={String(listing.price)}
+                  number={fmtNum(listing.price, isAr)}   // FIX: was String(listing.price)
                   isSaved={listing.isSaved ?? false}
                   badge={renderBadge(listing.isByTakbeer ? 'taqbeel' : 'acquisition')}
                   labels={{
@@ -471,9 +536,9 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                   listingData={{
                     location: listing.city || listing.district || '',
                     category: language === 'ar' ? listing.category?.arabicName : listing.category?.name,
-                    revenue: listing.revenue ? String(listing.revenue) + ' ' + t.sar : '-',
-                    profit: listing.profit ? String(listing.profit) + ' ' + t.sar : '-',
-                    recovery: listing.capitalRecovery ? String(listing.capitalRecovery) + ' ' + t.month : '-',
+                    revenue: listing.revenue ? fmtNum(listing.revenue, isAr) + ' ' + t.sar : '-',     // FIX: was String()
+                    profit: listing.profit ? fmtNum(listing.profit, isAr) + ' ' + t.sar : '-',         // FIX: was String()
+                    recovery: listing.capitalRecovery ? fmtNum(listing.capitalRecovery, isAr) + ' ' + t.month : '-', // FIX: was String()
                     refNumber: listing.reference ? `#${listing.reference}` : ''
                   }}
                   onClick={() => onNavigate?.('details', listing.id)}

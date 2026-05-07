@@ -46,6 +46,8 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
 
   // BUG-18 FIX: Region dropdown had no state — selected value was never captured
   const [selectedRegion, setSelectedRegion] = useState<string>('');
+  // City free-text — separate from region/district
+  const [selectedCity, setSelectedCity] = useState<string>('');
 
   // Country code picker
   const [countryCode, setCountryCode]         = useState('+966');
@@ -154,6 +156,7 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
             password,
             // BUG-18 FIX: region now captured and sent to API as district (backend field name)
             district: selectedRegion || undefined,
+            city: selectedCity || undefined,
           }
         }
       });
@@ -368,6 +371,20 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
                     </div>
                   </div>
                   {errors.confirmPassword && <p className="text-red-500 text-xs mt-1.5 font-medium">{errors.confirmPassword}</p>}
+                </div>
+                {/* City — separate from Region/district, spans full width on desktop */}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5 md:mb-2">
+                    {content.auth.signUp.city}
+                    <span className="text-gray-400 font-normal text-xs ms-1">({isAr ? 'اختياري' : 'Optional'})</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={selectedCity}
+                    onChange={(e) => setSelectedCity(e.target.value)}
+                    placeholder={content.auth.signUp.cityPlaceholder}
+                    className={`w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 md:py-3.5 focus:outline-none focus:border-[#008A66] focus:ring-4 focus:ring-[#008A66]/10 transition-all text-sm md:text-base ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
+                  />
                 </div>
               </div>
 

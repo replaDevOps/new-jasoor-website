@@ -20,11 +20,6 @@
     }
   },
   "include": ["src"],
-  "exclude": [
-    "node_modules",
-    "src/graphql/resolvers",
-    "src/graphql/schema",
-    "src/graphql/typeDefs.ts"
-  ],
+  "exclude": ["node_modules"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

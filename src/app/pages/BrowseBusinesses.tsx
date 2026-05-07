@@ -26,6 +26,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
   const isAr = language === 'ar';
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isDesktopFilterOpen, setIsDesktopFilterOpen] = useState(false);
+  const [saveBusiness] = useMutation(CREATE_SAVE_BUSINESS, { errorPolicy: 'all' });
 
   // BUG-09 FIX: all filter/sort/pagination state now lives in useListings hook
   // which calls the real GraphQL API — previously used hardcoded mock data
@@ -53,6 +54,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
   const [priceMinInput, setPriceMinInput]   = useState<string>('');
   const [priceMaxInput, setPriceMaxInput]   = useState<string>('');
   const [revenueMinInput, setRevenueMinInput] = useState<string>('');
+  const [revenueMaxInput, setRevenueMaxInput] = useState<string>('');
   const [profitMinInput, setProfitMinInput] = useState<string>('');
   const [profitMaxInput, setProfitMaxInput] = useState<string>('');
 
@@ -64,6 +66,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
       minPrice: priceMinInput ? Number(priceMinInput) : null,
       maxPrice: priceMaxInput ? Number(priceMaxInput) : null,
       minRevenue: revenueMinInput ? Number(revenueMinInput) : null,
+      maxRevenue: revenueMaxInput ? Number(revenueMaxInput) : null,
       minProfit: profitMinInput ? Number(profitMinInput) : null,
       maxProfit: profitMaxInput ? Number(profitMaxInput) : null,
     });
@@ -77,6 +80,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
     setPriceMinInput('');
     setPriceMaxInput('');
     setRevenueMinInput('');
+    setRevenueMaxInput('');
     setProfitMinInput('');
     setProfitMaxInput('');
     resetFilters();
@@ -289,6 +293,16 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                 className={cn("w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#008A66] placeholder:text-gray-300 dir-ltr", direction === 'rtl' ? 'text-right' : 'text-left')}
               />
           </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">{t.lessThan}</label>
+            <input
+                type="number"
+                value={revenueMaxInput}
+                onChange={(e) => setRevenueMaxInput(e.target.value)}
+                placeholder="10,000,000"
+                className={cn("w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#008A66] placeholder:text-gray-300 dir-ltr", direction === 'rtl' ? 'text-right' : 'text-left')}
+              />
+          </div>
         </div>
       </div>
 
@@ -487,7 +501,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
             )}>
               {/* BUG-09 FIX: show loading skeletons while API fetches */}
               {loading ? (
-                Array.from({ length: 8 }).map((_, i) => (
+                Array.from({ length: 12 }).map((_, i) => (
                   <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden animate-pulse">
                     <div className="h-44 bg-gray-200" />
                     <div className="p-4 space-y-3">
