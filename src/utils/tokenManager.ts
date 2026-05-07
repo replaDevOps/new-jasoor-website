@@ -39,7 +39,7 @@ const TOKEN_CONFIG = {
 // ─── Encryption ───────────────────────────────────────────────────────────────
 
 // ─── Encryption key resolution ───────────────────────────────────────────────
-// Production builds MUST have VITE_ENCRYPTION_KEY set in Vercel env vars.
+// Production builds MUST have VITE_ENCRYPTION_KEY set in the deployment env.
 // In development we fall back to a hardcoded key so the dev server starts.
 // NOTE: Rotating the key logs out all current users — coordinate a release window.
 const _envKey: string | undefined = (import.meta as any).env?.VITE_ENCRYPTION_KEY;
@@ -50,7 +50,7 @@ if (!_envKey) {
     // publicly-known string, which is a security breach.
     throw new Error(
       '[tokenManager] VITE_ENCRYPTION_KEY is not set in the production environment. ' +
-      'Add it to Vercel environment variables and redeploy.'
+      'Add it to the frontend deployment environment and redeploy.'
     );
   } else {
     console.warn(

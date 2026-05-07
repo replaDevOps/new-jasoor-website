@@ -110,31 +110,3 @@ export const RESET_PASSWORD_WITH_TOKEN = gql`
     }
   }
 `;
-
-export const REQUEST_LOGIN_OTP = gql`
-  mutation RequestLoginOTP($email: String!, $password: String!) {
-    requestLoginOTP(email: $email, password: $password) {
-      success
-      message
-      email
-    }
-  }
-`;
-
-export const VERIFY_LOGIN_OTP = gql`
-  mutation VerifyLoginOTP($email: String!, $otp: String!) {
-    verifyLoginOTP(email: $email, otp: $otp) {
-      token
-      refreshToken
-      user {
-        id
-        name
-        email
-        phone
-        status
-        role { id name }
-        profileImage
-      }
-    }
-  }
-`;

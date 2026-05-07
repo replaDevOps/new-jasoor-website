@@ -1723,7 +1723,7 @@ const AlertsView = ({ onNavigate, onTabChange, onSettingsIdentity }: {
 
   // P6-FIX R-04: real notifications
   const { data, loading, error: notifError, refetch } = useQuery(GET_NOTIFICATIONS, {
-    variables: { limit: 50, offSet: 0 },
+    variables: { userId: String(userId), limit: 50, offSet: 0 },
     skip: !userId,
     fetchPolicy: 'network-only',
     errorPolicy: 'all',

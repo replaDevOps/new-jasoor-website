@@ -173,8 +173,8 @@ export const ListingsView = ({
                           {b.viewCount != null && (
                             <span className="flex items-center gap-1"><Eye size={11} />{b.viewCount}</span>
                           )}
-                          {b.saveCount != null && (
-                            <span className="flex items-center gap-1"><Heart size={11} />{b.saveCount}</span>
+                          {b.savedCount != null && (
+                            <span className="flex items-center gap-1"><Heart size={11} />{b.savedCount}</span>
                           )}
                           {b.offerCount != null && (
                             <span className="flex items-center gap-1"><MessageCircle size={11} />{b.offerCount}</span>
