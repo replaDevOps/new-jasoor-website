@@ -49,17 +49,23 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
   // Local UI state for filter inputs (committed to hook on Apply)
   const [selectedRegion, setSelectedRegion] = useState<string>('all'); // → backend district
   const [selectedCity,   setSelectedCity]   = useState<string>('all'); // → backend city
+  const [districtInput, setDistrictInput] = useState<string>('');
   const [priceMinInput, setPriceMinInput]   = useState<string>('');
   const [priceMaxInput, setPriceMaxInput]   = useState<string>('');
   const [revenueMinInput, setRevenueMinInput] = useState<string>('');
+  const [profitMinInput, setProfitMinInput] = useState<string>('');
+  const [profitMaxInput, setProfitMaxInput] = useState<string>('');
 
   const handleApplyFilters = () => {
+    const district = districtInput.trim() || (selectedRegion !== 'all' ? selectedRegion : '');
     applyFilters({
-      district: selectedRegion !== 'all' ? selectedRegion : null,
+      district: district || null,
       city:     selectedCity   !== 'all' ? selectedCity   : null,
       minPrice: priceMinInput ? Number(priceMinInput) : null,
       maxPrice: priceMaxInput ? Number(priceMaxInput) : null,
       minRevenue: revenueMinInput ? Number(revenueMinInput) : null,
+      minProfit: profitMinInput ? Number(profitMinInput) : null,
+      maxProfit: profitMaxInput ? Number(profitMaxInput) : null,
     });
     setIsFilterOpen(false);
   };
@@ -67,9 +73,12 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
   const handleResetFilters = () => {
     setSelectedRegion('all');
     setSelectedCity('all');
+    setDistrictInput('');
     setPriceMinInput('');
     setPriceMaxInput('');
     setRevenueMinInput('');
+    setProfitMinInput('');
+    setProfitMaxInput('');
     resetFilters();
   };
 
@@ -97,8 +106,10 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
       
       region: isAr ? 'المنطقة' : 'Region',
       city: isAr ? 'المدينة' : 'City',
+      district: isAr ? 'الحي' : 'District',
       priceRange: isAr ? 'نطاق السعر (ر.س)' : 'Price Range (SAR)',
       revenue: isAr ? 'الإيرادات السنوية' : 'Annual Revenue',
+      profitRange: isAr ? 'الأرباح السنوية' : 'Annual Profit',
       
       moreThan: isAr ? 'أكثر من' : 'More than',
       lessThan: isAr ? 'أقل من' : 'Less than',
@@ -112,6 +123,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
       dammam: isAr ? 'الدمام' : 'Dammam',
       khobar: isAr ? 'الخبر' : 'Khobar',
       qassim: isAr ? 'القصيم' : 'Qassim',
+      districtPlaceholder: isAr ? 'مثال: العليا، التحلية، الشاطئ' : 'e.g. Olaya, Tahlia, Corniche',
       
       // Controls
       sortBy: isAr ? 'ترتيب حسب:' : 'Sort by:',
@@ -224,6 +236,18 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
         </div>
       </div>
 
+      {/* District Filter */}
+      <div>
+        <h4 className="text-sm font-bold text-gray-900 mb-3">{t.district}</h4>
+        <input
+          type="text"
+          value={districtInput}
+          onChange={(e) => setDistrictInput(e.target.value)}
+          placeholder={t.districtPlaceholder}
+          className={cn("w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#008A66] placeholder:text-gray-300", direction === 'rtl' ? 'text-right' : 'text-left')}
+        />
+      </div>
+
       {/* Price Range */}
       <div>
         <h4 className="text-sm font-bold text-gray-900 mb-4">{t.priceRange}</h4>
@@ -264,6 +288,33 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                 placeholder="0"
                 className={cn("w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#008A66] placeholder:text-gray-300 dir-ltr", direction === 'rtl' ? 'text-right' : 'text-left')}
               />
+          </div>
+        </div>
+      </div>
+
+      {/* Profit Range */}
+      <div>
+        <h4 className="text-sm font-bold text-gray-900 mb-4">{t.profitRange}</h4>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">{t.moreThan}</label>
+            <input
+              type="number"
+              value={profitMinInput}
+              onChange={(e) => setProfitMinInput(e.target.value)}
+              placeholder="0"
+              className={cn("w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#008A66] placeholder:text-gray-300 dir-ltr", direction === 'rtl' ? 'text-right' : 'text-left')}
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500 mb-1 block">{t.lessThan}</label>
+            <input
+              type="number"
+              value={profitMaxInput}
+              onChange={(e) => setProfitMaxInput(e.target.value)}
+              placeholder="5,000,000"
+              className={cn("w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-[#008A66] placeholder:text-gray-300 dir-ltr", direction === 'rtl' ? 'text-right' : 'text-left')}
+            />
           </div>
         </div>
       </div>
