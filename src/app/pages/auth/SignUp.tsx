@@ -278,9 +278,9 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
 
             <div className="space-y-5 md:space-y-6">
               {/* Nafath Button - Text Only, Teal Background */}
-              <button className="w-full bg-[#39A997] text-white font-bold pt-6 pb-3.5 rounded-xl hover:bg-[#2D8D7E] transition-all duration-300 flex items-center justify-center gap-3 relative overflow-hidden group shadow-md hover:shadow-lg">
+              <button className="w-full bg-[#39A997] text-white font-bold py-3.5 rounded-xl hover:bg-[#2D8D7E] transition-all duration-300 flex items-center justify-center gap-3 relative group shadow-md hover:shadow-lg">
                 <span className="text-lg">{content.auth.signUp.nafath}</span>
-                <div className={`absolute top-0 bg-[#FBAA1A] text-white text-xs font-bold px-3 py-1 shadow-sm ${direction === 'rtl' ? 'right-0 rounded-bl-lg' : 'left-0 rounded-br-lg'}`}>
+                <div className={`absolute top-2 bg-[#FBAA1A] text-white text-[11px] leading-none font-bold px-2.5 py-1 rounded-full shadow-sm ${direction === 'rtl' ? 'right-3' : 'left-3'}`}>
                   {content.auth.signUp.soon}
                 </div>
               </button>

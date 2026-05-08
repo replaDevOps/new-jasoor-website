@@ -18,7 +18,7 @@ function fmt(v: number | null | undefined): string {
   if (v == null) return '—';
   if (v >= 1_000_000) return (v / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
   if (v >= 1_000) return Math.round(v / 1_000) + 'K';
-  return Math.round(v).toLocaleString();
+  return Math.round(v).toLocaleString('en-US');
 }
 
 export const Listings = ({ onViewAll, onNavigate }: { onViewAll?: () => void; onNavigate?: (page: string, id?: number) => void }) => {

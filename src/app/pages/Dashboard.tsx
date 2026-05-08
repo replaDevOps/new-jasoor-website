@@ -302,7 +302,7 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
     if (s === 'SOLD')   return { text: content.dashboard.listings.status.sold,        variant: 'neutral'  as const };
     return                    { text: content.dashboard.listings.status.underReview,  variant: 'warning'  as const };
   };
-  const fmt = (n: number) => Number(n).toLocaleString();
+  const fmt = (n: number) => Number(n).toLocaleString('en-US');
 
   const labels = isFavorites
     ? { revenue: isAr?'الإيرادات':'Revenue', profit: isAr?'الأرباح':'Profit', recovery: isAr?'الاسترداد':'Recovery', askingPrice: isAr?'السعر':'Price', currency: isAr?'ر.س':'SAR', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' }
@@ -413,8 +413,8 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
 
   const statusColor = (s: string) => statusMeta(s, isAr).color;
   const statusLabel = (s: string) => statusMeta(s, isAr).label;
-  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB'):'—';
-  const fmt = (n: number) => Number(n).toLocaleString();
+  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory-nu-latn':'en-GB'):'—';
+  const fmt = (n: number) => Number(n).toLocaleString('en-US');
 
   const handleAccept = async () => {
     if (!selectedOffer) return;
@@ -816,7 +816,7 @@ const DealsView = ({
     else { refetchBuyerComp(); refetchSellerComp(); }
     if (selectedId) refetchDeal();
   };
-  const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB') : '—';
+  const fmtDate = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory-nu-latn':'en-GB') : '—';
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   const isBuyer  = deal ? deal.buyer?.id === userId : false;
@@ -1069,9 +1069,9 @@ const DealsView = ({
             </div>
             <DashBadge color={allDone?'gray':'green'}>{allDone?(isAr?'مكتملة':'Completed'):(isAr?'قيد التنفيذ':'In Progress')}</DashBadge>
           </div>
-          <p className="text-3xl font-black text-[#10B981] mb-5">{Number(deal.price ?? deal.offer?.price ?? 0).toLocaleString()} SAR</p>
+          <p className="text-3xl font-black text-[#10B981] mb-5">{Number(deal.price ?? deal.offer?.price ?? 0).toLocaleString('en-US')} SAR</p>
           {deal.offer?.commission && (
-            <p className="text-sm text-gray-500 mb-4">{isAr?'العمولة':'Commission'}: <span className="font-bold text-[#111827]">{Number(deal.offer.commission).toLocaleString()} SAR</span></p>
+            <p className="text-sm text-gray-500 mb-4">{isAr?'العمولة':'Commission'}: <span className="font-bold text-[#111827]">{Number(deal.offer.commission).toLocaleString('en-US')} SAR</span></p>
           )}
           <div className="space-y-2">
             <div className="flex justify-between text-sm font-bold">
@@ -1247,7 +1247,7 @@ const DealsView = ({
                     <Upload size={16} className="text-[#10B981] shrink-0"/>
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-bold text-[#111827] block truncate">{doc.title}</span>
-                      {doc.createdAt && <span className="text-xs text-gray-400">{new Date(doc.createdAt).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB')}</span>}
+                      {doc.createdAt && <span className="text-xs text-gray-400">{new Date(doc.createdAt).toLocaleDateString(isAr?'ar-SA-u-ca-gregory-nu-latn':'en-GB')}</span>}
                     </div>
                     <Download size={14} className="text-gray-400 shrink-0"/>
                   </a>
@@ -1369,7 +1369,7 @@ const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number)
   // Helpers
   const statusColor = (s: string) => statusMeta(s, isAr).color;
   const statusLabel = (s: string) => statusMeta(s, isAr).label;
-  const fmtDate   = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB') : '—';
+  const fmtDate   = (d: string) => d ? new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory-nu-latn':'en-GB') : '—';
   const otherParty = (m: any): string | null => {
     if (userId && m.requestedBy?.id && String(m.requestedBy.id) === String(userId)) {
       return m.requestedTo?.name ?? null;
@@ -1723,7 +1723,7 @@ const AlertsView = ({ onNavigate, onTabChange, onSettingsIdentity }: {
 
   // P6-FIX R-04: real notifications
   const { data, loading, error: notifError, refetch } = useQuery(GET_NOTIFICATIONS, {
-    variables: { userId: String(userId), limit: 50, offSet: 0 },
+    variables: { limit: 50, offSet: 0 },
     skip: !userId,
     fetchPolicy: 'network-only',
     errorPolicy: 'all',
@@ -1747,7 +1747,7 @@ const AlertsView = ({ onNavigate, onTabChange, onSettingsIdentity }: {
     if (n.includes('payment')||n.includes('دفع'))  return { Icon:Wallet,     bg:'bg-green-50 text-green-600',  bar:'bg-green-500'  };
     return                                                 { Icon:FileText,   bg:'bg-blue-50 text-blue-600',    bar:'bg-blue-400'   };
   };
-  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory':'en-GB'):'';
+  const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory-nu-latn':'en-GB'):'';
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -2218,7 +2218,7 @@ export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: stri
   const [pendingDealId, setPendingDealId] = useState<string | null>(null);
   // BUG-5 FIX: fetch notifications to drive the bell badge unread count
   const { data: notifData, refetch: refetchNotifications } = useQuery(GET_NOTIFICATIONS, {
-    variables: { userId: String(userId), limit: 50, offSet: 0 },
+    variables: { limit: 50, offSet: 0 },
     skip: !userId,
     fetchPolicy: 'network-only',
     errorPolicy: 'all',
@@ -2286,6 +2286,7 @@ export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: stri
   const mobileTabs = tabs.filter(t => t.id !== 'settings');
 
   const handleAddListing = () => {
+    setEditingId(null);
     setViewMode('create-listing');
     window.scrollTo(0, 0);
   };

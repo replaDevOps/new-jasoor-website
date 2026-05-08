@@ -83,7 +83,7 @@ export const OfferModal = ({ isOpen, onClose, type, onSubmit }: OfferModalProps)
               <span className="dir-ltr">
                 {commissionLoading
                   ? t.calculating
-                  : `${commission.toLocaleString(isAr ? 'ar-SA-u-ca-gregory' : 'en-GB')} ${t.sar}`}
+                  : `${commission.toLocaleString(isAr ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB')} ${t.sar}`}
               </span>
             </div>
             <div className="flex justify-between font-bold text-[#008A66] pt-3 border-t border-[#008A66]/10">
@@ -91,7 +91,7 @@ export const OfferModal = ({ isOpen, onClose, type, onSubmit }: OfferModalProps)
               <span className="dir-ltr">
                 {commissionLoading
                   ? t.calculating
-                  : `${total.toLocaleString(isAr ? 'ar-SA-u-ca-gregory' : 'en-GB')} ${t.sar}`}
+                  : `${total.toLocaleString(isAr ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB')} ${t.sar}`}
               </span>
             </div>
             <p className="text-xs text-gray-500 mt-2">{t.commissionNote}</p>

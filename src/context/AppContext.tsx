@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { CONTENT } from '../constants/content';
 import { useMutation, useApolloClient } from '@apollo/client';
 import { LOGOUT } from '../graphql/mutations/auth';
-import { getUserId, clearAuthTokens } from '../utils/tokenManager';
+import { getUserId, clearAuthTokens, getAccessToken } from '../utils/tokenManager';
 
 type Language = 'ar' | 'en';
 
@@ -38,9 +38,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try { return (localStorage.getItem('jusoor_lang') as Language) || 'ar'; } catch { return 'ar'; }
   });
 
-  // Persist login state across refreshes
+  // Persist login state across refreshes.
+  // Cross-check localStorage flag against the actual token cookie: if the flag
+  // says "logged in" but the access token is gone (expired, cleared, or refresh
+  // failed), clear the stale flag and treat as logged-out immediately so the
+  // dashboard never renders in a no-auth state.
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    try { return localStorage.getItem('jusoor_logged_in') === 'true'; } catch { return false; }
+    try {
+      if (localStorage.getItem('jusoor_logged_in') !== 'true') return false;
+      const token = getAccessToken();
+      if (!token) {
+        localStorage.removeItem('jusoor_logged_in');
+        return false;
+      }
+      return true;
+    } catch { return false; }
   });
 
   // BUG-04 FIX: Read userId from cookie so Listings.tsx gets the real value

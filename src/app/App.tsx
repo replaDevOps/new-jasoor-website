@@ -125,6 +125,15 @@ function AppContent() {
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
+  // Auth guard: if login state drops to false while the dashboard is open
+  // (token expired mid-session or sign-out button clicked), force navigation
+  // to home. This makes logout reliable regardless of component mount state.
+  useEffect(() => {
+    if (!isLoggedIn && view === 'dashboard') {
+      setView('home');
+    }
+  }, [isLoggedIn, view]);
+
   const handleNavigate = (page: string, id?: string | number) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     // Intent-route: 'dashboard:settings:identity' → open Dashboard directly on Settings → Identity
@@ -137,6 +146,7 @@ function AppContent() {
     // Clear dashboard intent for all other navigations
     setDashboardDefaultTab(undefined);
     if (page === 'details' && id != null) setSelectedBusinessId(id);
+    if (page === 'list-business' && id == null) setSelectedBusinessId(null);
     // P2-FIX-BUG2: unauthenticated users trying to list a business are sent to sign-in first
     if (page === 'list-business' && !isLoggedIn) {
       setPendingReturn({ view: 'list-business' });

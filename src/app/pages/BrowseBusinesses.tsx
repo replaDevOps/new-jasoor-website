@@ -11,14 +11,13 @@ import type { BusinessListItem } from '../../types/api';
 import { useQuery, useMutation } from '@apollo/client';
 import { CREATE_SAVE_BUSINESS } from '../../graphql/mutations/dashboard';
 import { GET_CATEGORIES } from '../../graphql/queries/business';
+import { SAUDI_REGIONS } from '../../data/saudiRegions';
 
-// Format a number using the correct locale — Arabic-Indic digits in AR, Western in EN
-const fmtNum = (n: number | string, isAr: boolean): string => {
+// Product decision: keep numerals Western/English even when the UI language is Arabic.
+const fmtNum = (n: number | string): string => {
   const num = Number(n);
   if (isNaN(num)) return String(n);
-  return isAr
-    ? num.toLocaleString('ar-SA-u-ca-gregory')
-    : num.toLocaleString('en-US');
+  return num.toLocaleString('en-US');
 };
 
 export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
@@ -50,7 +49,6 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
   // Local UI state for filter inputs (committed to hook on Apply)
   const [selectedRegion, setSelectedRegion] = useState<string>('all'); // → backend district
   const [selectedCity,   setSelectedCity]   = useState<string>('all'); // → backend city
-  const [districtInput, setDistrictInput] = useState<string>('');
   const [priceMinInput, setPriceMinInput]   = useState<string>('');
   const [priceMaxInput, setPriceMaxInput]   = useState<string>('');
   const [revenueMinInput, setRevenueMinInput] = useState<string>('');
@@ -59,10 +57,11 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
   const [profitMaxInput, setProfitMaxInput] = useState<string>('');
 
   const handleApplyFilters = () => {
-    const district = districtInput.trim() || (selectedRegion !== 'all' ? selectedRegion : '');
+    const region = SAUDI_REGIONS.find(r => r.slug === selectedRegion);
+    const city = region?.cities.find(c => c.slug === selectedCity);
     applyFilters({
-      district: district || null,
-      city:     selectedCity   !== 'all' ? selectedCity   : null,
+      district: region?.en ?? null,
+      city:     city?.en ?? null,
       minPrice: priceMinInput ? Number(priceMinInput) : null,
       maxPrice: priceMaxInput ? Number(priceMaxInput) : null,
       minRevenue: revenueMinInput ? Number(revenueMinInput) : null,
@@ -76,7 +75,6 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
   const handleResetFilters = () => {
     setSelectedRegion('all');
     setSelectedCity('all');
-    setDistrictInput('');
     setPriceMinInput('');
     setPriceMaxInput('');
     setRevenueMinInput('');
@@ -110,7 +108,6 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
       
       region: isAr ? 'المنطقة' : 'Region',
       city: isAr ? 'المدينة' : 'City',
-      district: isAr ? 'الحي' : 'District',
       priceRange: isAr ? 'نطاق السعر (ر.س)' : 'Price Range (SAR)',
       revenue: isAr ? 'الإيرادات السنوية' : 'Annual Revenue',
       profitRange: isAr ? 'الأرباح السنوية' : 'Annual Profit',
@@ -120,15 +117,6 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
       all: isAr ? 'الكل' : 'All',
       
       // Regions & Cities
-      riyadh: isAr ? 'الرياض' : 'Riyadh',
-      makkah: isAr ? 'مكة المكرمة' : 'Makkah',
-      eastern: isAr ? 'الشرقية' : 'Eastern',
-      jeddah: isAr ? 'جدة' : 'Jeddah',
-      dammam: isAr ? 'الدمام' : 'Dammam',
-      khobar: isAr ? 'الخبر' : 'Khobar',
-      qassim: isAr ? 'القصيم' : 'Qassim',
-      districtPlaceholder: isAr ? 'مثال: العليا، التحلية، الشاطئ' : 'e.g. Olaya, Tahlia, Corniche',
-      
       // Controls
       sortBy: isAr ? 'ترتيب حسب:' : 'Sort by:',
       newest: isAr ? 'الأحدث' : 'Newest',
@@ -151,6 +139,8 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
       taqbeel: isAr ? 'تقبيل' : 'Taqbeel',
     };
   }, [language]);
+
+  const selectedRegionRecord = SAUDI_REGIONS.find(r => r.slug === selectedRegion);
 
   // R-05 FIX: real categories from GET_CATEGORIES query — local string IDs ('tech', 'retail'…)
   // never matched backend IDs so category filter was always broken
@@ -204,16 +194,18 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
         <div className="relative">
             <select
                 value={selectedRegion}
-                onChange={(e) => setSelectedRegion(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#008A66] transition-colors appearance-none text-gray-700"
+                onChange={(e) => {
+                  setSelectedRegion(e.target.value);
+                  setSelectedCity('all');
+                }}
               >
                 <option value="all">{t.all}</option>
-                <option value="riyadh">{t.riyadh}</option>
-                <option value="jeddah">{t.jeddah}</option>
-                <option value="khobar">{t.khobar}</option>
-                <option value="dammam">{t.dammam}</option>
-                <option value="makkah">{t.makkah}</option>
-                <option value="qassim">{t.qassim}</option>
+                {SAUDI_REGIONS.map(region => (
+                  <option key={region.slug} value={region.slug}>
+                    {isAr ? region.ar : region.en}
+                  </option>
+                ))}
               </select>
             <ChevronDown className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none", direction === 'rtl' ? "left-3" : "right-3")} />
         </div>
@@ -227,29 +219,17 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                 value={selectedCity}
                 onChange={(e) => setSelectedCity(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#008A66] transition-colors appearance-none text-gray-700"
+                disabled={selectedRegion === 'all'}
               >
                 <option value="all">{t.all}</option>
-                <option value="riyadh">{t.riyadh}</option>
-                <option value="jeddah">{t.jeddah}</option>
-                <option value="khobar">{t.khobar}</option>
-                <option value="dammam">{t.dammam}</option>
-                <option value="makkah">{t.makkah}</option>
-                <option value="qassim">{t.qassim}</option>
+                {(selectedRegionRecord?.cities ?? []).map(city => (
+                  <option key={city.slug} value={city.slug}>
+                    {isAr ? city.ar : city.en}
+                  </option>
+                ))}
               </select>
             <ChevronDown className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none", direction === 'rtl' ? "left-3" : "right-3")} />
         </div>
-      </div>
-
-      {/* District Filter */}
-      <div>
-        <h4 className="text-sm font-bold text-gray-900 mb-3">{t.district}</h4>
-        <input
-          type="text"
-          value={districtInput}
-          onChange={(e) => setDistrictInput(e.target.value)}
-          placeholder={t.districtPlaceholder}
-          className={cn("w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#008A66] placeholder:text-gray-300", direction === 'rtl' ? 'text-right' : 'text-left')}
-        />
       </div>
 
       {/* Price Range */}
@@ -535,7 +515,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                   title={language === 'ar' ? listing.businessTitle : listing.businessTitle}
                   description={listing.description}
                   image={listing.image}
-                  number={fmtNum(listing.price, isAr)}
+                  number={fmtNum(listing.price)}
                   hideFavorite={!isLoggedIn}
                   isSaved={listing.isSaved ?? false}
                   onSave={async (e) => { e.stopPropagation(); if (!isLoggedIn) { onNavigate?.('signin'); return; } await saveBusiness({ variables: { saveBusinessId: listing.id } }); }}
@@ -552,9 +532,9 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                   listingData={{
                     location: listing.city || listing.district || '',
                     category: language === 'ar' ? listing.category?.arabicName : listing.category?.name,
-                    revenue: listing.revenue ? fmtNum(listing.revenue, isAr) + ' ' + t.sar : '-',
-                    profit: listing.profit ? fmtNum(listing.profit, isAr) + ' ' + t.sar : '-',
-                    recovery: listing.capitalRecovery ? fmtNum(listing.capitalRecovery, isAr) + ' ' + t.month : '-',
+                    revenue: listing.revenue ? fmtNum(listing.revenue) + ' ' + t.sar : '-',
+                    profit: listing.profit ? fmtNum(listing.profit) + ' ' + t.sar : '-',
+                    recovery: listing.capitalRecovery ? fmtNum(listing.capitalRecovery) + ' ' + t.month : '-',
                     refNumber: listing.reference ? `#${listing.reference}` : ''
                   }}
                   onClick={() => onNavigate?.('details', listing.id)}

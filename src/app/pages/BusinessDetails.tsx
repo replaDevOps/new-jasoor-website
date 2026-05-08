@@ -19,7 +19,7 @@ import { useBusinessDetail } from '../../hooks/useBusinessDetail';
 import { useMutation, useQuery } from '@apollo/client';
 import { CREATE_OFFER, REQUEST_MEETING, CREATE_ENDA, VIEW_BUSINESS } from '../../graphql/mutations/business';
 import { CREATE_SAVE_BUSINESS } from '../../graphql/mutations/dashboard';
-import { GET_SIMILAR_BUSINESS_PROFIT_GRAPH, GET_SUGGESTED_LISTINGS } from '../../graphql/queries/business';
+import { GET_SUGGESTED_LISTINGS } from '../../graphql/queries/business';
 import { GET_OFFERS_BY_USER } from '../../graphql/queries/dashboard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -30,6 +30,12 @@ interface FinancialTableItem {
   value: string;
   date?: string;
 }
+
+const fmtNum = (n: number | string): string => {
+  const num = Number(n);
+  if (Number.isNaN(num)) return String(n);
+  return num.toLocaleString('en-US');
+};
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -56,15 +62,6 @@ export const BusinessDetails = ({
     errorPolicy: 'all',
   });
   const similarBusinesses = suggestedData?.getSuggestedListings ?? [];
-
-  // P14 G-10: similar business profit comparison chart
-  const { data: profitGraphData } = useQuery(GET_SIMILAR_BUSINESS_PROFIT_GRAPH, {
-    variables: { similerBusinessAvgAnualProfitId: businessId },
-    skip: !businessId,
-    errorPolicy: 'all',
-  });
-  const profitGraph: { profit: number; year: string }[] = profitGraphData?.similerBusinessAvgAnualProfit?.graph ?? [];
-  const totalProfit: number = profitGraphData?.similerBusinessAvgAnualProfit?.totalProfit ?? 0;
 
   const [modalOpen, setModalOpen] = useState<'offer' | 'meeting' | 'enda' | null>(null);
   const [isSaved, setIsSaved] = useState(false);
@@ -323,22 +320,22 @@ export const BusinessDetails = ({
   // ── Derived display values from real API data ─────────────────────────────────
   const categoryName = isAr ? business.category?.arabicName : business.category?.name;
   const cityDisplay  = business.city ? (business.district ? `${business.district}, ${business.city}` : business.city) : '';
-  const priceDisplay = business.price ? Number(business.price).toLocaleString() : '—';
-  const profitDisplay = business.profit ? `${Number(business.profit).toLocaleString()} ${t.currency}` : '—';
-  const revenueDisplay = business.revenue ? `${Number(business.revenue).toLocaleString()} ${t.currency}` : '—';
+  const priceDisplay = business.price ? fmtNum(business.price) : '—';
+  const profitDisplay = business.profit ? `${fmtNum(business.profit)} ${t.currency}` : '—';
+  const revenueDisplay = business.revenue ? `${fmtNum(business.revenue)} ${t.currency}` : '—';
   const marginDisplay = business.profitMargen ? `${business.profitMargen}%` : '—';
   const employeesDisplay = business.numberOfEmployees || '—';
   const recoveryDisplay = business.capitalRecovery ? `${Math.round(business.capitalRecovery)} ${t.month}` : '—';
   const foundedDisplay  = business.foundedDate ? new Date(business.foundedDate).getFullYear().toString() : '—';
-  // Use admin-set Business.image first; fall back to first image-type document only as last resort
-  const coverImage = business.image || business.documents?.find(d => d.fileType === 'image')?.filePath || null;
+  // Public listing photo is admin-curated only. Do not use business documents as a cover image.
+  const coverImage = business.image || null;
 
   // Convert assets to FinancialTableItem shape
   const toTableItems = (items: typeof business.assets): FinancialTableItem[] =>
     (items || []).map(a => ({
       name: a.name,
       quantity: a.quantity,
-      value: `${Number(a.price).toLocaleString()} ${t.currency}`,
+      value: `${fmtNum(a.price)} ${t.currency}`,
       date: a.purchaseYear?.toString(),
     }));
 
@@ -583,37 +580,8 @@ export const BusinessDetails = ({
 
         </div>
 
-        {/* ── P14 G-10: Similar Business Profit Comparison Chart ─────────── */}
-        {profitGraph.length > 0 && (
-          <div className="mt-16 mb-12">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-[#111827] mb-1">{isAr ? 'متوسط الربح السنوي للأعمال المماثلة' : 'Similar Business Avg. Annual Profit'}</h2>
-              <p className="text-gray-500 text-sm">{isAr ? `إجمالي: ${Number(totalProfit).toLocaleString()} ريال` : `Total: ${Number(totalProfit).toLocaleString()} SAR`}</p>
-            </div>
-            <div className="bg-white rounded-3xl border border-gray-100 p-6 shadow-sm overflow-x-auto">
-              <div className="flex items-end gap-3 min-w-0 h-48">
-                {profitGraph.map((item, i) => {
-                  const maxP = Math.max(...profitGraph.map(g => g.profit), 1);
-                  const pct = Math.round((item.profit / maxP) * 100);
-                  return (
-                    <div key={i} className="flex flex-col items-center gap-2 flex-1 min-w-[48px]">
-                      <span className="text-xs font-bold text-[#10B981]">{Number(item.profit).toLocaleString()}</span>
-                      <div className="w-full rounded-t-xl bg-[#E6F3EF] relative overflow-hidden" style={{ height: '120px' }}>
-                        <div className="absolute bottom-0 left-0 right-0 bg-[#10B981] rounded-t-xl transition-all duration-700"
-                          style={{ height: `${pct}%` }} />
-                      </div>
-                      <span className="text-xs text-gray-500 font-bold">{item.year}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* ── Similar Opportunities ──────────────────────────────────────── */}
-        {(similar.length > 0 || similarLoading) && (
-          <div className="mt-16 md:mt-24 mb-12">
+        <div className="mt-16 md:mt-24 mb-12">
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 md:mb-10 gap-4">
               <div>
                 <h2 className="text-2xl md:text-3xl font-bold text-[#111827] mb-2">{t.similar}</h2>
@@ -631,10 +599,10 @@ export const BusinessDetails = ({
               <div className="flex justify-center py-12">
                 <div className="w-8 h-8 border-2 border-[#008A66] border-t-transparent rounded-full animate-spin" />
               </div>
-            ) : (
+            ) : similar.length > 0 ? (
               <div className="flex overflow-x-auto pb-6 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:gap-8 snap-x snap-mandatory md:snap-none hide-scrollbar">
                 {similar.map((listing) => {
-                  const fmt = (n: number) => Number(n).toLocaleString();
+                  const fmt = (n: number) => fmtNum(n);
                   const catName = isAr ? listing.category?.arabicName : listing.category?.name;
                   return (
                     <div key={listing.id} className="min-w-[85%] md:min-w-0 md:w-auto pl-4 md:pl-0 last:pl-4 md:last:pl-0 snap-center">
@@ -681,6 +649,18 @@ export const BusinessDetails = ({
                   );
                 })}
               </div>
+            ) : (
+              <div className="rounded-3xl border border-gray-100 bg-white p-8 text-center">
+                <p className="text-[#111827] font-bold">
+                  {isAr ? 'لا توجد فرص مشابهة حالياً' : 'No related businesses yet'}
+                </p>
+                <button
+                  onClick={() => onNavigate?.('browse')}
+                  className="mt-4 text-[#008A66] font-bold hover:underline"
+                >
+                  {t.browseCta}
+                </button>
+              </div>
             )}
 
             <button
@@ -689,8 +669,7 @@ export const BusinessDetails = ({
             >
               {t.viewMore} <ArrowRight size={18} />
             </button>
-          </div>
-        )}
+        </div>
 
       </div>
 
@@ -780,23 +759,23 @@ const DataTable = ({ items, type, t }: {
   type: 'asset' | 'liability' | 'inventory';
   t: Record<string, string>;
 }) => (
-  <div className="rounded-xl border border-gray-100 overflow-hidden">
-    <table className="w-full text-left text-sm md:text-base">
+  <div className="rounded-xl border border-gray-100 overflow-x-auto">
+    <table className="w-full min-w-[640px] text-start text-sm md:text-base">
       <thead className="bg-gray-50">
         <tr className="text-gray-500 text-xs uppercase tracking-wider">
-          <th className="px-3 py-3 font-bold w-[40%]">{t.assetName}</th>
-          <th className="px-3 py-3 font-bold w-[15%]">{t.qty}</th>
-          <th className="px-3 py-3 font-bold w-[25%]">{t.value}</th>
-          <th className="px-3 py-3 font-bold w-[20%]">{type === 'asset' ? t.purchaseDate : t.startDate}</th>
+          <th className="px-4 py-3 font-bold w-[40%] text-start">{t.assetName}</th>
+          <th className="px-4 py-3 font-bold w-[15%] text-start">{t.qty}</th>
+          <th className="px-4 py-3 font-bold w-[25%] text-start">{t.value}</th>
+          <th className="px-4 py-3 font-bold w-[20%] text-start">{type === 'asset' ? t.purchaseDate : t.startDate}</th>
         </tr>
       </thead>
       <tbody className="divide-y divide-gray-100 bg-white">
         {items.map((item, idx) => (
           <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
-            <td className="px-3 py-2 font-bold text-[#111827]">{item.name}</td>
-            <td className="px-3 py-2 text-gray-600 font-medium">{item.quantity}</td>
-            <td className="px-3 py-2 font-bold text-[#008A66]">{item.value}</td>
-            <td className="px-3 py-2 text-gray-500 font-medium">{item.date || '—'}</td>
+            <td className="px-4 py-3 font-bold text-[#111827] whitespace-normal break-words">{item.name}</td>
+            <td className="px-4 py-3 text-gray-600 font-medium whitespace-nowrap">{fmtNum(item.quantity)}</td>
+            <td className="px-4 py-3 font-bold text-[#008A66] whitespace-nowrap">{item.value}</td>
+            <td className="px-4 py-3 text-gray-500 font-medium whitespace-nowrap">{item.date || '—'}</td>
           </tr>
         ))}
       </tbody>

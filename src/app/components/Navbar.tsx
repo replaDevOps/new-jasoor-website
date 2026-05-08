@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Button } from './Button';
 import { motion, AnimatePresence } from 'motion/react';
-import { Menu, X, User, ChevronDown } from 'lucide-react';
+import { Menu, X, User } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import logoNavbar from '../../assets/logo-navbar.svg';
 
@@ -47,7 +47,6 @@ export const Navbar = ({ onNavigate }: NavbarProps) => {
               className="font-bold text-[15px] text-white/85 hover:text-white transition-colors flex items-center gap-1 cursor-pointer bg-transparent border-none p-0 whitespace-nowrap"
             >
               {link.name}
-              {link.hasDropdown && <ChevronDown size={13} className="opacity-60" />}
             </button>
           ))}
         </nav>

@@ -362,8 +362,8 @@ export const GET_RECEIVED_MEETINGS = gql`
 // ── Notifications ─────────────────────────────────────────────────────────────
 
 export const GET_NOTIFICATIONS = gql`
-  query GetNotifications($userId: ID!, $limit: Int, $offSet: Int) {
-    getNotifications(userId: $userId, limit: $limit, offSet: $offSet) {
+  query GetNotifications($limit: Int, $offSet: Int) {
+    getNotifications(limit: $limit, offSet: $offSet) {
       count
       notifications {
         id
