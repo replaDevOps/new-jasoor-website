@@ -129,6 +129,50 @@ const statusMeta = (status: string, isAr: boolean): { color: string; label: stri
   }
 };
 
+const normalizeUserStatus = (status?: string | null) =>
+  String(status || 'inactive').trim().toLowerCase();
+
+const userStatusMeta = (status: string | null | undefined, isAr: boolean) => {
+  switch (normalizeUserStatus(status)) {
+    case 'verified':
+      return {
+        icon: ShieldCheck,
+        box: 'bg-[#E6F3EF]',
+        iconColor: 'text-[#10B981]',
+        text: 'text-[#004E39]',
+        label: isAr ? 'تم التحقق' : 'Verified',
+        desc: isAr ? 'حسابك موثق وجاهز للاستخدام' : 'Your account is verified and ready',
+      };
+    case 'under_review':
+      return {
+        icon: Clock,
+        box: 'bg-amber-50',
+        iconColor: 'text-amber-600',
+        text: 'text-amber-800',
+        label: isAr ? 'قيد المراجعة' : 'Under Review',
+        desc: isAr ? 'فريق جسور يراجع وثيقتك' : 'Your identity document is being reviewed',
+      };
+    case 'pending':
+      return {
+        icon: AlertCircle,
+        box: 'bg-blue-50',
+        iconColor: 'text-blue-600',
+        text: 'text-blue-800',
+        label: isAr ? 'بانتظار التحقق' : 'Pending Verification',
+        desc: isAr ? 'ارفع وثيقة الهوية لتفعيل حسابك' : 'Upload your ID to activate your account',
+      };
+    default:
+      return {
+        icon: XCircle,
+        box: 'bg-red-50',
+        iconColor: 'text-red-500',
+        text: 'text-red-700',
+        label: isAr ? 'غير موثق' : 'Not Verified',
+        desc: isAr ? 'حسابك غير موثق حالياً' : 'Your account is not verified yet',
+      };
+  }
+};
+
 const SectionHeader = ({ title, action }: { title: string, action?: React.ReactNode }) => (
   <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-6 mb-6">
     <div className="inline-flex flex-col gap-1.5 items-start">
@@ -195,9 +239,17 @@ const DashboardView = () => {
 
   const { data: sellerData, loading: statsLoading } = useQuery(GET_PROFILE_STATISTICS, { skip: !userId, errorPolicy: 'all' });
   const { data: buyerData  } = useQuery(GET_BUYER_STATISTICS,   { skip: !userId, errorPolicy: 'all' });
+  const { data: accountData } = useQuery(GET_USER_DETAILS, {
+    variables: { getUserDetailsId: userId },
+    skip: !userId,
+    fetchPolicy: 'network-only',
+    errorPolicy: 'all',
+  });
 
   const ss = sellerData?.getProfileStatistics;
   const bs = buyerData?.getBuyerStatistics;
+  const accountStatus = userStatusMeta(accountData?.getUserDetails?.status, isAr);
+  const AccountStatusIcon = accountStatus.icon;
 
   const stats = [
     { label: isAr ? 'الصفقات المكتملة'  : 'Finalized Deals',     value: ss?.finalizedDealsCount ?? bs?.finalizedDealsCount ?? '—', icon: Handshake,    color: 'bg-[#E6F3EF] text-[#10B981]' },
@@ -262,11 +314,11 @@ const DashboardView = () => {
        <div className="bg-white rounded-3xl p-5 md:p-8 border border-gray-100 shadow-sm flex flex-col justify-between h-fit">
           <div>
             <h3 className="text-xl font-bold text-[#111827] mb-4">{content.dashboard.accountStatus.title}</h3>
-            <div className="bg-[#E6F3EF] p-4 rounded-2xl flex items-center gap-3 mb-6">
-              <ShieldCheck className="text-[#10B981]" size={24} />
+            <div className={cn("p-4 rounded-2xl flex items-center gap-3 mb-6", accountStatus.box)}>
+              <AccountStatusIcon className={accountStatus.iconColor} size={24} />
               <div>
-                <p className="font-bold text-[#004E39]">{content.dashboard.accountStatus.verified}</p>
-                <p className="text-xs text-[#004E39]/70">{content.dashboard.accountStatus.verifiedDesc}</p>
+                <p className={cn("font-bold", accountStatus.text)}>{accountStatus.label}</p>
+                <p className={cn("text-xs opacity-80", accountStatus.text)}>{accountStatus.desc}</p>
               </div>
             </div>
             <p className="text-gray-500 text-sm leading-relaxed mb-6">{content.dashboard.accountStatus.message}</p>
@@ -1914,7 +1966,7 @@ const SettingsView = ({ defaultTab, onReturnToDeal }: { defaultTab?: string; onR
     }
   };
 
-  const userStatus = userData?.getUserDetails?.status ?? 'inactive';
+  const userStatus = normalizeUserStatus(userData?.getUserDetails?.status);
   const identityDocs = userData?.getUserDetails?.documents ?? [];
 
   const tabs = [
