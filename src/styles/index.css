@@ -24,3 +24,17 @@
 /* ── RTL/LTR utility helpers ────────────────────────────────────────────────── */
 .dir-rtl { direction: rtl; }
 .dir-ltr { direction: ltr; }
+
+/* ── Mobile safe-area helpers ───────────────────────────────────────────────── */
+.pb-safe {
+  padding-bottom: max(env(safe-area-inset-bottom), 0.75rem);
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { CONTENT } from '../constants/content';
 import { useMutation, useApolloClient } from '@apollo/client';
 import { LOGOUT } from '../graphql/mutations/auth';
-import { getUserId, clearAuthTokens, getAccessToken } from '../utils/tokenManager';
+import { getUserId, clearAuthTokens, isAuthenticated, hasValidSession } from '../utils/tokenManager';
+import { startAutoRefresh, stopAutoRefresh } from '../utils/tokenRefreshService';
 
 type Language = 'ar' | 'en';
 
@@ -46,11 +47,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     try {
       if (localStorage.getItem('jusoor_logged_in') !== 'true') return false;
-      const token = getAccessToken();
-      if (!token) {
+      const userId = getUserId();
+      // No userId cookie at all — fully dead session, safe to wipe everything
+      if (!userId) {
         localStorage.removeItem('jusoor_logged_in');
+        clearAuthTokens();
         return false;
       }
+      // Neither token is valid — no recovery possible, safe to wipe
+      if (!hasValidSession()) {
+        localStorage.removeItem('jusoor_logged_in');
+        clearAuthTokens();
+        return false;
+      }
+      // Access token may already be expired but refresh token is still valid.
+      // Return true optimistically — startAutoRefresh() will silently refresh
+      // the access token and confirm the session, or call clearLocalSession()
+      // if refresh also fails.
       return true;
     } catch { return false; }
   });
@@ -68,12 +81,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const content = CONTENT[language];
   const direction = content.direction as 'rtl' | 'ltr';
 
+  const clearLocalSession = async () => {
+    stopAutoRefresh();
+    clearAuthTokens();
+    try { await apolloClient.clearStore(); } catch {}
+    setIsLoggedIn(false);
+    setUserId(null);
+    try { localStorage.removeItem('jusoor_logged_in'); } catch {}
+  };
+
   const login = () => {
+    const nextUserId = getUserId();
+    if (!nextUserId || !isAuthenticated()) {
+      clearAuthTokens();
+      setIsLoggedIn(false);
+      setUserId(null);
+      return;
+    }
     setIsLoggedIn(true);
     try {
       localStorage.setItem('jusoor_logged_in', 'true');
       // Refresh userId from cookie after login
-      setUserId(getUserId());
+      setUserId(nextUserId);
+      startAutoRefresh();
     } catch {}
   };
 
@@ -81,21 +111,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const apolloClient = useApolloClient();
   const [logoutMutation] = useMutation(LOGOUT, { errorPolicy: 'all' });
   const logout = async () => {
-    try { await logoutMutation(); } catch { /* proceed even if server call fails */ }
-    // Clear all cached Apollo queries so stale user data doesn't persist after logout
-    try { await apolloClient.clearStore(); } catch {}
-    setIsLoggedIn(false);
-    setUserId(null);
-    try { localStorage.removeItem('jusoor_logged_in'); } catch {}
-    clearAuthTokens(); // clear all auth cookies (_at, _rt, userId, userStatus)
+    const serverLogout = logoutMutation().catch(() => undefined);
+    await clearLocalSession();
+    await serverLogout;
   };
 
   // BUG-12 FIX: apolloClient dispatches 'auth:logout' when token refresh fails,
   // but AppContext never listened — user stayed logged in after session expired
   useEffect(() => {
-    const handleAuthLogout = () => logout();
+    const handleAuthLogout = () => { clearLocalSession(); };
     window.addEventListener('auth:logout', handleAuthLogout);
     return () => window.removeEventListener('auth:logout', handleAuthLogout);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    startAutoRefresh().then((authenticated) => {
+      if (cancelled) return;
+      const nextUserId = getUserId();
+      if (authenticated && nextUserId) {
+        setUserId(nextUserId);
+        setIsLoggedIn(true);
+        try { localStorage.setItem('jusoor_logged_in', 'true'); } catch {}
+      } else {
+        clearLocalSession();
+      }
+    });
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === 'jusoor_logged_in' && event.newValue !== 'true') {
+        clearLocalSession();
+      }
+    };
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      cancelled = true;
+      window.removeEventListener('storage', handleStorage);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

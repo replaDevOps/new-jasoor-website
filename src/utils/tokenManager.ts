@@ -169,6 +169,30 @@ export const getUserStatus = (): string | null => {
   return Cookies.get('userStatus') || null;
 };
 
+const parseJwtPayload = (token: string | null): Record<string, any> | null => {
+  if (!token) return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+};
+
+export const isUsableJwt = (token: string | null): boolean => {
+  const payload = parseJwtPayload(token);
+  if (!payload) return false;
+  if (typeof payload.exp === 'number') {
+    // Give the UI a small buffer so a token that is about to expire does not
+    // render authenticated chrome and then fail immediately on the next query.
+    return payload.exp * 1000 > Date.now() + 30_000;
+  }
+  return true;
+};
+
 export const getUserData = () => {
   return {
     id: getUserId(),
@@ -181,15 +205,15 @@ export const getUserData = () => {
 // ─── Status Checks ────────────────────────────────────────────────────────────
 
 export const isAuthenticated = (): boolean => {
-  return !!getAccessToken();
+  return isUsableJwt(getAccessToken());
 };
 
 export const hasValidSession = (): boolean => {
-  return !!getAccessToken() || !!getRefreshToken();
+  return isUsableJwt(getAccessToken()) || isUsableJwt(getRefreshToken());
 };
 
 export const hasRefreshToken = (): boolean => {
-  return !!getRefreshToken();
+  return isUsableJwt(getRefreshToken());
 };
 
 /**
@@ -215,15 +239,23 @@ export const shouldRefreshToken = (): boolean => {
 
 export const clearAuthTokens = (): boolean => {
   try {
-    Cookies.remove('_at');
-    Cookies.remove('_rt');
-    Cookies.remove('userId');
-    Cookies.remove('userStatus');
-    Cookies.remove('tokenRefreshedAt');
+    const names = ['_at', '_rt', 'userId', 'userStatus', 'tokenRefreshedAt'];
+    const hostname = typeof window !== 'undefined' ? window.location.hostname : '';
+    const domainParts = hostname.split('.');
+    const rootDomain = domainParts.length >= 2 ? `.${domainParts.slice(-2).join('.')}` : '';
+
+    names.forEach((name) => {
+      Cookies.remove(name);
+      Cookies.remove(name, { path: '/' });
+      Cookies.remove(name, { path: '/', ...TOKEN_CONFIG.SECURE_OPTIONS });
+      if (hostname) Cookies.remove(name, { path: '/', domain: hostname });
+      if (rootDomain) Cookies.remove(name, { path: '/', domain: rootDomain });
+    });
 
     // Also clear localStorage as fallback (mirrors OLD)
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
+    localStorage.removeItem('jusoor_logged_in');
 
     return true;
   } catch (error) {

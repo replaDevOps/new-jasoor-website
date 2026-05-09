@@ -2534,7 +2534,7 @@ export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: stri
 
         {/* ── Main content ───────────────────────────────────────────── */}
         <main className={cn(
-          'flex-1 min-w-0 pb-24 md:pb-10',
+          'flex-1 min-w-0 pb-[calc(8rem+env(safe-area-inset-bottom))] md:pb-10',
           direction === 'rtl' ? 'md:mr-64' : 'md:ml-64'
         )}>
           <div className="container mx-auto px-4 max-w-5xl py-6">
@@ -2638,7 +2638,7 @@ export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: stri
       {/* ── Mobile Bottom Tab Bar ──────────────────────────────────── */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,138,102,0.10)]">
         {/* Swipeable scroll container — hides scrollbar, touch-friendly */}
-        <div className="overflow-x-auto scrollbar-none pb-safe" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="overflow-x-auto scrollbar-none pb-safe pt-1" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div className="flex items-end" style={{ minWidth: 'max-content' }}>
             {mobileTabs.map((tab) => {
               const isActive = activeTab === tab.id;
