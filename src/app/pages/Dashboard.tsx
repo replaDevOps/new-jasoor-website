@@ -233,7 +233,19 @@ const ErrorCard = ({ onRetry, isAr }: { onRetry: () => void; isAr: boolean }) =>
 
 // --- Sub-Views ---
 
-const DashboardView = () => {
+const DashboardView = ({
+  notifications = [],
+  notificationsLoading = false,
+  notificationsError,
+  onRetryNotifications,
+  onOpenAlerts,
+}: {
+  notifications?: any[];
+  notificationsLoading?: boolean;
+  notificationsError?: unknown;
+  onRetryNotifications?: () => void;
+  onOpenAlerts?: () => void;
+}) => {
   const { content, language, userId } = useApp();
   const isAr = language === 'ar';
 
@@ -260,11 +272,34 @@ const DashboardView = () => {
     { label: isAr ? 'المفضلة'           : 'Saved Businesses',    value: bs?.favouriteBusinessesCount ?? '—',                       icon: Bookmark,     color: 'bg-yellow-50 text-yellow-600' },
   ];
 
-  const activityItems = [
-    { title: content.dashboard.activity.items.newOffer.title,         desc: content.dashboard.activity.items.newOffer.desc,         time: content.dashboard.activity.items.newOffer.time,         icon: DollarSign,   color: 'bg-orange-100 text-orange-600' },
-    { title: content.dashboard.activity.items.upcomingMeeting.title,  desc: content.dashboard.activity.items.upcomingMeeting.desc,  time: content.dashboard.activity.items.upcomingMeeting.time,  icon: Calendar,     color: 'bg-blue-100 text-blue-600' },
-    { title: content.dashboard.activity.items.listingPublished.title, desc: content.dashboard.activity.items.listingPublished.desc, time: content.dashboard.activity.items.listingPublished.time, icon: CheckCircle2, color: 'bg-green-100 text-green-600' },
-  ];
+  const activityIconFor = (notification: any) => {
+    const source = `${notification?.actionType ?? ''} ${notification?.entityType ?? ''} ${notification?.name ?? ''}`.toLowerCase();
+    if (source.includes('offer') || source.includes('عرض')) return { icon: DollarSign, color: 'bg-orange-100 text-orange-600' };
+    if (source.includes('meeting') || source.includes('اجتماع')) return { icon: Calendar, color: 'bg-blue-100 text-blue-600' };
+    if (source.includes('deal') || source.includes('صفقة')) return { icon: Handshake, color: 'bg-[#E6F3EF] text-[#10B981]' };
+    if (source.includes('identity') || source.includes('document') || source.includes('هوية')) return { icon: ShieldCheck, color: 'bg-purple-100 text-purple-600' };
+    return { icon: Bell, color: 'bg-gray-100 text-gray-600' };
+  };
+  const formatActivityTime = (date?: string) => {
+    if (!date) return '';
+    const parsed = new Date(date);
+    if (Number.isNaN(parsed.getTime())) return '';
+    return parsed.toLocaleDateString(isAr ? 'ar-SA-u-ca-gregory-nu-latn' : 'en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+  const activityItems = notifications.slice(0, 3).map((notification) => {
+    const meta = activityIconFor(notification);
+    return {
+      title: isAr ? (notification.nameAr || notification.name) : notification.name,
+      desc: isAr ? (notification.messageAr || notification.message) : notification.message,
+      time: formatActivityTime(notification.createdAt),
+      icon: meta.icon,
+      color: meta.color,
+    };
+  });
 
   return (
   <div className="space-y-6 md:space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -293,8 +328,21 @@ const DashboardView = () => {
        <div className="lg:col-span-2 bg-white rounded-3xl p-5 md:p-8 border border-gray-100 shadow-sm">
           <div className="flex justify-between items-center mb-6">
              <h3 className="text-xl font-bold text-[#111827]">{content.dashboard.activity.title}</h3>
-             <button className="text-sm text-[#10B981] font-bold hover:underline">{content.dashboard.activity.viewHistory}</button>
+             <button onClick={onOpenAlerts} className="text-sm text-[#10B981] font-bold hover:underline">{content.dashboard.activity.viewHistory}</button>
           </div>
+          {notificationsLoading ? (
+            <div className="space-y-5">
+              {[1, 2, 3].map(i => <SkeletonNotification key={i} />)}
+            </div>
+          ) : notificationsError ? (
+            <ErrorCard onRetry={() => onRetryNotifications?.()} isAr={isAr} />
+          ) : activityItems.length === 0 ? (
+            <div className="py-10 text-center">
+              <Bell size={28} className="mx-auto text-gray-300 mb-3" />
+              <p className="text-sm font-bold text-gray-500">{isAr ? 'لا يوجد نشاط حديث' : 'No recent activity'}</p>
+              <p className="text-xs text-gray-400 mt-1">{isAr ? 'سيظهر آخر نشاط من إشعاراتك هنا' : 'Your latest notification activity will appear here'}</p>
+            </div>
+          ) : (
           <div className="space-y-8 relative before:absolute before:right-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gray-100">
              {activityItems.map((item, i) => (
                <div key={i} className="flex gap-4 relative">
@@ -309,6 +357,7 @@ const DashboardView = () => {
                </div>
              ))}
           </div>
+          )}
        </div>
 
        <div className="bg-white rounded-3xl p-5 md:p-8 border border-gray-100 shadow-sm flex flex-col justify-between h-fit">
@@ -2269,7 +2318,7 @@ export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: stri
   // When seller navigates to Wallet from a deal, remember the deal ID so we can reopen it on return
   const [pendingDealId, setPendingDealId] = useState<string | null>(null);
   // BUG-5 FIX: fetch notifications to drive the bell badge unread count
-  const { data: notifData, refetch: refetchNotifications } = useQuery(GET_NOTIFICATIONS, {
+  const { data: notifData, loading: notificationsLoading, error: notificationsError, refetch: refetchNotifications } = useQuery(GET_NOTIFICATIONS, {
     variables: { limit: 50, offSet: 0 },
     skip: !userId,
     fetchPolicy: 'network-only',
@@ -2309,7 +2358,8 @@ export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: stri
       });
     },
   });
-  const unreadCount = (notifData?.getNotifications?.notifications ?? []).filter((n: any) => !n.isRead).length;
+  const dashboardNotifications = notifData?.getNotifications?.notifications ?? [];
+  const unreadCount = dashboardNotifications.filter((n: any) => !n.isRead).length;
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
   const [editingId, setEditingId] = useState<number | null>(null);
 
@@ -2543,7 +2593,13 @@ export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: stri
                 exit={{ opacity: 0, y: -10 }}
                 transition={{ duration: 0.2 }}
               >
-                {activeTab === 'dashboard'  && <DashboardView />}
+                {activeTab === 'dashboard'  && <DashboardView
+                  notifications={dashboardNotifications}
+                  notificationsLoading={notificationsLoading}
+                  notificationsError={notificationsError}
+                  onRetryNotifications={refetchNotifications}
+                  onOpenAlerts={() => setActiveTab('alerts')}
+                />}
                 {activeTab === 'listings'   && <ListingsView onAddListing={handleAddListing} onEditListing={handleEditListing} onNavigate={onNavigate} />}
                 {activeTab === 'offers'     && <OffersView onNavigate={onNavigate} onGoToIdentity={() => { setSettingsDefaultTab('identity'); setActiveTab('settings'); }} />}
                 {activeTab === 'deals'      && <DealsView
