@@ -69,7 +69,8 @@ export const BusinessDetails = ({
   const [modalOpen, setModalOpen] = useState<'offer' | 'meeting' | 'enda' | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   // Intent tracker: remembers what the user was trying to do before NDA gate
-  const [pendingAction, setPendingAction] = useState<'offer' | 'meeting' | null>(null);
+  // Fix 3: extended to include 'purchase' (Buy Now → isProceedToPay offer)
+  const [pendingAction, setPendingAction] = useState<'offer' | 'meeting' | 'purchase' | null>(null);
   // NDA signed state — initialised from backend, then kept in sync locally
   const [ndaSigned, setNdaSigned] = useState(false);
 
@@ -162,9 +163,10 @@ export const BusinessDetails = ({
     browseCta:       isAr ? 'تصفح الفرص الاستثمارية' : 'Browse Businesses',
     meeting:         isAr ? 'اجتماع' : 'Meeting',
     buy:             isAr ? 'شراء' : 'Buy',
-    offerSent:       isAr ? 'تم إرسال العرض بنجاح' : 'Offer sent successfully',
+    offerSent:       isAr ? 'تم تقديم العرض بنجاح' : 'Offer submitted successfully',
     meetingSent:     isAr ? 'تم إرسال طلب الاجتماع' : 'Meeting request sent',
     endaSigned:      isAr ? 'تم توقيع الاتفاقية، يمكنك الآن إتمام الشراء' : 'Agreement signed, you can now complete the purchase',
+    purchaseStarted: isAr ? 'تم بدء عملية الشراء بنجاح' : 'Purchase process started successfully',
     linkCopied:      isAr ? 'تم نسخ الرابط' : 'Link copied to clipboard',
     linkFail:        isAr ? 'تعذر نسخ الرابط' : 'Could not copy link',
     businessSaved:   isAr ? 'تم حفظ الإعلان' : 'Business saved!',
@@ -187,17 +189,22 @@ export const BusinessDetails = ({
 
   // ── Intent-gated action handler ───────────────────────────────────────────────
   /**
-   * Click handler for "Schedule Meeting" and "Make Offer".
-   * Gate: if NDA not yet confirmed this session → open ENDAModal first, save intent.
-   * After ENDA success, handleENDAConfirm auto-opens the intended modal.
+   * Single gate for Make Offer / Schedule Meeting / Buy Now.
+   * Fix 3+4: all three actions check login + NDA before proceeding.
+   * 'purchase' skips opening a modal — it calls handlePurchaseAction directly.
    */
-  const handleActionClick = (action: 'offer' | 'meeting') => {
+  const handleActionClick = (action: 'offer' | 'meeting' | 'purchase') => {
     if (!requireLogin()) return;
     if (!ndaSigned) {
+      // Fix 4: NDA gate applies to all three actions
       setPendingAction(action);
       setModalOpen('enda');
     } else {
-      setModalOpen(action);
+      if (action === 'purchase') {
+        handlePurchaseAction();
+      } else {
+        setModalOpen(action);
+      }
     }
   };
 
@@ -238,6 +245,44 @@ export const BusinessDetails = ({
       return;
     }
     toast.success(t.offerSent);
+    setModalOpen(null);
+  };
+
+  // Fix 3: Buy Now creates an offer with isProceedToPay = true (direct purchase intent)
+  const handlePurchaseAction = async () => {
+    if (!business?.id) return;
+    const { errors } = await createOffer({
+      variables: {
+        input: {
+          businessId: business.id,
+          price: parseFloat(String(business.price ?? 0)),
+          message: '',
+          status: 'PENDING',
+          isProceedToPay: true,
+        },
+      },
+    });
+    if (errors?.length) {
+      const msg = errors[0]?.message ?? '';
+      if (msg.includes('VERIFICATION_REQUIRED')) {
+        toast.error(
+          isAr ? 'يجب التحقق من هويتك أولاً لإتمام الشراء' : 'Identity verification required to proceed with purchase',
+          { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onNavigate?.('dashboard:settings:identity') } }
+        );
+      } else if (msg.includes('NDA_NOT_SIGNED')) {
+        setNdaSigned(false);
+        setPendingAction('purchase');
+        setModalOpen('enda');
+      } else if (msg.includes('OFFER_ALREADY_EXISTS')) {
+        toast.error(isAr
+          ? 'لديك عرض نشط بالفعل على هذا الإدراج'
+          : 'You already have an active offer on this listing');
+      } else {
+        toast.error(t.errGeneric);
+      }
+      return;
+    }
+    toast.success(t.purchaseStarted);
     setModalOpen(null);
   };
 
@@ -315,11 +360,16 @@ export const BusinessDetails = ({
       // NDA confirmed (new or existing) — cache in session and proceed
       setNdaSigned(true);
       toast.success(t.endaSigned);
-      if (pendingAction) {
-        // Auto-open the modal the user originally intended
+      if (pendingAction === 'purchase') {
+        // Fix 3: Buy Now — no modal, fire purchase directly
+        setPendingAction(null);
+        setModalOpen(null);
+        await handlePurchaseAction();
+      } else if (pendingAction) {
+        // Offer or Meeting — open the intended modal
         const next = pendingAction;
         setPendingAction(null);
-        setModalOpen(next);
+        setModalOpen(next as 'offer' | 'meeting');
       } else {
         setModalOpen(null);
       }
@@ -612,7 +662,7 @@ export const BusinessDetails = ({
                     </button>
                   )}
                   <button
-                    onClick={() => { if (!requireLogin()) return; setModalOpen('enda'); }}
+                    onClick={() => handleActionClick('purchase')}
                     className="w-full bg-[#10B981] text-white font-bold py-4 rounded-xl hover:bg-[#059669] transition-all shadow-lg shadow-emerald-100"
                   >
                     {t.buyNow}
@@ -816,7 +866,7 @@ export const BusinessDetails = ({
               </button>
             )}
             <button
-              onClick={() => { if (!requireLogin()) return; setModalOpen('enda'); }}
+              onClick={() => handleActionClick('purchase')}
               className="col-span-1 bg-[#10B981] text-white rounded-xl hover:bg-[#059669] transition-colors flex flex-col items-center justify-center gap-1 py-2"
             >
               <ShieldCheck size={18} />
