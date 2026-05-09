@@ -2636,7 +2636,7 @@ export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: stri
       </div>
 
       {/* ── Mobile Bottom Tab Bar ──────────────────────────────────── */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-sm border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,138,102,0.10)]">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/95 backdrop-blur-sm border-t border-gray-100 shadow-[0_-4px_24px_rgba(0,138,102,0.10)]">
         {/* Swipeable scroll container — hides scrollbar, touch-friendly */}
         <div className="overflow-x-auto scrollbar-none pb-safe pt-1" style={{ WebkitOverflowScrolling: 'touch' }}>
           <div className="flex items-end" style={{ minWidth: 'max-content' }}>
