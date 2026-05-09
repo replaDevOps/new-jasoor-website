@@ -378,7 +378,7 @@ const DashboardView = ({
   );
 };
 
-const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavigate }: { isFavorites?: boolean; onAddListing?: () => void; onEditListing?: (id: number) => void; onNavigate?: (page: string, id?: number) => void }) => {
+const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavigate }: { isFavorites?: boolean; onAddListing?: () => void; onEditListing?: (id: string | number) => void; onNavigate?: (page: string, id?: string | number) => void }) => {
   const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
   const [filter, setFilter] = useState<'all' | 'sold'>('all');
@@ -445,7 +445,7 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
                 description={b.description || ''}
                 image={b.image}
                 number={fmt(b.price)}
-                onClick={() => onNavigate?.('details', Number(b.id))}
+                onClick={() => onNavigate?.('details', b.id)}
                 badge={isFavorites
                   ? (
                     <div className="bg-white/95 text-[#111827] border-gray-100/50 backdrop-blur-md px-3 py-1.5 rounded-lg text-[11px] font-bold shadow-sm border">
@@ -473,9 +473,9 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
                 footer={!isFavorites ? (
                   <div className="flex gap-2 w-full">
                     {b.businessStatus !== 'SOLD' && (
-                      <button onClick={e=>{e.stopPropagation();onEditListing?.(Number(b.id));}} className="flex-1 bg-[#F3F4F6] text-[#111827] py-2 rounded-lg text-xs font-bold hover:bg-gray-200">{content.dashboard.listings.actions.edit}</button>
+                      <button onClick={e=>{e.stopPropagation();onEditListing?.(b.id);}} className="flex-1 bg-[#F3F4F6] text-[#111827] py-2 rounded-lg text-xs font-bold hover:bg-gray-200">{content.dashboard.listings.actions.edit}</button>
                     )}
-                    <button onClick={e=>{e.stopPropagation();onNavigate?.('details', Number(b.id));}} className="flex-1 bg-[#10B981] text-white py-2 rounded-lg text-xs font-bold hover:bg-[#008A66] flex items-center justify-center gap-1">
+                    <button onClick={e=>{e.stopPropagation();onNavigate?.('details', b.id);}} className="flex-1 bg-[#10B981] text-white py-2 rounded-lg text-xs font-bold hover:bg-[#008A66] flex items-center justify-center gap-1">
                       {content.dashboard.listings.actions.view}{direction==='rtl'?<ChevronLeft size={14}/>:<ChevronRight size={14}/>}
                     </button>
                   </div>
@@ -490,7 +490,7 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
 };
 
 
-const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string, id?: number) => void; onGoToIdentity?: () => void }) => {
+const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string, id?: string | number) => void; onGoToIdentity?: () => void }) => {
   const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
   const [directionFilter, setDirectionFilter] = useState<'received'|'sent'>('received');
@@ -667,7 +667,7 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="flex-1 min-w-0">
                         <button
-                          onClick={() => onNavigate?.('details', Number(o.business?.id))}
+                          onClick={() => onNavigate?.('details', o.business?.id)}
                           className="text-sm font-bold text-[#10B981] hover:underline truncate block text-right w-full"
                         >
                           {o.business?.businessTitle}
@@ -715,7 +715,7 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
                       <tr key={o.id} className="hover:bg-gray-50">
                         <td className="px-6 py-4">
                           <button
-                            onClick={() => onNavigate?.('details', Number(o.business?.id))}
+                            onClick={() => onNavigate?.('details', o.business?.id)}
                             className="text-sm font-bold text-[#10B981] hover:underline block text-right"
                           >
                             {o.business?.businessTitle}
@@ -752,7 +752,7 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
                 <div>
                   <p className="text-xs text-gray-500 mb-1">{content.dashboard.offers.table.listing}</p>
                   <button
-                    onClick={() => { onNavigate?.('details', Number(selectedOffer.business?.id)); setSelectedId(null); }}
+                    onClick={() => { onNavigate?.('details', selectedOffer.business?.id); setSelectedId(null); }}
                     className="font-bold text-[#10B981] hover:underline text-right"
                   >
                     {selectedOffer.business?.businessTitle}
@@ -854,7 +854,7 @@ const DealsView = ({
   onGoToWallet,
   initialSelectedId,
 }: {
-  onNavigate?: (page: string, id?: number) => void;
+  onNavigate?: (page: string, id?: string | number) => void;
   onGoToWallet?: (dealId: string) => void;
   initialSelectedId?: string | null;
 }) => {
@@ -1160,7 +1160,7 @@ const DealsView = ({
           <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
             <div>
               <button
-                onClick={() => onNavigate?.('details', Number(deal.business?.id))}
+                onClick={() => onNavigate?.('details', deal.business?.id)}
                 className="text-xl md:text-2xl font-black text-[#111827] mb-1 hover:text-[#10B981] transition-colors text-right block"
               >
                 {deal.business?.businessTitle}
@@ -1392,7 +1392,7 @@ const DealsView = ({
                 </div>
                 <h3 className="text-lg font-black text-[#111827] mb-0.5">{d.business?.businessTitle}</h3>
                 <button
-                  onClick={e => { e.stopPropagation(); onNavigate?.('details', Number(d.business?.id)); }}
+                  onClick={e => { e.stopPropagation(); onNavigate?.('details', d.business?.id); }}
                   className="text-xs text-[#10B981] font-bold hover:underline mb-3 block"
                 >
                   {isAr ? 'عرض الإدراج' : 'View Listing'}
@@ -1417,7 +1417,7 @@ const DealsView = ({
   );
 };
 
-const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
+const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: string | number) => void }) => {
   const { content, language, direction, userId } = useApp();
   const isAr = language === 'ar';
 
@@ -1577,7 +1577,7 @@ const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number)
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-[#111827] truncate">{maskName(otherParty(m))}</p>
                           <button
-                            onClick={e => { e.stopPropagation(); onNavigate?.('details', Number(m.business?.id)); }}
+                            onClick={e => { e.stopPropagation(); onNavigate?.('details', m.business?.id); }}
                             className="text-xs text-[#10B981] hover:underline truncate block text-right"
                           >
                             {m.business?.businessTitle}
@@ -1632,7 +1632,7 @@ const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number)
                         </td>
                         <td className="px-6 py-4">
                           <button
-                            onClick={() => onNavigate?.('details', Number(m.business?.id))}
+                            onClick={() => onNavigate?.('details', m.business?.id)}
                             className="text-sm text-[#10B981] hover:underline font-bold"
                           >
                             {m.business?.businessTitle}
@@ -1682,7 +1682,7 @@ const MeetingsView = ({ onNavigate }: { onNavigate?: (page: string, id?: number)
               <div>
                 <h4 className="font-bold text-[#111827] text-lg">{maskName(otherParty(selected))}</h4>
                 <button
-                  onClick={() => { onNavigate?.('details', Number(selected.business?.id)); setSelectedId(null); }}
+                  onClick={() => { onNavigate?.('details', selected.business?.id); setSelectedId(null); }}
                   className="text-sm text-[#10B981] hover:underline font-bold"
                 >
                   {selected.business?.businessTitle}
@@ -1881,7 +1881,7 @@ const AlertsView = ({ onNavigate, onTabChange, onSettingsIdentity }: {
               if (rawTarget === 'settings:identity') {
                 onSettingsIdentity?.();
               } else if (rawTarget === 'details') {
-                onNavigate?.(rawTarget, n.entityId ? Number(n.entityId) : undefined);
+                onNavigate?.(rawTarget, n.entityId ?? undefined);
               } else {
                 onTabChange?.(rawTarget);
               }
@@ -2304,7 +2304,7 @@ const SettingsView = ({ defaultTab, onReturnToDeal }: { defaultTab?: string; onR
 };
 
 
-export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: string, id?: number) => void; onEditListing?: (id: string | number) => void; defaultTab?: string }) => {
+export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: string, id?: string | number) => void; onEditListing?: (id: string | number) => void; defaultTab?: string }) => {
   const { content, language, direction, logout, userId } = useApp();
   const isAr = language === 'ar';
   // When arriving via intent-routing (e.g. 'settings:identity'), open the right tab immediately
@@ -2361,7 +2361,7 @@ export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: stri
   const dashboardNotifications = notifData?.getNotifications?.notifications ?? [];
   const unreadCount = dashboardNotifications.filter((n: any) => !n.isRead).length;
   const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
-  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingId, setEditingId] = useState<string | number | null>(null);
 
   // P6-FIX R-04: real user data for profile header
   const { data: navUserData } = useQuery(GET_USER_DETAILS, {
@@ -2393,7 +2393,7 @@ export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: stri
     window.scrollTo(0, 0);
   };
   
-  const handleEditListing = (id: number) => {
+  const handleEditListing = (id: string | number) => {
     setEditingId(id);
     setViewMode('edit-listing');
     window.scrollTo(0, 0);

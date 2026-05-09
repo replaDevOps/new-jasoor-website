@@ -46,7 +46,7 @@ export const BusinessDetails = ({
 }: {
   onBack?: () => void;
   businessId?: string | number | null;
-  onNavigate?: (page: string, id?: number) => void;
+  onNavigate?: (page: string, id?: string | number) => void;
 }) => {
   const { language, direction, userId, isLoggedIn } = useApp();
   const isAr = language === 'ar';
@@ -65,6 +65,10 @@ export const BusinessDetails = ({
 
   const [modalOpen, setModalOpen] = useState<'offer' | 'meeting' | 'enda' | null>(null);
   const [isSaved, setIsSaved] = useState(false);
+  // Intent tracker: remembers what the user was trying to do before NDA gate
+  const [pendingAction, setPendingAction] = useState<'offer' | 'meeting' | null>(null);
+  // Session-level NDA cache: true once user confirms ENDA this session (idempotent on backend)
+  const [ndaSigned, setNdaSigned] = useState(false);
 
   // Stage 4: block "Make Offer" if buyer already has ANY non-REJECTED offer on this listing
   // Matches backend rule: Not("REJECTED") — PENDING, ACCEPTED, MEETING, COUNTERED all block a new offer
@@ -162,6 +166,22 @@ export const BusinessDetails = ({
     return false;
   };
 
+  // ── Intent-gated action handler ───────────────────────────────────────────────
+  /**
+   * Click handler for "Schedule Meeting" and "Make Offer".
+   * Gate: if NDA not yet confirmed this session → open ENDAModal first, save intent.
+   * After ENDA success, handleENDAConfirm auto-opens the intended modal.
+   */
+  const handleActionClick = (action: 'offer' | 'meeting') => {
+    if (!requireLogin()) return;
+    if (!ndaSigned) {
+      setPendingAction(action);
+      setModalOpen('enda');
+    } else {
+      setModalOpen(action);
+    }
+  };
+
   // ── Handlers ─────────────────────────────────────────────────────────────────
 
   const handleOfferSubmit = async (amount: string) => {
@@ -185,9 +205,10 @@ export const BusinessDetails = ({
           { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onNavigate?.('dashboard:settings:identity') } }
         );
       } else if (msg.includes('NDA_NOT_SIGNED')) {
-        toast.error(isAr
-          ? 'يجب توقيع اتفاقية السرية (NDA) أولاً'
-          : 'You must sign the NDA for this listing before making an offer');
+        // Backend still requires NDA → switch to ENDAModal and remember intent
+        setNdaSigned(false);
+        setPendingAction('offer');
+        setModalOpen('enda');
       } else if (msg.includes('OFFER_ALREADY_EXISTS')) {
         toast.error(isAr
           ? 'لديك عرض نشط بالفعل على هذا الإدراج'
@@ -205,44 +226,49 @@ export const BusinessDetails = ({
     if (!business?.id) return;
     const startIso = data.date ? `${data.date}T${data.startTime || '00:00'}:00.000Z` : new Date().toISOString();
     const endIso   = data.date ? `${data.date}T${data.endTime   || '00:00'}:00.000Z` : new Date().toISOString();
-    const { errors } = await requestMeeting({
-      variables: {
-        input: {
-          businessId: business.id,
-          requestedDate: startIso,
-          requestedEndDate: endIso,
+    try {
+      const { errors } = await requestMeeting({
+        variables: {
+          input: {
+            businessId: business.id,
+            requestedDate: startIso,
+            requestedEndDate: endIso,
+          },
         },
-      },
-    });
-    if (errors?.length) {
-      const msg = errors[0]?.message ?? '';
-      if (msg.includes('VERIFICATION_REQUIRED')) {
-        toast.error(
-          isAr ? 'يجب التحقق من هويتك أولاً لطلب اجتماع' : 'Identity verification required to request a meeting',
-          { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onNavigate?.('dashboard:settings:identity') } }
-        );
-      } else if (msg.includes('NDA_NOT_SIGNED')) {
-        toast.error(isAr
-          ? 'يجب توقيع اتفاقية السرية (NDA) لهذا الإعلان أولاً'
-          : 'You must sign the NDA for this listing before requesting a meeting');
-      } else if (msg.includes('MEETING_REQUEST_OUTSIDE_ALLOWED_HOURS') || msg.includes('MEETING_TIME_INVALID')) {
-        toast.error(isAr
-          ? 'الوقت المحدد خارج نطاق أوقات الاجتماعات المسموح بها. (الأحد–الجمعة ٤:٣٠م–١١م / السبت ٢م–١١م)'
-          : 'Selected time is outside allowed meeting hours. (Sun–Fri 4:30 PM–11 PM / Sat 2 PM–11 PM)');
-      } else {
-        toast.error(t.errGeneric);
+      });
+      if (errors?.length) {
+        const msg = errors[0]?.message ?? '';
+        if (msg.includes('VERIFICATION_REQUIRED')) {
+          toast.error(
+            isAr ? 'يجب التحقق من هويتك أولاً لطلب اجتماع' : 'Identity verification required to request a meeting',
+            { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onNavigate?.('dashboard:settings:identity') } }
+          );
+        } else if (msg.includes('NDA_NOT_SIGNED')) {
+          // Backend still requires NDA → switch to ENDAModal and remember intent
+          setNdaSigned(false);
+          setPendingAction('meeting');
+          setModalOpen('enda');
+        } else if (msg.includes('MEETING_REQUEST_OUTSIDE_ALLOWED_HOURS') || msg.includes('MEETING_TIME_INVALID')) {
+          toast.error(isAr
+            ? 'الوقت المحدد خارج نطاق أوقات الاجتماعات المسموح بها. (الأحد–الجمعة ٤:٣٠م–١١م / السبت ٢م–١١م)'
+            : 'Selected time is outside allowed meeting hours. (Sun–Fri 4:30 PM–11 PM / Sat 2 PM–11 PM)');
+        } else {
+          toast.error(msg || t.errGeneric);
+        }
+        return;
       }
-      return;
+      toast.success(t.meetingSent);
+      setModalOpen(null);
+    } catch {
+      toast.error(t.errGeneric);
     }
-    toast.success(t.meetingSent);
-    setModalOpen(null);
   };
 
   const handleENDAConfirm = async () => {
     if (!requireLogin()) return;
     if (!business?.id || !userId) return;
     try {
-      await createEnda({
+      const { errors } = await createEnda({
         variables: {
           input: {
             userId,
@@ -255,11 +281,33 @@ export const BusinessDetails = ({
           },
         },
       });
+      if (errors?.length) {
+        const msg = errors[0]?.message ?? '';
+        if (msg.includes('VERIFICATION_REQUIRED')) {
+          toast.error(
+            isAr ? 'يجب التحقق من هويتك أولاً لتوقيع الاتفاقية' : 'Identity verification required to sign the agreement',
+            { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onNavigate?.('dashboard:settings:identity') } }
+          );
+          return;
+        }
+        // Any other error (including "already signed") is fine — backend is idempotent,
+        // treat as success and proceed to open the pending action modal
+      }
+      // NDA confirmed (new or existing) — cache in session and proceed
+      setNdaSigned(true);
       toast.success(t.endaSigned);
+      if (pendingAction) {
+        // Auto-open the modal the user originally intended
+        const next = pendingAction;
+        setPendingAction(null);
+        setModalOpen(next);
+      } else {
+        setModalOpen(null);
+      }
     } catch {
       toast.error(t.errGeneric);
+      setModalOpen(null);
     }
-    setModalOpen(null);
   };
 
   const handleShare = async () => {
@@ -527,7 +575,7 @@ export const BusinessDetails = ({
                 {/* Action Buttons */}
                 <div className="space-y-3 mb-8 hidden lg:block">
                   <button
-                    onClick={() => { if (!requireLogin()) return; setModalOpen('meeting'); }}
+                    onClick={() => handleActionClick('meeting')}
                     className="w-full bg-white text-[#111827] border border-gray-200 font-bold py-4 rounded-xl hover:bg-gray-50 transition-all shadow-sm"
                   >
                     {t.scheduleMeeting}
@@ -538,7 +586,7 @@ export const BusinessDetails = ({
                     </div>
                   ) : (
                     <button
-                      onClick={() => { if (!requireLogin()) return; setModalOpen('offer'); }}
+                      onClick={() => handleActionClick('offer')}
                       className="w-full bg-[#111827] text-white font-bold py-4 rounded-xl hover:bg-black transition-all shadow-lg shadow-gray-200"
                     >
                       {t.makeOffer}
@@ -619,7 +667,7 @@ export const BusinessDetails = ({
                           if (!isLoggedIn) { onNavigate?.('signin'); return; }
                           saveRelatedBusiness({ variables: { saveBusinessId: listing.id } });
                         }}
-                        onClick={() => onNavigate?.('details', Number(listing.id))}
+                        onClick={() => onNavigate?.('details', listing.id)}
                         badge={
                           <div className="bg-white/95 text-[#111827] border-gray-100/50 backdrop-blur-md px-3 py-1.5 rounded-lg text-[11px] font-bold shadow-sm border">
                             {listing.isByTakbeer ? t.taqbeel : t.acquisition}
@@ -637,7 +685,7 @@ export const BusinessDetails = ({
                         // P5-FIX R-02: Details button navigates to the real listing
                         footer={
                           <button
-                            onClick={(e) => { e.stopPropagation(); onNavigate?.('details', Number(listing.id)); }}
+                            onClick={(e) => { e.stopPropagation(); onNavigate?.('details', listing.id); }}
                             className="bg-[#008A66] text-white text-xs font-bold px-5 py-2.5 rounded-full hover:bg-[#007053] transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
                           >
                             <span>{t.details}</span>
@@ -707,7 +755,7 @@ export const BusinessDetails = ({
           </div>
           <div className="grid grid-cols-4 gap-2">
             <button
-              onClick={() => { if (!requireLogin()) return; setModalOpen('meeting'); }}
+              onClick={() => handleActionClick('meeting')}
               className="col-span-1 bg-white text-[#111827] border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors flex flex-col items-center justify-center gap-1 py-2"
             >
               <Users size={18} />
@@ -719,7 +767,7 @@ export const BusinessDetails = ({
               </div>
             ) : (
               <button
-                onClick={() => { if (!requireLogin()) return; setModalOpen('offer'); }}
+                onClick={() => handleActionClick('offer')}
                 className="col-span-2 bg-[#111827] text-white font-bold rounded-xl hover:bg-black transition-colors flex items-center justify-center gap-2 py-3 shadow-lg shadow-gray-200"
               >
                 {t.makeOffer}

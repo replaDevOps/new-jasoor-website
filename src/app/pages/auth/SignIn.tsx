@@ -16,7 +16,7 @@ export const SignIn = ({
   onNavigate,
   returnTo,
 }: {
-  onNavigate: (page: string, id?: number) => void;
+  onNavigate: (page: string, id?: string | number) => void;
   returnTo?: { view: string; id?: string | number };
 }) => {
   const { login, content, direction, language, setLanguage } = useApp();
@@ -82,7 +82,7 @@ export const SignIn = ({
       toast.success(content.auth.signIn.success);
       // Return to where the user came from (e.g. a listing they were viewing when auth was required)
       if (returnTo?.view) {
-        onNavigate(returnTo.view, returnTo.id != null ? Number(returnTo.id) : undefined);
+        onNavigate(returnTo.view, returnTo.id);
       } else {
         onNavigate('dashboard');
       }

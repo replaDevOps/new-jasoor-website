@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../Button';
-import { DollarSign } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
 import { useQuery } from '@apollo/client';
 import { PREVIEW_COMMISSION } from '../../../graphql/queries/dashboard';
@@ -26,6 +25,7 @@ export const OfferModal = ({ isOpen, onClose, type, onSubmit }: OfferModalProps)
     variables: { price: validAmount ? parsedAmount : 0 },
     skip: type !== 'make-offer' || !validAmount,
     fetchPolicy: 'network-only',
+    errorPolicy: 'all',
   });
 
   const commission: number = commissionData?.previewCommission ?? 0;
@@ -64,15 +64,17 @@ export const OfferModal = ({ isOpen, onClose, type, onSubmit }: OfferModalProps)
           <label className="block text-sm font-bold text-gray-700 mb-2">
             {type === 'make-offer' ? t.labelMakeOffer : t.labelCounter}
           </label>
-          <div className="relative">
+          <div className="flex items-stretch bg-gray-50 border border-gray-200 rounded-xl overflow-hidden transition-all focus-within:border-[#008A66] focus-within:ring-4 focus-within:ring-[#008A66]/10">
+            <span className="flex items-center px-3 bg-gray-100 border-r border-gray-200 text-gray-500 font-bold text-sm shrink-0 dir-ltr">
+              {t.sar}
+            </span>
             <input
               type="number"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-lg font-bold focus:outline-none focus:border-[#008A66] focus:ring-4 focus:ring-[#008A66]/10 transition-colors dir-ltr text-left"
+              className="flex-1 bg-transparent py-3 px-4 text-lg font-bold focus:outline-none dir-ltr text-left"
               placeholder={t.placeholder}
             />
-            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
           </div>
         </div>
 

@@ -71,7 +71,7 @@ function AppContent() {
     const path = window.location.pathname;
     // Support /details/123 URLs — but /details with no ID goes to browse
     if (path.startsWith('/details/')) {
-      const id = Number(path.split('/details/')[1]);
+      const id = decodeURIComponent(path.split('/details/')[1] || '');
       if (id) return 'details';
       return 'browse';
     }
@@ -113,7 +113,7 @@ function AppContent() {
       } else {
         const path = window.location.pathname;
         if (path.startsWith('/details/')) {
-          const id = Number(path.split('/details/')[1]);
+          const id = decodeURIComponent(path.split('/details/')[1] || '');
           if (id) setSelectedBusinessId(id);
           setView('details');
         } else {

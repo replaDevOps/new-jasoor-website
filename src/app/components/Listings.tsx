@@ -21,7 +21,7 @@ function fmt(v: number | null | undefined): string {
   return Math.round(v).toLocaleString('en-US');
 }
 
-export const Listings = ({ onViewAll, onNavigate }: { onViewAll?: () => void; onNavigate?: (page: string, id?: number) => void }) => {
+export const Listings = ({ onViewAll, onNavigate }: { onViewAll?: () => void; onNavigate?: (page: string, id?: string | number) => void }) => {
   const { content, direction, language, userId, isLoggedIn } = useApp();
   const { businesses, loading } = useRandomBusinesses(userId);
   const [saveBusinessMutation] = useMutation(CREATE_SAVE_BUSINESS, { errorPolicy: 'all' });

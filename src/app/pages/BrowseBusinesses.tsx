@@ -20,7 +20,7 @@ const fmtNum = (n: number | string): string => {
   return num.toLocaleString('en-US');
 };
 
-export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, id?: number) => void }) => {
+export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, id?: string | number) => void }) => {
   const { direction, language, content, isLoggedIn } = useApp();
   const isAr = language === 'ar';
   const [isFilterOpen, setIsFilterOpen] = useState(false);

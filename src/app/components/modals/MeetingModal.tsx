@@ -29,9 +29,13 @@ export const MeetingModal = ({ isOpen, onClose, onSubmit }: MeetingModalProps) =
       : '* You will be contacted to confirm the appointment within 24 hours',
   };
 
+  const canSubmit = date.trim() !== '' && startTime.trim() !== '' && endTime.trim() !== '';
+
   const handleSubmit = () => {
+    if (!canSubmit) return;
     onSubmit({ date, startTime, endTime });
-    onClose();
+    // Note: don't call onClose() here — parent's handleMeetingSubmit closes the modal
+    // after the mutation completes so the toast fires correctly
   };
 
   const inputClass = "w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#008A66] focus:ring-4 focus:ring-[#008A66]/10 transition-colors";
@@ -79,7 +83,7 @@ export const MeetingModal = ({ isOpen, onClose, onSubmit }: MeetingModalProps) =
         <p className="text-xs text-gray-400 italic">{t.note}</p>
 
         <div className="flex gap-3 pt-2">
-          <Button onClick={handleSubmit} className="flex-1">{t.send}</Button>
+          <Button onClick={handleSubmit} className="flex-1" disabled={!canSubmit}>{t.send}</Button>
           <Button variant="outline" onClick={onClose} className="flex-1">{t.cancel}</Button>
         </div>
       </div>
