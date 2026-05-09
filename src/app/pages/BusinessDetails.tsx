@@ -832,7 +832,8 @@ export const BusinessDetails = ({
       />
 
       {/* ── Mobile Sticky Bar ────────────────────────────────────────────────── */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 pb-6 z-40 lg:hidden shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
+      {/* Fix 5: z-20 keeps bar below Navbar drawer (z-50) and its overlay (z-50) */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4 pb-6 z-20 lg:hidden shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between px-1">
             <div className="flex flex-col gap-0.5">
