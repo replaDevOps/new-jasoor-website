@@ -287,6 +287,22 @@ export const GET_NDA_TERMS = gql`
   }
 `;
 
+/** Check whether the authenticated user has already signed the NDA for a specific business */
+export const GET_ENDA_BY_BUSINESS_ID = gql`
+  query GetEndaByBusinessId($businessId: ID) {
+    getEndaByBusinessId(businessId: $businessId) {
+      id
+      acceptNdaTerms
+      acceptPlatformTerms
+      acceptCommission
+      acceptedAt
+      user {
+        id
+      }
+    }
+  }
+`;
+
 export const CHECK_OFFER_EXISTS = gql`
   query CheckOfferExists($businessId: ID!, $buyerId: ID!) {
     checkOfferExists(businessId: $businessId, buyerId: $buyerId) {

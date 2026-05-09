@@ -71,6 +71,7 @@ import {
 } from '../../graphql/mutations/dashboard';
 import { REQUEST_MEETING } from '../../graphql/mutations/business';
 import { maskName } from '../../utils/maskName';
+import { resolveBusinessLocation } from '../../utils/location';
 
 // ─── BUG-11 ARCHITECTURAL DECISION ──────────────────────────────────────────
 // The files in ./dashboard/ (DashboardView.tsx, OffersView.tsx, etc.) are
@@ -463,7 +464,7 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
                 } : undefined}
                 listingData={{
                   category:  isAr ? b.category?.arabicName : b.category?.name,
-                  location:  isAr ? (b.district || b.city || '') : (b.city || b.district || ''),
+                  location:  resolveBusinessLocation(b.district, b.city, language as 'ar' | 'en'),
                   revenue:   isFavorites ? fmt(b.revenue) : (b.offerCount ?? 0).toString(),
                   profit:    isFavorites ? fmt(b.profit)  : '—',
                   recovery:  isFavorites ? (b.capitalRecovery ? fmt(b.capitalRecovery) : '—') : '—',

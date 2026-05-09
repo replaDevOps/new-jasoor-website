@@ -13,6 +13,7 @@ import { useRandomBusinesses } from '../../hooks/useRandomBusinesses';
 import type { BusinessListItem } from '../../types/api';
 import { useMutation } from '@apollo/client';
 import { CREATE_SAVE_BUSINESS } from '../../graphql/mutations/dashboard';
+import { resolveBusinessLocation } from '../../utils/location';
 
 function fmt(v: number | null | undefined): string {
   if (v == null) return '—';
@@ -100,7 +101,7 @@ export const Listings = ({ onViewAll, onNavigate }: { onViewAll?: () => void; on
                   badge={renderBadge(b.isByTakbeer)}
                   listingData={{
                     category: language === 'ar' ? b.category?.arabicName || b.category?.name : b.category?.name || '',
-                    location: language === 'ar' ? ((b as any).district || (b as any).city || '') : ((b as any).city || (b as any).district || ''),
+                    location: resolveBusinessLocation((b as any).district, (b as any).city, language as 'ar' | 'en'),
 
                     revenue: fmt(b.revenue) + ' ' + labels.currency,
                     profit: fmt(b.profit) + ' ' + labels.currency,

@@ -19,7 +19,8 @@ import { useBusinessDetail } from '../../hooks/useBusinessDetail';
 import { useMutation, useQuery } from '@apollo/client';
 import { CREATE_OFFER, REQUEST_MEETING, CREATE_ENDA, VIEW_BUSINESS } from '../../graphql/mutations/business';
 import { CREATE_SAVE_BUSINESS } from '../../graphql/mutations/dashboard';
-import { GET_SUGGESTED_LISTINGS } from '../../graphql/queries/business';
+import { GET_SUGGESTED_LISTINGS, GET_ENDA_BY_BUSINESS_ID } from '../../graphql/queries/business';
+import { resolveBusinessLocation } from '../../utils/location';
 import { GET_OFFERS_BY_USER } from '../../graphql/queries/dashboard';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -55,20 +56,38 @@ export const BusinessDetails = ({
   const { business, loading, error, toggleSave } = useBusinessDetail(businessId);
 
   // Related businesses — scored algorithm: same category+city > same category > same city > price ±30%
-  const { data: suggestedData, loading: similarLoading } = useQuery(GET_SUGGESTED_LISTINGS, {
+  const { data: suggestedData, loading: similarLoading, error: suggestedError, refetch: refetchSuggested } = useQuery(GET_SUGGESTED_LISTINGS, {
     variables: { businessId: String(businessId), limit: 3 },
     skip: !businessId,
     fetchPolicy: 'network-only',
     errorPolicy: 'all',
   });
+  // P1 FIX: surface resolver errors so a broken backend doesn't silently become empty state
+  if (suggestedError) console.error('[getSuggestedListings]', suggestedError);
   const similarBusinesses = suggestedData?.getSuggestedListings ?? [];
 
   const [modalOpen, setModalOpen] = useState<'offer' | 'meeting' | 'enda' | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   // Intent tracker: remembers what the user was trying to do before NDA gate
   const [pendingAction, setPendingAction] = useState<'offer' | 'meeting' | null>(null);
-  // Session-level NDA cache: true once user confirms ENDA this session (idempotent on backend)
+  // NDA signed state — initialised from backend, then kept in sync locally
   const [ndaSigned, setNdaSigned] = useState(false);
+
+  // Pre-check: has this user already signed the NDA for this business?
+  const { data: endaData } = useQuery(GET_ENDA_BY_BUSINESS_ID, {
+    variables: { businessId: String(businessId) },
+    skip: !businessId || !isLoggedIn,
+    fetchPolicy: 'network-only',
+    errorPolicy: 'all',
+  });
+
+  // Set ndaSigned = true as soon as we confirm the user's acceptance exists on the backend
+  useEffect(() => {
+    const acceptance = endaData?.getEndaByBusinessId;
+    if (acceptance?.id && acceptance?.user?.id && String(acceptance.user.id) === String(userId)) {
+      setNdaSigned(true);
+    }
+  }, [endaData, userId]);
 
   // Stage 4: block "Make Offer" if buyer already has ANY non-REJECTED offer on this listing
   // Matches backend rule: Not("REJECTED") — PENDING, ACCEPTED, MEETING, COUNTERED all block a new offer
@@ -647,6 +666,29 @@ export const BusinessDetails = ({
               <div className="flex justify-center py-12">
                 <div className="w-8 h-8 border-2 border-[#008A66] border-t-transparent rounded-full animate-spin" />
               </div>
+            ) : suggestedError ? (
+              <div className="rounded-3xl border border-red-100 bg-red-50 p-8 text-center">
+                <p className="text-red-700 font-bold mb-1">
+                  {isAr ? 'تعذر تحميل الفرص المشابهة' : 'Could not load related businesses'}
+                </p>
+                <p className="text-red-400 text-sm mb-5">
+                  {isAr ? 'حدث خطأ أثناء جلب البيانات' : 'An error occurred while fetching data'}
+                </p>
+                <div className="flex items-center justify-center gap-3">
+                  <button
+                    onClick={() => refetchSuggested()}
+                    className="bg-[#008A66] text-white text-sm font-bold px-5 py-2.5 rounded-xl hover:bg-[#007053] transition-colors"
+                  >
+                    {isAr ? 'إعادة المحاولة' : 'Try again'}
+                  </button>
+                  <button
+                    onClick={() => onNavigate?.('browse')}
+                    className="text-[#008A66] text-sm font-bold px-5 py-2.5 rounded-xl border border-[#008A66] hover:bg-[#008A66]/5 transition-colors"
+                  >
+                    {isAr ? 'تصفح الفرص' : 'Browse businesses'}
+                  </button>
+                </div>
+              </div>
             ) : similar.length > 0 ? (
               <div className="flex overflow-x-auto pb-6 -mx-4 px-4 md:mx-0 md:px-0 md:grid md:grid-cols-3 md:gap-8 snap-x snap-mandatory md:snap-none hide-scrollbar">
                 {similar.map((listing) => {
@@ -675,7 +717,7 @@ export const BusinessDetails = ({
                         }
                         listingData={{
                           category: catName || '',
-                          location: isAr ? (listing.district || listing.city || '') : (listing.city || listing.district || ''),
+                          location: resolveBusinessLocation(listing.district, listing.city, language as 'ar' | 'en'),
                           revenue: `${fmt(listing.revenue)} ${t.currency}`,
                           profit: `${fmt(listing.profit)} ${t.currency}`,
                           recovery: listing.capitalRecovery ? `${Math.round(listing.capitalRecovery)} ${t.month}` : '—',

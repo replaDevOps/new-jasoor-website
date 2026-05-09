@@ -12,13 +12,17 @@ import { useQuery, useMutation } from '@apollo/client';
 import { CREATE_SAVE_BUSINESS } from '../../graphql/mutations/dashboard';
 import { GET_CATEGORIES } from '../../graphql/queries/business';
 import { SAUDI_REGIONS } from '../../data/saudiRegions';
+import { resolveBusinessLocation } from '../../utils/location';
 
-// Product decision: keep numerals Western/English even when the UI language is Arabic.
-const fmtNum = (n: number | string): string => {
-  const num = Number(n);
-  if (isNaN(num)) return String(n);
-  return num.toLocaleString('en-US');
-};
+// Matches Listings.tsx fmt — abbreviated K/M format, em-dash for null
+function fmt(v: number | null | undefined): string {
+  if (v == null || isNaN(Number(v))) return '—';
+  const n = Number(v);
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M';
+  if (n >= 1_000) return Math.round(n / 1_000) + 'K';
+  return Math.round(n).toLocaleString('en-US');
+}
+
 
 export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, id?: string | number) => void }) => {
   const { direction, language, content, isLoggedIn } = useApp();
@@ -483,7 +487,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
               {loading ? (
                 Array.from({ length: 12 }).map((_, i) => (
                   <div key={i} className="bg-white rounded-2xl border border-gray-100 overflow-hidden animate-pulse">
-                    <div className="h-44 bg-gray-200" />
+                    <div className="aspect-[3/2] bg-gray-200" />
                     <div className="p-4 space-y-3">
                       <div className="h-4 bg-gray-200 rounded w-3/4" />
                       <div className="h-3 bg-gray-100 rounded w-full" />
@@ -512,37 +516,40 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                 <Card
                   key={listing.id}
                   variant="listing"
-                  title={language === 'ar' ? listing.businessTitle : listing.businessTitle}
+                  title={listing.businessTitle}
                   description={listing.description}
                   image={listing.image}
-                  number={fmtNum(listing.price)}
+                  number={fmt(listing.price)}
                   hideFavorite={!isLoggedIn}
                   isSaved={listing.isSaved ?? false}
                   onSave={async (e) => { e.stopPropagation(); if (!isLoggedIn) { onNavigate?.('signin'); return; } await saveBusiness({ variables: { saveBusinessId: listing.id } }); }}
                   badge={renderBadge(listing.isByTakbeer ? 'taqbeel' : 'acquisition')}
                   labels={{
-                     revenue: t.revenueLabel,
-                     profit: t.profitLabel,
-                     recovery: t.recoveryLabel,
-                     askingPrice: t.askingPrice,
-                     currency: t.sar,
-                     details: t.details,
-                     noImage: language === 'ar' ? 'لا توجد صورة' : 'No image'
+                    revenue: t.revenueLabel,
+                    profit: t.profitLabel,
+                    recovery: t.recoveryLabel,
+                    askingPrice: t.askingPrice,
+                    currency: t.sar,
+                    details: t.details,
+                    noImage: isAr ? 'لا توجد صورة' : 'No image',
                   }}
                   listingData={{
-                    location: listing.city || listing.district || '',
-                    category: language === 'ar' ? listing.category?.arabicName : listing.category?.name,
-                    revenue: listing.revenue ? fmtNum(listing.revenue) + ' ' + t.sar : '-',
-                    profit: listing.profit ? fmtNum(listing.profit) + ' ' + t.sar : '-',
-                    recovery: listing.capitalRecovery ? fmtNum(listing.capitalRecovery) + ' ' + t.month : '-',
-                    refNumber: listing.reference ? `#${listing.reference}` : ''
+                    location: resolveBusinessLocation(listing.district, listing.city, language as 'ar' | 'en'),
+                    category: isAr ? (listing.category?.arabicName || listing.category?.name || '') : (listing.category?.name || ''),
+                    revenue: fmt(listing.revenue) + ' ' + t.sar,
+                    profit: fmt(listing.profit) + ' ' + t.sar,
+                    recovery: listing.capitalRecovery ? Math.round(listing.capitalRecovery) + ' ' + t.month : '—',
+                    refNumber: listing.reference ? `#${listing.reference}` : '',
                   }}
                   onClick={() => onNavigate?.('details', listing.id)}
                   footer={
-                    <button className="bg-[#008A66] text-white text-xs font-bold px-5 py-2.5 rounded-full hover:bg-[#007053] transition-colors shadow-md hover:shadow-lg flex items-center gap-2">
-                       <span>{t.details}</span>
-                       {direction === 'rtl' ? <ArrowLeft size={14} /> : <ArrowLeft size={14} className="rotate-180" />}
-                     </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); onNavigate?.('details', listing.id); }}
+                      className="bg-[#008A66] text-white text-xs font-bold px-5 py-2.5 rounded-full hover:bg-[#007053] transition-colors shadow-md hover:shadow-lg flex items-center gap-2"
+                    >
+                      <span>{t.details}</span>
+                      {direction === 'rtl' ? <ArrowLeft size={14} /> : <ArrowRight size={14} />}
+                    </button>
                   }
                 />
               ))}
