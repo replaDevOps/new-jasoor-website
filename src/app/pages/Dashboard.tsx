@@ -441,8 +441,8 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
   const fmt = (n: number) => Number(n).toLocaleString('en-US');
 
   const labels = isFavorites
-    ? { revenue: isAr?'الإيرادات':'Revenue', profit: isAr?'الأرباح':'Profit', recovery: isAr?'الاسترداد':'Recovery', askingPrice: isAr?'السعر':'Price', currency: '⃁', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' }
-    : { revenue: isAr?'المشاهدات':'Views',   profit: isAr?'العروض':'Offers',   recovery: isAr?'الاسترداد':'Recovery', askingPrice: isAr?'السعر':'Price', currency: '⃁', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' };
+    ? { revenue: isAr?'الإيرادات':'Revenue', profit: isAr?'الأرباح':'Profit', recovery: isAr?'الاسترداد':'Recovery', askingPrice: isAr?'السعر':'Price', currency: isAr?'ريال':'SAR', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' }
+    : { revenue: isAr?'المشاهدات':'Views',   profit: isAr?'العروض':'Offers',   recovery: isAr?'الاسترداد':'Recovery', askingPrice: isAr?'السعر':'Price', currency: isAr?'ريال':'SAR', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -1257,9 +1257,9 @@ const DealsView = ({
             </div>
             <DashBadge color={allDone?'gray':'green'}>{allDone?(isAr?'مكتملة':'Completed'):(isAr?'قيد التنفيذ':'In Progress')}</DashBadge>
           </div>
-          <p className="text-3xl font-black text-[#10B981] mb-5">{Number(deal.price ?? deal.offer?.price ?? 0).toLocaleString('en-US')} ⃁</p>
+          <p className="text-3xl font-black text-[#10B981] mb-5">{Number(deal.price ?? deal.offer?.price ?? 0).toLocaleString('en-US')} {isAr ? 'ريال' : 'SAR'}</p>
           {deal.offer?.commission && (
-            <p className="text-sm text-gray-500 mb-4">{isAr?'العمولة':'Commission'}: <span className="font-bold text-[#111827]">{Number(deal.offer.commission).toLocaleString('en-US')} ⃁</span></p>
+            <p className="text-sm text-gray-500 mb-4">{isAr?'العمولة':'Commission'}: <span className="font-bold text-[#111827]">{Number(deal.offer.commission).toLocaleString('en-US')} {isAr ? 'ريال' : 'SAR'}</span></p>
           )}
           <div className="space-y-2">
             <div className="flex justify-between text-sm font-bold">
