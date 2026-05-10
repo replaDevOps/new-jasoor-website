@@ -830,7 +830,7 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
                          <td className="p-2"><input type="number" className={cn("w-full bg-transparent border-none focus:ring-0 p-0 text-sm placeholder:text-xs text-gray-600", direction === 'rtl' ? "text-right" : "text-left")} placeholder="YYYY" value={asset.year} onChange={e => {
                            const newAssets = [...formData.assets]; newAssets[idx].year = e.target.value; setFormData({...formData, assets: newAssets});
                          }} /></td>
-                         <td className="p-2"><input type="number" className={cn("w-full bg-transparent border-none focus:ring-0 p-0 text-sm placeholder:text-xs text-gray-600", direction === 'rtl' ? "text-right" : "text-left")} placeholder={language === 'ar' ? 'SAR' : '$'} value={asset.price} onChange={e => {
+                         <td className="p-2"><input type="number" className={cn("w-full bg-transparent border-none focus:ring-0 p-0 text-sm placeholder:text-xs text-gray-600", direction === 'rtl' ? "text-right" : "text-left")} placeholder="⃁" value={asset.price} onChange={e => {
                            const newAssets = [...formData.assets]; newAssets[idx].price = e.target.value; setFormData({...formData, assets: newAssets});
                          }} /></td>
                          <td className="p-2 text-center">
@@ -862,7 +862,7 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
                 <thead className="bg-gray-50 text-gray-500 font-bold border-b border-gray-200 text-xs">
                    <tr>
                       <th className="p-3">{t.liabilityName}</th>
-                      <th className="p-3 w-32 md:w-40">{isAr ? 'القيمة (ر.س)' : 'Amount (SAR)'}</th>
+                      <th className="p-3 w-32 md:w-40">{isAr ? 'القيمة (⃁)' : 'Amount (⃁)'}</th>
                       <th className="p-3 w-32 md:w-40">{isAr ? 'السنة' : 'Year'}</th>
                       <th className="p-3 w-10"></th>
                    </tr>
@@ -913,7 +913,7 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
                   <tr>
                     <th className="p-3">{t.itemName}</th>
                     <th className="p-3 w-24">{isAr ? 'الكمية' : 'Qty'}</th>
-                    <th className="p-3 w-36">{isAr ? 'القيمة (ر.س)' : 'Value (SAR)'}</th>
+                    <th className="p-3 w-36">{isAr ? 'القيمة (⃁)' : 'Value (⃁)'}</th>
                     <th className="p-3 w-10"></th>
                   </tr>
                 </thead>

@@ -39,8 +39,8 @@ export const OfferModal = ({ isOpen, onClose, type, onSubmit }: OfferModalProps)
   const t = {
     titleMakeOffer:    isAr ? 'تقديم عرض'                       : 'Make an Offer',
     titleCounter:      isAr ? 'عرض مضاد'                        : 'Counter Offer',
-    labelMakeOffer:    isAr ? 'مبلغ العرض (ر.س)'                : 'Offer Amount (SAR)',
-    labelCounter:      isAr ? 'مبلغ العرض المضاد (ر.س)'         : 'Counter Offer Amount (SAR)',
+    labelMakeOffer:    isAr ? 'مبلغ العرض'                       : 'Offer Amount',
+    labelCounter:      isAr ? 'مبلغ العرض المضاد'                : 'Counter Offer Amount',
     commission:        isAr ? 'عمولة المنصة'                     : 'Platform Commission',
     totalValue:        isAr ? 'القيمة الإجمالية'                 : 'Total Value',
     commissionNote:    isAr ? '* يشمل عمولة منصة جسور'          : '* Includes Jusoor platform commission',
@@ -52,7 +52,7 @@ export const OfferModal = ({ isOpen, onClose, type, onSubmit }: OfferModalProps)
     submitting:        isAr ? 'جارٍ الإرسال...'                 : 'Submitting...',
     send:              isAr ? 'إرسال'                            : 'Send',
     cancel:            isAr ? 'إلغاء'                            : 'Cancel',
-    sar:               isAr ? 'ر.س'                              : 'SAR',
+    sar:               '⃁',
     placeholder:       isAr ? '٠٫٠٠'                            : '0.00',
   };
 

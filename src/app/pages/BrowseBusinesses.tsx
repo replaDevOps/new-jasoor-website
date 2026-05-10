@@ -112,7 +112,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
       
       region: isAr ? 'المنطقة' : 'Region',
       city: isAr ? 'المدينة' : 'City',
-      priceRange: isAr ? 'نطاق السعر (ر.س)' : 'Price Range (SAR)',
+      priceRange: isAr ? `نطاق السعر (⃁)` : `Price Range (⃁)`,
       revenue: isAr ? 'الإيرادات السنوية' : 'Annual Revenue',
       profitRange: isAr ? 'الأرباح السنوية' : 'Annual Profit',
       
@@ -131,7 +131,7 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
       // Card
       details: isAr ? 'التفاصيل' : 'Details',
       viewDetails: isAr ? 'عرض التفاصيل' : 'View Details',
-      sar: isAr ? 'ر.س' : 'SAR',
+      sar: '⃁',
       revenueLabel: isAr ? 'الإيرادات' : 'Revenue',
       profitLabel: isAr ? 'الأرباح' : 'Profit',
       recoveryLabel: isAr ? 'الاسترداد' : 'Recovery',

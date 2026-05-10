@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
-  MapPin, Calendar, Users, TrendingUp, DollarSign, Clock, ShieldCheck,
+  MapPin, Calendar, Users, TrendingUp, Banknote, Clock, ShieldCheck,
   ArrowRight, Share2, ArrowLeft, CheckCircle2,
   PieChart, Bookmark, AlertCircle, Link as LinkIcon
 } from 'lucide-react';
@@ -149,7 +149,7 @@ export const BusinessDetails = ({
     similarSub:      isAr ? 'استكشف شركات أخرى في نفس القطاع' : 'Explore other businesses in the same sector',
     viewMore:        isAr ? 'عرض المزيد' : 'View More',
     details:         isAr ? 'التفاصيل' : 'Details',
-    currency:        isAr ? 'ر.س' : 'SAR',
+    currency:        '⃁',
     trustedSeller:   isAr ? 'بائع موثوق' : 'Trusted Seller',
     acquisition:     isAr ? 'استحواذ' : 'Acquisition',
     taqbeel:         isAr ? 'تقبيل' : 'Taqbeel',
@@ -577,7 +577,7 @@ export const BusinessDetails = ({
               <h2 className="text-xl md:text-2xl font-bold text-[#111827] mb-4">{t.stats}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-2">
                 <StatRow icon={<TrendingUp size={20} />} label={t.revenue}    value={revenueDisplay}   valueColor="text-[#10B981]" />
-                <StatRow icon={<DollarSign size={20} />} label={t.profit}     value={profitDisplay} />
+                <StatRow icon={<Banknote size={20} />} label={t.profit}     value={profitDisplay} />
                 <StatRow icon={<Calendar   size={20} />} label={t.established} value={foundedDisplay} />
                 <StatRow icon={<PieChart   size={20} />} label={t.margin}     value={marginDisplay} />
                 <StatRow icon={<Users      size={20} />} label={t.employees}  value={employeesDisplay} />

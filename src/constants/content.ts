@@ -297,7 +297,7 @@ export const CONTENT = {
           view: "عرض",
           edit: "تعديل"
         },
-        sar: "ر.س",
+        sar: "ريال",
         successMessage: "تم حفظ الإدراج بنجاح!"
       },
       offers: {
@@ -350,7 +350,7 @@ export const CONTENT = {
           scheduleNew: "جدولة اجتماع جديد",
           downloadFiles: "تحميل وثائق الصفقة"
         },
-        sar: "ر.س",
+        sar: "ريال",
         types: {
           fullPurchase: "عرض شراء كامل",
           preliminary: "عرض مبدئي",
@@ -826,7 +826,7 @@ export const CONTENT = {
           scheduleNew: "Schedule New Meeting",
           downloadFiles: "Download Deal Documents"
         },
-        sar: "SAR",
+        sar: "⃁",
         types: {
           fullPurchase: "Full Purchase Offer",
           preliminary: "Preliminary Offer",
@@ -980,7 +980,7 @@ export const CONTENT = {
       profitLabel: "Profit",
       recoveryLabel: "Recovery Period",
       askingPrice: "Asking Price",
-      sar: "SAR",
+      sar: "⃁",
       month: "month",
       details: "View Details",
       acquisition: "Acquisition",

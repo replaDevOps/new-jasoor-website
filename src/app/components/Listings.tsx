@@ -32,7 +32,7 @@ export const Listings = ({ onViewAll, onNavigate }: { onViewAll?: () => void; on
     profit: language === 'ar' ? 'الأرباح' : 'Profit',
     recovery: language === 'ar' ? 'الاسترداد' : 'Recovery',
     askingPrice: language === 'ar' ? 'السعر المطلوب' : 'Asking Price',
-    currency: language === 'ar' ? 'ر.س' : 'SAR',
+    currency: '⃁',
     details: language === 'ar' ? 'التفاصيل' : 'Details',
     noImage: language === 'ar' ? 'لا توجد صورة' : 'No image',
     month: language === 'ar' ? 'شهر' : 'mo',

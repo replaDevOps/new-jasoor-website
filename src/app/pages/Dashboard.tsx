@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, User, Store, FileText, Handshake, Bookmark, Calendar, Settings, 
   Bell, LogOut, Plus, Search, Filter, Clock, CheckCircle2, 
-  ChevronRight, MapPin, Phone, Mail, CalendarDays, DollarSign,
+  ChevronRight, MapPin, Phone, Mail, CalendarDays, Tag, Banknote,
   ArrowRight, CreditCard, ShieldCheck, Lock, Trash2, Eye,
   AlertCircle, XCircle, Video, Briefcase, Download, Upload,
   ChevronDown, FileCheck, Ban, Wallet, ChevronLeft, ArrowUpRight, ArrowDownLeft, X, File
@@ -273,7 +273,7 @@ const DashboardView = ({
   const stats = [
     { label: isAr ? 'الصفقات المكتملة'  : 'Finalized Deals',     value: ss?.finalizedDealsCount ?? bs?.finalizedDealsCount ?? '—', icon: Handshake,    color: 'bg-[#E6F3EF] text-[#10B981]' },
     { label: isAr ? 'الإدراجات النشطة'  : 'Listed Businesses',   value: ss?.listedBusinessesCount ?? '—',                           icon: Store,        color: 'bg-blue-50 text-blue-600' },
-    { label: isAr ? 'العروض المستلمة'   : 'Received Offers',     value: ss?.receivedOffersCount ?? '—',                            icon: DollarSign,   color: 'bg-orange-50 text-orange-600' },
+    { label: isAr ? 'العروض المستلمة'   : 'Received Offers',     value: ss?.receivedOffersCount ?? '—',                            icon: Tag,          color: 'bg-orange-50 text-orange-600' },
     { label: isAr ? 'الاجتماعات'        : 'Meetings',            value: ss?.scheduledMeetingsCount ?? bs?.scheduledMeetingsCount ?? '—', icon: Calendar, color: 'bg-purple-50 text-purple-600' },
     { label: isAr ? 'مشاهدات الإدراجات' : 'Business Views',      value: ss?.viewedBusinessesCount ?? '—',                          icon: Eye,          color: 'bg-pink-50 text-pink-600' },
     { label: isAr ? 'المفضلة'           : 'Saved Businesses',    value: bs?.favouriteBusinessesCount ?? '—',                       icon: Bookmark,     color: 'bg-yellow-50 text-yellow-600' },
@@ -281,7 +281,7 @@ const DashboardView = ({
 
   const activityIconFor = (notification: any) => {
     const source = `${notification?.actionType ?? ''} ${notification?.entityType ?? ''} ${notification?.name ?? ''}`.toLowerCase();
-    if (source.includes('offer') || source.includes('عرض')) return { icon: DollarSign, color: 'bg-orange-100 text-orange-600' };
+    if (source.includes('offer') || source.includes('عرض')) return { icon: Tag, color: 'bg-orange-100 text-orange-600' };
     if (source.includes('meeting') || source.includes('اجتماع')) return { icon: Calendar, color: 'bg-blue-100 text-blue-600' };
     if (source.includes('deal') || source.includes('صفقة')) return { icon: Handshake, color: 'bg-[#E6F3EF] text-[#10B981]' };
     if (source.includes('identity') || source.includes('document') || source.includes('هوية')) return { icon: ShieldCheck, color: 'bg-purple-100 text-purple-600' };
@@ -441,8 +441,8 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
   const fmt = (n: number) => Number(n).toLocaleString('en-US');
 
   const labels = isFavorites
-    ? { revenue: isAr?'الإيرادات':'Revenue', profit: isAr?'الأرباح':'Profit', recovery: isAr?'الاسترداد':'Recovery', askingPrice: isAr?'السعر':'Price', currency: isAr?'ر.س':'SAR', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' }
-    : { revenue: isAr?'المشاهدات':'Views',   profit: isAr?'العروض':'Offers',   recovery: isAr?'الاسترداد':'Recovery', askingPrice: isAr?'السعر':'Price', currency: isAr?'ر.س':'SAR', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' };
+    ? { revenue: isAr?'الإيرادات':'Revenue', profit: isAr?'الأرباح':'Profit', recovery: isAr?'الاسترداد':'Recovery', askingPrice: isAr?'السعر':'Price', currency: '⃁', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' }
+    : { revenue: isAr?'المشاهدات':'Views',   profit: isAr?'العروض':'Offers',   recovery: isAr?'الاسترداد':'Recovery', askingPrice: isAr?'السعر':'Price', currency: '⃁', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -720,7 +720,7 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
         ) : allOffers.length === 0 ? (
           <div className="p-12 text-center">
             <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-              <DollarSign size={28} className="text-gray-400"/>
+              <Tag size={28} className="text-gray-400"/>
             </div>
             <p className="text-gray-500 font-bold mb-1">
               {directionFilter==='received' ? (isAr?'لا توجد عروض مستلمة':'No offers received yet') : (isAr?'لم ترسل أي عروض بعد':'No offers sent yet')}
@@ -870,7 +870,7 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
                   <div className="flex flex-col gap-3 mt-6">
                     <div className="grid grid-cols-2 gap-3">
                       <button onClick={() => setActionMode('counter')} disabled={actionLoading} className="py-3 rounded-xl border border-gray-300 text-[#111827] font-bold hover:bg-gray-50 disabled:opacity-50 flex items-center justify-center gap-2">
-                        <DollarSign size={18}/>{content.dashboard.offers.actions.counterOffer}
+                        <Banknote size={18}/>{content.dashboard.offers.actions.counterOffer}
                       </button>
                       <button onClick={() => setActionMode('meeting')} disabled={actionLoading} className="py-3 rounded-xl bg-[#111827] text-white font-bold hover:bg-black disabled:opacity-50 flex items-center justify-center gap-2">
                         <Calendar size={18}/>{content.dashboard.offers.actions.scheduleMeeting}
@@ -1257,9 +1257,9 @@ const DealsView = ({
             </div>
             <DashBadge color={allDone?'gray':'green'}>{allDone?(isAr?'مكتملة':'Completed'):(isAr?'قيد التنفيذ':'In Progress')}</DashBadge>
           </div>
-          <p className="text-3xl font-black text-[#10B981] mb-5">{Number(deal.price ?? deal.offer?.price ?? 0).toLocaleString('en-US')} SAR</p>
+          <p className="text-3xl font-black text-[#10B981] mb-5">{Number(deal.price ?? deal.offer?.price ?? 0).toLocaleString('en-US')} ⃁</p>
           {deal.offer?.commission && (
-            <p className="text-sm text-gray-500 mb-4">{isAr?'العمولة':'Commission'}: <span className="font-bold text-[#111827]">{Number(deal.offer.commission).toLocaleString('en-US')} SAR</span></p>
+            <p className="text-sm text-gray-500 mb-4">{isAr?'العمولة':'Commission'}: <span className="font-bold text-[#111827]">{Number(deal.offer.commission).toLocaleString('en-US')} ⃁</span></p>
           )}
           <div className="space-y-2">
             <div className="flex justify-between text-sm font-bold">
@@ -1931,7 +1931,7 @@ const AlertsView = ({ onNavigate, onTabChange, onSettingsIdentity }: {
 
   const iconFor = (name: string) => {
     const n = name?.toLowerCase()??'';
-    if (n.includes('offer')||n.includes('عرض'))    return { Icon:DollarSign, bg:'bg-orange-50 text-orange-600', bar:'bg-orange-500' };
+    if (n.includes('offer')||n.includes('عرض'))    return { Icon:Tag,        bg:'bg-orange-50 text-orange-600', bar:'bg-orange-500' };
     if (n.includes('payment')||n.includes('دفع'))  return { Icon:Wallet,     bg:'bg-green-50 text-green-600',  bar:'bg-green-500'  };
     return                                                 { Icon:FileText,   bg:'bg-blue-50 text-blue-600',    bar:'bg-blue-400'   };
   };
