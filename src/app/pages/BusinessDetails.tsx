@@ -149,7 +149,7 @@ export const BusinessDetails = ({
     similarSub:      isAr ? 'استكشف شركات أخرى في نفس القطاع' : 'Explore other businesses in the same sector',
     viewMore:        isAr ? 'عرض المزيد' : 'View More',
     details:         isAr ? 'التفاصيل' : 'Details',
-    currency:        '⃁',
+    currency:        isAr ? 'ريال' : 'SAR',
     trustedSeller:   isAr ? 'بائع موثوق' : 'Trusted Seller',
     acquisition:     isAr ? 'استحواذ' : 'Acquisition',
     taqbeel:         isAr ? 'تقبيل' : 'Taqbeel',
