@@ -272,26 +272,53 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
   React.useEffect(() => {
     if (mode !== 'edit' || !editData?.getBusinessById?.business) return;
     const b = editData.getBusinessById.business;
+
+    // Reverse-map English region/city names (stored on backend) back to slugs (used by selects).
+    const regionMatch = SAUDI_REGIONS.find(r => r.en === b.district) ?? SAUDI_REGIONS.find(r => r.slug === b.district) ?? null;
+    const regionSlug = regionMatch?.slug ?? b.district ?? '';
+    const citySlug = regionMatch?.cities.find(c => c.en === b.city)?.slug
+      ?? regionMatch?.cities.find(c => c.slug === b.city)?.slug
+      ?? b.city ?? '';
+
     setFormData(prev => ({
       ...prev,
-      sellingType: b.isByTakbeer ? 'selling_by_taqbeel' : 'acquisition',
+      // Step 1
+      sellingType: b.isByTakbeer ? 'selling_by_taqbeel' : 'selling_by_acquiring',
       title: b.businessTitle ?? '',
       category: b.category?.id ?? '',
-      region: b.district ?? '',   // district stores the region slug
-      city: b.city ?? '',
-      district: b.district ?? '',
+      region: regionSlug,
+      city: citySlug,
+      district: regionSlug,
       description: b.description ?? '',
-      foundedYear: b.foundedDate ? String(new Date(b.foundedDate).getFullYear()) : '',
+      foundationDate: b.foundedDate ? String(new Date(b.foundedDate).getFullYear()) : '',
       teamSize: b.numberOfEmployees ? String(b.numberOfEmployees) : '',
+      website: b.url ?? '',
+      // Step 2
       revenue: b.revenue ? String(b.revenue) : '',
       profit: b.profit ? String(b.profit) : '',
       price: b.price ? String(b.price) : '',
       capitalRecovery: b.capitalRecovery ? String(b.capitalRecovery) : '',
+      assets: (b.assets ?? []).map((a: any) => ({
+        name: a.name ?? '',
+        count: String(a.quantity ?? 1),
+        year: String(a.purchaseYear ?? new Date().getFullYear()),
+        price: String(a.price ?? 0),
+      })),
+      liabilities: (b.liabilities ?? []).map((a: any) => ({
+        name: a.name ?? '',
+        amount: String(a.price ?? 0),
+        year: String(a.purchaseYear ?? new Date().getFullYear()),
+      })),
+      inventory: (b.inventoryItems ?? []).map((a: any) => ({
+        name: a.name ?? '',
+        quantity: String(a.quantity ?? 1),
+        price: String(a.price ?? 0),
+      })),
+      // Step 3
       reason: b.reason ?? '',
       growthOpportunities: b.growthOpportunities ?? '',
-      supportSession: b.supportSession ? String(b.supportSession) : '',
+      supportSessions: b.supportSession ? String(b.supportSession) : '',
       supportDuration: b.supportDuration ? String(b.supportDuration) : '',
-      url: b.url ?? '',
     }));
   }, [editData, mode]);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -439,6 +466,7 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
           return;
         }
         setIsSubmitted(true); // Only set true AFTER successful mutation — prevents success screen flash
+        localStorage.removeItem('jusoor_listing_draft'); // clear draft so next create starts fresh
         toast.success(t.successTitleCreate);
         // isSubmitted = true — success screen shown; user clicks Continue → onSuccess()
       } else {

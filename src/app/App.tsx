@@ -109,7 +109,9 @@ function AppContent() {
     const onPopState = (e: PopStateEvent) => {
       if (e.state?.view) {
         setView(e.state.view as ViewType);
-        if (e.state.selectedBusinessId) setSelectedBusinessId(e.state.selectedBusinessId);
+        // Always sync selectedBusinessId from history state — clear it when the restored
+        // state has no id so stale IDs don't reopen edit mode unexpectedly.
+        setSelectedBusinessId(e.state.selectedBusinessId ?? null);
       } else {
         const path = window.location.pathname;
         if (path.startsWith('/details/')) {
