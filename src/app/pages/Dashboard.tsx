@@ -240,12 +240,18 @@ const DashboardView = ({
   notificationsError,
   onRetryNotifications,
   onOpenAlerts,
+  onTabChange,
+  onNavigate,
+  onGoToIdentity,
 }: {
   notifications?: any[];
   notificationsLoading?: boolean;
   notificationsError?: unknown;
   onRetryNotifications?: () => void;
   onOpenAlerts?: () => void;
+  onTabChange?: (tab: string) => void;
+  onNavigate?: (page: string, id?: string | number) => void;
+  onGoToIdentity?: () => void;
 }) => {
   const { content, language, userId } = useApp();
   const isAr = language === 'ar';
@@ -293,12 +299,30 @@ const DashboardView = ({
   };
   const activityItems = notifications.slice(0, 3).map((notification) => {
     const meta = activityIconFor(notification);
+
+    // Resolve route from actionType → view name, falling back to entityType.
+    // ACTION_TO_VIEW and ENTITY_TO_VIEW are module-level constants.
+    const rawTarget =
+      (notification.actionType && ACTION_TO_VIEW[notification.actionType]) ||
+      (notification.entityType && ENTITY_TO_VIEW[notification.entityType]) ||
+      null;
+
+    let onClick: (() => void) | undefined;
+    if (rawTarget === 'settings:identity') {
+      onClick = () => onGoToIdentity?.();
+    } else if (rawTarget === 'details' && notification.entityId) {
+      onClick = () => onNavigate?.('details', notification.entityId);
+    } else if (rawTarget) {
+      onClick = () => onTabChange?.(rawTarget);
+    }
+
     return {
       title: isAr ? (notification.nameAr || notification.name) : notification.name,
       desc: isAr ? (notification.messageAr || notification.message) : notification.message,
       time: formatActivityTime(notification.createdAt),
       icon: meta.icon,
       color: meta.color,
+      onClick,
     };
   });
 
@@ -346,13 +370,22 @@ const DashboardView = ({
           ) : (
           <div className="space-y-8 relative before:absolute before:right-[19px] before:top-2 before:bottom-2 before:w-[2px] before:bg-gray-100">
              {activityItems.map((item, i) => (
-               <div key={i} className="flex gap-4 relative">
+               <div
+                 key={i}
+                 onClick={item.onClick}
+                 className={cn(
+                   "flex gap-4 relative rounded-xl -mx-2 px-2 py-1 transition-colors",
+                   item.onClick
+                     ? "cursor-pointer hover:bg-gray-50 active:bg-gray-100"
+                     : "cursor-default"
+                 )}
+               >
                   <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0 z-10 ring-4 ring-white", item.color)}>
                      <item.icon size={18} />
                   </div>
-                  <div>
+                  <div className="flex-1 min-w-0">
                      <p className="font-bold text-[#111827] text-base">{item.title}</p>
-                     <p className="text-gray-500 text-sm mt-1">{item.desc}</p>
+                     <p className="text-gray-500 text-sm mt-1 line-clamp-2">{item.desc}</p>
                      <p className="text-xs text-gray-400 mt-2 font-medium">{item.time}</p>
                   </div>
                </div>
@@ -2653,6 +2686,9 @@ export const Dashboard = ({ onNavigate, defaultTab }: { onNavigate?: (page: stri
                   notificationsError={notificationsError}
                   onRetryNotifications={refetchNotifications}
                   onOpenAlerts={() => setActiveTab('alerts')}
+                  onTabChange={(tab) => setActiveTab(tab as TabType)}
+                  onNavigate={onNavigate}
+                  onGoToIdentity={() => { setSettingsDefaultTab('identity'); setActiveTab('settings'); }}
                 />}
                 {activeTab === 'listings'   && <ListingsView onAddListing={handleAddListing} onEditListing={handleEditListing} onNavigate={onNavigate} />}
                 {activeTab === 'offers'     && <OffersView onNavigate={onNavigate} onGoToIdentity={() => { setSettingsDefaultTab('identity'); setActiveTab('settings'); }} />}

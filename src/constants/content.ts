@@ -465,23 +465,6 @@ export const CONTENT = {
       activity: {
         title: "النشاط الأخير",
         viewHistory: "عرض السجل",
-        items: {
-          newOffer: {
-            title: "تلقيت عرضاً جديداً",
-            desc: "قام \"شركة النمو\" بتقديم عرض بقيمة 2.3 مليون ريال",
-            time: "منذ ساعتين"
-          },
-          upcomingMeeting: {
-            title: "موعد اجتماع قادم",
-            desc: "اجتماع مجدول مع المستشار القاوني لمراجعة العقود",
-            time: "غداً، 10:00 ص"
-          },
-          listingPublished: {
-            title: "تم نشر الإدراج",
-            desc: "تمت الموافقة على نشر \"سلسلة مطاعم برجر فاخرة\"",
-            time: "منذ يومين"
-          }
-        },
         label: "آخر الأنشطة",
         empty: "لا يوجد نشاط بعد"
       },
@@ -958,23 +941,6 @@ export const CONTENT = {
       activity: {
         title: "Recent Activity",
         viewHistory: "View History",
-        items: {
-          newOffer: {
-            title: "New Offer Received",
-            desc: "\"Growth Company\" submitted an offer of 2.3 million SAR",
-            time: "2 hours ago"
-          },
-          upcomingMeeting: {
-            title: "Upcoming Meeting",
-            desc: "Scheduled meeting with legal advisor to review contracts",
-            time: "Tomorrow, 10:00 AM"
-          },
-          listingPublished: {
-            title: "Listing Published",
-            desc: "\"Premium Burger Restaurant Chain\" has been approved and published",
-            time: "2 days ago"
-          }
-        },
         label: "Recent Activity",
         empty: "No recent activity"
       },
