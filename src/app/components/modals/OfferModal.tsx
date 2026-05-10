@@ -52,7 +52,7 @@ export const OfferModal = ({ isOpen, onClose, type, onSubmit }: OfferModalProps)
     submitting:        isAr ? 'جارٍ الإرسال...'                 : 'Submitting...',
     send:              isAr ? 'إرسال'                            : 'Send',
     cancel:            isAr ? 'إلغاء'                            : 'Cancel',
-    sar:               '⃁',
+    sar:               isAr ? 'ريال' : 'SAR',
     placeholder:       isAr ? '٠٫٠٠'                            : '0.00',
   };
 

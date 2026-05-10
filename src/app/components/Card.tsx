@@ -304,7 +304,7 @@ export const Card = ({
                    <div className="flex flex-col">
                       <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-px">{labels?.askingPrice || "Asking Price"}</span>
                       <div className="text-base font-black text-[#008A66] flex items-baseline gap-1 tracking-tight">
-                         {number} <span className="text-[10px] font-bold text-[#008A66]/70">{labels?.currency || "⃁"}</span>
+                         {number} <span className="text-[10px] font-bold text-[#008A66]/70">{labels?.currency || "SAR"}</span>
                       </div>
                    </div>
                    

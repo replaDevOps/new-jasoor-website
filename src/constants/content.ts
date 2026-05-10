@@ -826,7 +826,7 @@ export const CONTENT = {
           scheduleNew: "Schedule New Meeting",
           downloadFiles: "Download Deal Documents"
         },
-        sar: "⃁",
+        sar: "SAR",
         types: {
           fullPurchase: "Full Purchase Offer",
           preliminary: "Preliminary Offer",
@@ -980,7 +980,7 @@ export const CONTENT = {
       profitLabel: "Profit",
       recoveryLabel: "Recovery Period",
       askingPrice: "Asking Price",
-      sar: "⃁",
+      sar: "SAR",
       month: "month",
       details: "View Details",
       acquisition: "Acquisition",
