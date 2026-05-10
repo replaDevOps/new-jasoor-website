@@ -1,14 +1,17 @@
 /**
- * Official Saudi Riyal currency symbol — Unicode U+20C1 (added in Unicode 16.0, 2024).
- * Use this constant everywhere instead of "SAR", "ر.س", or "$".
+ * Currency label helper — returns the correct text for the user's language.
+ * English UI: "SAR"
+ * Arabic UI:  "ريال"
  */
-export const SAR_SYMBOL = '⃁';
+export function getCurrencyLabel(language: string): string {
+  return language === 'ar' ? 'ريال' : 'SAR';
+}
 
 /**
- * Format a numeric value with the Saudi Riyal symbol.
- * Produces e.g. "1,500,000 ⃁"
+ * Format a numeric value with the correct currency label for the given language.
+ * Produces e.g. "1,500,000 SAR" or "1,500,000 ريال"
  */
-export function formatPrice(value: number | string | null | undefined): string {
+export function formatPrice(value: number | string | null | undefined, language: string): string {
   const n = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) || 0 : (value ?? 0);
-  return `${n.toLocaleString('en-US')} ${SAR_SYMBOL}`;
+  return `${n.toLocaleString('en-US')} ${getCurrencyLabel(language)}`;
 }
