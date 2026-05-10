@@ -3,6 +3,8 @@ import { Modal } from '../ui/Modal';
 import { Button } from '../Button';
 import { Check } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
+import { useQuery } from '@apollo/client';
+import { GET_NDA_TERMS } from '../../../graphql/queries/business';
 
 interface ENDAModalProps {
   isOpen: boolean;
@@ -20,6 +22,17 @@ export const ENDAModal = ({ isOpen, onClose, onConfirm, buyerName }: ENDAModalPr
     commission: false,
   });
 
+  // Load admin-managed E-NDA text. All fields are stored as { content: "<html>" }.
+  const { data: ndaData, loading: ndaLoading } = useQuery(GET_NDA_TERMS, {
+    fetchPolicy: 'cache-first',
+    errorPolicy: 'all',
+  });
+  const ndaTerms: any[] = ndaData?.getNDATerms ?? [];
+  // Find the record that has English content, and the one that has Arabic content.
+  const ndaHtmlEn = ndaTerms.find((t: any) => t.ndaTerm?.content)?.ndaTerm?.content ?? '';
+  const ndaHtmlAr = ndaTerms.find((t: any) => t.arabicNdaTerm?.content)?.arabicNdaTerm?.content ?? '';
+  const ndaHtml = isAr ? ndaHtmlAr : ndaHtmlEn;
+
   const defaultBuyer = isAr ? 'المشتري' : 'Buyer';
   const displayName = buyerName || defaultBuyer;
 
@@ -28,6 +41,7 @@ export const ENDAModal = ({ isOpen, onClose, onConfirm, buyerName }: ENDAModalPr
     intro:            isAr
       ? `للمتابعة، يرجى الموافقة على البنود التالية، عزيزي ${displayName}...`
       : `To proceed, please agree to the following terms, dear ${displayName}...`,
+    // Hardcoded fallback sections shown only when no admin content is available yet
     section1Title:    isAr ? '١. السرية والخصوصية'              : '1. Confidentiality',
     section1Body:     isAr
       ? 'يلتزم الطرف الثاني (المشتري) بالحفاظ على سرية المعلومات المقدمة من الطرف الأول (البائع) وعدم الإفصاح عنها لأي طرف ثالث دون موافقة خطية مسبقة.'
@@ -45,6 +59,7 @@ export const ENDAModal = ({ isOpen, onClose, onConfirm, buyerName }: ENDAModalPr
     agree3:           isAr ? 'أوافق على دفع عمولة المنصة في حال إتمام الصفقة'       : 'I agree to pay the platform commission if a deal is finalized',
     confirm:          isAr ? 'تأكيد وتوقيع'                                         : 'Confirm & Sign',
     cancel:           isAr ? 'إلغاء'                                                : 'Cancel',
+    loading:          isAr ? 'جارٍ تحميل بنود الاتفاقية...'                         : 'Loading agreement terms...',
   };
 
   const allAgreed = agreements.nda && agreements.terms && agreements.commission;
@@ -68,20 +83,33 @@ export const ENDAModal = ({ isOpen, onClose, onConfirm, buyerName }: ENDAModalPr
       <div className="space-y-6">
         <p className="text-gray-600 text-sm">{t.intro}</p>
 
-        {/* NDA Contract Text */}
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 h-56 overflow-y-auto custom-scrollbar text-sm leading-relaxed text-gray-700 space-y-4">
-          <div>
-            <h4 className="font-bold text-gray-900 mb-1">{t.section1Title}</h4>
-            <p>{t.section1Body}</p>
-          </div>
-          <div>
-            <h4 className="font-bold text-gray-900 mb-1">{t.section2Title}</h4>
-            <p>{t.section2Body}</p>
-          </div>
-          <div>
-            <h4 className="font-bold text-gray-900 mb-1">{t.section3Title}</h4>
-            <p>{t.section3Body}</p>
-          </div>
+        {/* NDA Contract Text — admin-managed via E-NDA editor, falls back to static copy */}
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 h-56 overflow-y-auto custom-scrollbar text-sm leading-relaxed text-gray-700" dir={isAr ? 'rtl' : 'ltr'}>
+          {ndaLoading ? (
+            <p className="text-gray-400 text-center pt-10">{t.loading}</p>
+          ) : ndaHtml ? (
+            // Admin rich-text content (ReactQuill HTML) — safe source is admin-only editor
+            <div
+              className="prose prose-sm max-w-none"
+              dangerouslySetInnerHTML={{ __html: ndaHtml }}
+            />
+          ) : (
+            // Fallback: hardcoded static sections when no admin content is available
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-bold text-gray-900 mb-1">{t.section1Title}</h4>
+                <p>{t.section1Body}</p>
+              </div>
+              <div>
+                <h4 className="font-bold text-gray-900 mb-1">{t.section2Title}</h4>
+                <p>{t.section2Body}</p>
+              </div>
+              <div>
+                <h4 className="font-bold text-gray-900 mb-1">{t.section3Title}</h4>
+                <p>{t.section3Body}</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Checkboxes */}

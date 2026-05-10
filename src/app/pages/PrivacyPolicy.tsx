@@ -44,12 +44,19 @@ export const PrivacyPolicy = ({ onNavigate }: { onNavigate?: (page: string) => v
     },
   ];
 
+  // All policy fields are stored as { content: "<html>" } by the admin ReactQuill editor.
+  // Accessing .content extracts the HTML string; plain string values are handled as fallback.
+  const extractHtml = (field: any): string => {
+    if (!field) return '';
+    if (typeof field === 'string') return field;
+    return field.content ?? '';
+  };
+
   const sections = policies.length > 0
     ? policies.map((p: any) => ({
-        title: isAr ? (p.arabicPolicy?.split('\n')[0] ?? '') : (p.policy?.split('\n')[0] ?? ''),
-        content: isAr ? p.arabicPolicy : p.policy,
+        html: isAr ? extractHtml(p.arabicPolicy) : extractHtml(p.policy),
       }))
-    : staticSections;
+    : null;
 
   return (
     <div className={`min-h-screen bg-gray-50 font-sans ${direction === 'rtl' ? 'rtl' : 'ltr'}`} dir={direction}>
@@ -70,17 +77,30 @@ export const PrivacyPolicy = ({ onNavigate }: { onNavigate?: (page: string) => v
           <div className="text-center py-16 text-gray-400">{isAr ? 'جارٍ التحميل...' : 'Loading...'}</div>
         ) : (
           <div className="space-y-8">
-            {sections.map((section, i) => (
-              <div key={i} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-                <h2 className="text-lg font-black text-[#111827] mb-3 flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-full bg-[#E6F3EF] text-[#10B981] flex items-center justify-center text-sm font-bold shrink-0">
-                    {i + 1}
-                  </span>
-                  {section.title}
-                </h2>
-                <p className="text-gray-600 leading-relaxed">{section.content}</p>
-              </div>
-            ))}
+            {sections
+              ? /* Admin-managed HTML content */
+                sections.map((section, i) => (
+                  <div key={i} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                    <div
+                      className="prose prose-sm max-w-none text-gray-600 leading-relaxed"
+                      dir={isAr ? 'rtl' : 'ltr'}
+                      dangerouslySetInnerHTML={{ __html: section.html }}
+                    />
+                  </div>
+                ))
+              : /* Static fallback sections */
+                staticSections.map((section, i) => (
+                  <div key={i} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
+                    <h2 className="text-lg font-black text-[#111827] mb-3 flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-full bg-[#E6F3EF] text-[#10B981] flex items-center justify-center text-sm font-bold shrink-0">
+                        {i + 1}
+                      </span>
+                      {section.title}
+                    </h2>
+                    <p className="text-gray-600 leading-relaxed">{section.content}</p>
+                  </div>
+                ))
+            }
           </div>
         )}
 

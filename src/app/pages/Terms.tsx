@@ -52,14 +52,21 @@ export const Terms = ({ onNavigate }: { onNavigate?: (page: string) => void }) =
     },
   ];
 
+  // All term fields are stored as { content: "<html>" } by the admin ReactQuill editor.
+  const extractHtml = (field: any): string => {
+    if (!field) return '';
+    if (typeof field === 'string') return field;
+    return field.content ?? '';
+  };
+
   // Map API terms array → display sections
-  // Each term: { id, term (English body), arabicTerm (Arabic body), isArabic }
-  const apiSections = apiTerms.map((item: any, idx: number) => ({
-    title: `${idx + 1}.`,
-    content: isAr ? (item.arabicTerm || item.term) : item.term,
+  const apiSections = apiTerms.map((item: any) => ({
+    html: isAr
+      ? extractHtml(item.arabicTerm) || extractHtml(item.term)
+      : extractHtml(item.term),
   }));
 
-  const sections = apiSections.length > 0 ? apiSections : staticSections;
+  const useApi = apiSections.length > 0;
 
   const t = {
     title: isAr ? 'الشروط والأحكام' : 'Terms of Use',
@@ -100,12 +107,25 @@ export const Terms = ({ onNavigate }: { onNavigate?: (page: string) => void }) =
             </div>
           ) : (
             <div className="space-y-12">
-              {sections.map((section, idx) => (
-                <div key={idx} className="relative">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4">{section.title}</h3>
-                  <p className="text-gray-600 leading-8 text-lg text-justify">{section.content}</p>
-                </div>
-              ))}
+              {useApi
+                ? /* Admin-managed HTML — each section is full rich-text from ReactQuill */
+                  apiSections.map((section, idx) => (
+                    <div key={idx} className="relative">
+                      <div
+                        className="prose prose-lg max-w-none text-gray-600 leading-8 text-justify"
+                        dir={isAr ? 'rtl' : 'ltr'}
+                        dangerouslySetInnerHTML={{ __html: section.html }}
+                      />
+                    </div>
+                  ))
+                : /* Static fallback */
+                  staticSections.map((section, idx) => (
+                    <div key={idx} className="relative">
+                      <h3 className="text-xl font-bold text-gray-900 mb-4">{section.title}</h3>
+                      <p className="text-gray-600 leading-8 text-lg text-justify">{section.content}</p>
+                    </div>
+                  ))
+              }
             </div>
           )}
 
