@@ -75,7 +75,6 @@ export const GET_SELLER_BUSINESSES = gql`
         id
         offerCount
         viewCount
-        savedCount
         businessStatus
         isByTakbeer
         businessTitle
@@ -582,7 +581,6 @@ export const GET_SELLER_SOLD_BUSINESSES = gql`
         description
         image
         viewCount
-        savedCount
         offerCount
         revenue
         profit

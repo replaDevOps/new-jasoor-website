@@ -385,19 +385,20 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
   const [filter, setFilter] = useState<'all' | 'sold'>('all');
 
   // skip: !userId ensures queries wait until auth token is confirmed
-  const { data: sellerData, loading: sellerLoading, refetch: refetchSeller } = useQuery(GET_SELLER_BUSINESSES,      { skip: isFavorites  || !userId, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: sellerData, loading: sellerLoading, error: sellerError, refetch: refetchSeller } = useQuery(GET_SELLER_BUSINESSES,      { skip: isFavorites  || !userId, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
   // G-09: seller sold businesses tab
-  const { data: soldData,   loading: soldLoading,   refetch: refetchSold   } = useQuery(GET_SELLER_SOLD_BUSINESSES, { skip: isFavorites  || !userId, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
-  const { data: favData,    loading: favLoading,    refetch: refetchFav    } = useQuery(GET_FAVORITE_BUSINESSES,    { skip: !isFavorites || !userId, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: soldData,   loading: soldLoading,   error: soldError,   refetch: refetchSold   } = useQuery(GET_SELLER_SOLD_BUSINESSES, { skip: isFavorites  || !userId, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
+  const { data: favData,    loading: favLoading,    error: favError,    refetch: refetchFav    } = useQuery(GET_FAVORITE_BUSINESSES,    { skip: !isFavorites || !userId, variables: { limit: 50, offSet: 0 }, fetchPolicy: 'network-only', errorPolicy: 'all' });
   const [saveBusinessMutation] = useMutation(CREATE_SAVE_BUSINESS, { errorPolicy: 'all' });
 
   const rawListings = isFavorites
     ? (favData?.getFavoritBusiness?.businesses ?? [])
     : (sellerData?.getAllSellerBusinesses?.businesses ?? []);
-  const loading = isFavorites ? favLoading : sellerLoading;
   const filtered = filter === 'sold'
     ? (soldData?.getAllSellerSoldBusinesses?.businesses ?? [])
     : rawListings.filter((b: any) => b.businessStatus !== 'SOLD');
+  const loading = isFavorites ? favLoading : filter === 'sold' ? soldLoading : sellerLoading;
+  const hasError = isFavorites ? !!favError : filter === 'sold' ? !!soldError : !!sellerError;
 
   const statusLabel = (s: string) => {
     if (s === 'ACTIVE') return { text: content.dashboard.listings.status.active,      variant: 'success'  as const };
@@ -408,7 +409,7 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
 
   const labels = isFavorites
     ? { revenue: isAr?'الإيرادات':'Revenue', profit: isAr?'الأرباح':'Profit', recovery: isAr?'الاسترداد':'Recovery', askingPrice: isAr?'السعر':'Price', currency: isAr?'ر.س':'SAR', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' }
-    : { revenue: isAr?'المشاهدات':'Views',   profit: isAr?'العروض':'Offers',   recovery: isAr?'المفضلة':'Favorites', askingPrice: isAr?'السعر':'Price', currency: isAr?'ر.س':'SAR', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' };
+    : { revenue: isAr?'المشاهدات':'Views',   profit: isAr?'العروض':'Offers',   recovery: isAr?'الاسترداد':'Recovery', askingPrice: isAr?'السعر':'Price', currency: isAr?'ر.س':'SAR', details: isAr?'التفاصيل':'Details', noImage: isAr?'لا توجد صورة':'No image' };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -428,6 +429,8 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
       />
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">{[1,2,3].map(i=><div key={i} className="rounded-[24px] border border-gray-100 bg-white animate-pulse h-64"/>)}</div>
+      ) : hasError ? (
+        <ErrorCard onRetry={() => { isFavorites ? refetchFav() : filter === 'sold' ? refetchSold() : refetchSeller(); }} isAr={isAr} />
       ) : filtered.length === 0 ? (
         <div className="bg-white rounded-3xl border border-gray-100 p-16 text-center space-y-4">
           <p className="text-[#111827] font-bold text-lg">{isFavorites ? (isAr?'لا توجد إدراجات محفوظة':'No saved listings yet') : (isAr?'لا توجد إدراجات بعد':'No listings yet')}</p>
@@ -465,9 +468,9 @@ const ListingsView = ({ isFavorites = false, onAddListing, onEditListing, onNavi
                 listingData={{
                   category:  isAr ? b.category?.arabicName : b.category?.name,
                   location:  resolveBusinessLocation(b.district, b.city, language as 'ar' | 'en'),
-                  revenue:   isFavorites ? fmt(b.revenue) : (b.offerCount ?? 0).toString(),
-                  profit:    isFavorites ? fmt(b.profit)  : '—',
-                  recovery:  isFavorites ? (b.capitalRecovery ? fmt(b.capitalRecovery) : '—') : '—',
+                  revenue:   isFavorites ? fmt(b.revenue) : (b.viewCount ?? 0).toString(),
+                  profit:    isFavorites ? fmt(b.profit)  : (b.offerCount ?? 0).toString(),
+                  recovery:  b.capitalRecovery ? `${Math.round(Number(b.capitalRecovery))} ${isAr ? 'شهر' : 'mo'}` : '—',
                   refNumber: b.reference ? `#${b.reference}` : '',
                 }}
                 labels={labels}
@@ -500,6 +503,7 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
   const [counterPrice, setCounterPrice] = useState('');
   const [meetingDate, setMeetingDate] = useState('');
   const [meetingTime, setMeetingTime] = useState('');
+  const [actionLoading, setActionLoading] = useState(false);
 
   const { data: buyerData,  loading: buyerLoading,  error: buyerError,  refetch: refetchBuyer  } = useQuery(GET_OFFERS_BY_USER,    { skip: !userId, fetchPolicy: 'network-only', errorPolicy: 'all' });
   const { data: sellerData, loading: sellerLoading, error: sellerError, refetch: refetchSeller } = useQuery(GET_OFFERS_BY_SELLER,  { skip: !userId, fetchPolicy: 'network-only', errorPolicy: 'all' });
@@ -513,100 +517,140 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
   const refetch   = directionFilter === 'sent' ? refetchBuyer  : refetchSeller;
   const selectedOffer = allOffers.find((o: any) => o.id === selectedId);
 
+  // Determine if the current user is the *recipient* of the selected offer.
+  // In a counter-offer chain createdBy tracks who sent each offer in the chain:
+  //   seller-created counter → buyer is the recipient (can accept/reject)
+  //   buyer-created offer    → seller is the recipient (can accept/reject)
+  const iAmRecipient = (() => {
+    if (!selectedOffer || !userId) return false;
+    const sellerCreated =
+      selectedOffer.createdBy != null &&
+      String(selectedOffer.createdBy) === String(selectedOffer.business?.seller?.id);
+    return sellerCreated
+      ? String(userId) === String(selectedOffer.buyer?.id)
+      : String(userId) === String(selectedOffer.business?.seller?.id);
+  })();
+
   const statusColor = (s: string) => statusMeta(s, isAr).color;
   const statusLabel = (s: string) => statusMeta(s, isAr).label;
   const fmtDate = (d: string) => d?new Date(d).toLocaleDateString(isAr?'ar-SA-u-ca-gregory-nu-latn':'en-GB'):'—';
   const fmt = (n: number) => Number(n).toLocaleString('en-US');
 
   const handleAccept = async () => {
-    if (!selectedOffer) return;
-    const { errors } = await updateStatus({ variables: { input: { id: selectedOffer.id, status: 'ACCEPTED' } } });
-    if (errors?.length) {
-      const msg = errors[0]?.message ?? '';
-      if (msg.includes('VERIFICATION_REQUIRED')) {
-        toast.error(
-          isAr ? 'يجب التحقق من هويتك أولاً لقبول العرض' : 'Identity verification required to accept this offer',
-          { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onGoToIdentity?.() } }
-        );
-      } else if (msg.includes('NDA_NOT_SIGNED')) {
-        toast.error(isAr
-          ? 'يجب توقيع اتفاقية السرية (NDA) أولاً قبل قبول العرض'
-          : 'You must sign the NDA for this listing before accepting the offer');
-      } else if (msg.includes('MULTIPLE_ACCEPTED_OFFERS')) {
-        toast.error(isAr
-          ? 'لا يمكن قبول أكثر من عرض على نفس الإعلان'
-          : 'You cannot accept more than one offer for the same listing');
-      } else {
-        toast.error(isAr ? 'حدث خطأ' : 'Error');
+    if (!selectedOffer || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const { errors } = await updateStatus({ variables: { input: { id: selectedOffer.id, status: 'ACCEPTED' } } });
+      if (errors?.length) {
+        const msg = errors[0]?.message ?? '';
+        if (msg.includes('VERIFICATION_REQUIRED')) {
+          toast.error(
+            isAr ? 'يجب التحقق من هويتك أولاً لقبول العرض' : 'Identity verification required to accept this offer',
+            { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onGoToIdentity?.() } }
+          );
+        } else if (msg.includes('MULTIPLE_ACCEPTED_OFFERS')) {
+          toast.error(isAr
+            ? 'لا يمكن قبول أكثر من عرض على نفس الإعلان'
+            : 'You cannot accept more than one offer for the same listing');
+        } else {
+          toast.error(isAr ? 'حدث خطأ' : 'Error');
+        }
+        return;
       }
-      return;
+      toast.success(isAr ? 'تم قبول العرض' : 'Offer accepted');
+      setSelectedId(null);
+      refetch();
+    } catch {
+      toast.error(isAr ? 'حدث خطأ في الاتصال' : 'Connection error');
+    } finally {
+      setActionLoading(false);
     }
-    toast.success(isAr?'تم قبول العرض':'Offer accepted'); setSelectedId(null); refetch();
   };
 
   const handleReject = async () => {
-    if (!selectedOffer) return;
-    const { errors } = await updateStatus({ variables: { input: { id: selectedOffer.id, status: 'REJECTED' } } });
-    if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
-    toast.success(isAr?'تم رفض العرض':'Offer rejected'); setSelectedId(null); refetch();
+    if (!selectedOffer || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const { errors } = await updateStatus({ variables: { input: { id: selectedOffer.id, status: 'REJECTED' } } });
+      if (errors?.length) { toast.error(isAr ? 'حدث خطأ' : 'Error'); return; }
+      toast.success(isAr ? 'تم رفض العرض' : 'Offer rejected');
+      setSelectedId(null);
+      refetch();
+    } catch {
+      toast.error(isAr ? 'حدث خطأ في الاتصال' : 'Connection error');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  // P11 F-07: buyer withdraws their own sent offer
-  const handleCancelOffer = async () => {
-    if (!selectedOffer) return;
-    const { errors } = await updateStatus({ variables: { input: { id: selectedOffer.id, status: 'CANCELLED' } } });
-    if (errors?.length) { toast.error(isAr?'حدث خطأ':'Error'); return; }
-    toast.success(isAr?'تم سحب العرض':'Offer withdrawn'); setSelectedId(null); refetch();
-  };
+  // handleCancelOffer removed — 'CANCELLED' is not in the OfferStatus enum.
+  // The Withdraw button is hidden in the UI until the backend adds WITHDRAWN/CANCELLED.
 
   const handleCounter = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedOffer||!counterPrice) return;
-    const { errors } = await doCounter({ variables: { input: { parentOfferId: selectedOffer.id, price: parseFloat(counterPrice) } } });
-    if (errors?.length) {
-      const msg = errors[0]?.message ?? '';
-      if (msg.includes('VERIFICATION_REQUIRED')) {
-        toast.error(
-          isAr ? 'يجب التحقق من هويتك أولاً لإرسال عرض مضاد' : 'Identity verification required to send a counter-offer',
-          { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onGoToIdentity?.() } }
-        );
-      } else if (msg.includes('OFFER_ALREADY_EXISTS')) {
-        toast.error(isAr ? 'عرض موجود بالفعل على هذا الإعلان' : 'An offer already exists for this listing');
-      } else {
-        toast.error(isAr ? 'حدث خطأ' : 'Error');
+    if (!selectedOffer || !counterPrice || actionLoading) return;
+    setActionLoading(true);
+    try {
+      const { errors } = await doCounter({ variables: { input: { parentOfferId: selectedOffer.id, price: parseFloat(counterPrice) } } });
+      if (errors?.length) {
+        const msg = errors[0]?.message ?? '';
+        if (msg.includes('VERIFICATION_REQUIRED')) {
+          toast.error(
+            isAr ? 'يجب التحقق من هويتك أولاً لإرسال عرض مضاد' : 'Identity verification required to send a counter-offer',
+            { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onGoToIdentity?.() } }
+          );
+        } else if (msg.includes('OFFER_ALREADY_EXISTS')) {
+          toast.error(isAr ? 'عرض موجود بالفعل على هذا الإعلان' : 'An offer already exists for this listing');
+        } else {
+          toast.error(isAr ? 'حدث خطأ' : 'Error');
+        }
+        return;
       }
-      return;
+      toast.success(content.dashboard.offers.actions.successCounter);
+      setSelectedId(null);
+      refetch();
+    } catch {
+      toast.error(isAr ? 'حدث خطأ في الاتصال' : 'Connection error');
+    } finally {
+      setActionLoading(false);
     }
-    toast.success(content.dashboard.offers.actions.successCounter); setSelectedId(null); refetch();
   };
 
   const handleMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedOffer||!meetingDate||!meetingTime) return;
+    if (!selectedOffer || !meetingDate || !meetingTime || actionLoading) return;
+    setActionLoading(true);
     const iso = `${meetingDate}T${meetingTime}:00.000Z`;
     const endDate = new Date(iso); endDate.setHours(endDate.getHours() + 1);
-    const { errors } = await reqMeeting({ variables: { input: { businessId: selectedOffer.business.id, offerId: selectedOffer.id, requestedDate: iso, requestedEndDate: endDate.toISOString() } } });
-    if (errors?.length) {
-      const msg = errors[0]?.message ?? '';
-      if (msg.includes('VERIFICATION_REQUIRED')) {
-        toast.error(
-          isAr ? 'يجب التحقق من هويتك أولاً لطلب اجتماع' : 'Identity verification required to request a meeting',
-          { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onGoToIdentity?.() } }
-        );
-      } else if (msg.includes('NDA_NOT_SIGNED')) {
-        toast.error(isAr
-          ? 'يجب توقيع اتفاقية السرية (NDA) لهذا الإعلان أولاً'
-          : 'You must sign the NDA for this listing before requesting a meeting');
-      } else if (msg.includes('MEETING_REQUEST_OUTSIDE_ALLOWED_HOURS') || msg.includes('MEETING_TIME_INVALID')) {
-        toast.error(isAr
-          ? 'الوقت المحدد خارج نطاق أوقات الاجتماعات المسموح بها. (الأحد–الجمعة ٤:٣٠م–١١م / السبت ٢م–١١م)'
-          : 'Selected time is outside allowed meeting hours. (Sun–Fri 4:30 PM–11 PM / Sat 2 PM–11 PM)');
-      } else {
-        toast.error(isAr ? 'حدث خطأ' : 'Error');
+    try {
+      const { errors } = await reqMeeting({ variables: { input: { businessId: selectedOffer.business.id, offerId: selectedOffer.id, requestedDate: iso, requestedEndDate: endDate.toISOString() } } });
+      if (errors?.length) {
+        const msg = errors[0]?.message ?? '';
+        if (msg.includes('VERIFICATION_REQUIRED')) {
+          toast.error(
+            isAr ? 'يجب التحقق من هويتك أولاً لطلب اجتماع' : 'Identity verification required to request a meeting',
+            { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onGoToIdentity?.() } }
+          );
+        } else if (msg.includes('NDA_NOT_SIGNED')) {
+          toast.error(isAr
+            ? 'يجب توقيع اتفاقية السرية (NDA) لهذا الإعلان أولاً'
+            : 'You must sign the NDA for this listing before requesting a meeting');
+        } else if (msg.includes('MEETING_REQUEST_OUTSIDE_ALLOWED_HOURS') || msg.includes('MEETING_TIME_INVALID')) {
+          toast.error(isAr
+            ? 'الوقت المحدد خارج نطاق أوقات الاجتماعات المسموح بها. (الأحد–الجمعة ٤:٣٠م–١١م / السبت ٢م–١١م)'
+            : 'Selected time is outside allowed meeting hours. (Sun–Fri 4:30 PM–11 PM / Sat 2 PM–11 PM)');
+        } else {
+          toast.error(isAr ? 'حدث خطأ' : 'Error');
+        }
+        return;
       }
-      return;
+      toast.success(content.dashboard.offers.actions.successMeeting);
+      setSelectedId(null);
+    } catch {
+      toast.error(isAr ? 'حدث خطأ في الاتصال' : 'Connection error');
+    } finally {
+      setActionLoading(false);
     }
-    toast.success(content.dashboard.offers.actions.successMeeting); setSelectedId(null);
   };
 
   return (
@@ -788,22 +832,25 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
                   </div>
                 </div>
 
-                {/* Seller actions: received PENDING offer */}
-                {selectedOffer.status==='PENDING' && directionFilter==='received' && (
+                {/* Offer actions: visible to the *recipient* of this specific offer in the chain */}
+                {selectedOffer.status==='PENDING' && iAmRecipient && (
                   <div className="flex flex-col gap-3 mt-6">
                     <div className="grid grid-cols-2 gap-3">
-                      <button onClick={() => setActionMode('counter')} className="py-3 rounded-xl border border-gray-300 text-[#111827] font-bold hover:bg-gray-50 flex items-center justify-center gap-2">
+                      <button onClick={() => setActionMode('counter')} disabled={actionLoading} className="py-3 rounded-xl border border-gray-300 text-[#111827] font-bold hover:bg-gray-50 disabled:opacity-50 flex items-center justify-center gap-2">
                         <DollarSign size={18}/>{content.dashboard.offers.actions.counterOffer}
                       </button>
-                      <button onClick={() => setActionMode('meeting')} className="py-3 rounded-xl bg-[#111827] text-white font-bold hover:bg-black flex items-center justify-center gap-2">
+                      <button onClick={() => setActionMode('meeting')} disabled={actionLoading} className="py-3 rounded-xl bg-[#111827] text-white font-bold hover:bg-black disabled:opacity-50 flex items-center justify-center gap-2">
                         <Calendar size={18}/>{content.dashboard.offers.actions.scheduleMeeting}
                       </button>
                     </div>
-                    <button onClick={handleAccept} className="w-full py-3 rounded-xl bg-[#10B981] text-white font-bold hover:bg-[#008A66] flex items-center justify-center gap-2">
-                      <CheckCircle2 size={18}/>{content.dashboard.offers.actions.accept}
+                    <button onClick={handleAccept} disabled={actionLoading} className="w-full py-3 rounded-xl bg-[#10B981] text-white font-bold hover:bg-[#008A66] disabled:opacity-60 flex items-center justify-center gap-2 transition-colors">
+                      {actionLoading
+                        ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>
+                        : <CheckCircle2 size={18}/>}
+                      {content.dashboard.offers.actions.accept}
                     </button>
-                    <button onClick={handleReject} className="w-full py-3 rounded-xl bg-red-50 text-red-600 font-bold hover:bg-red-100 transition-colors flex items-center justify-center gap-2">
-                      <XCircle size={18}/>{isAr?'رفض العرض':'Reject Offer'}
+                    <button onClick={handleReject} disabled={actionLoading} className="w-full py-3 rounded-xl bg-red-50 text-red-600 font-bold hover:bg-red-100 disabled:opacity-50 transition-colors flex items-center justify-center gap-2">
+                      <XCircle size={18}/>{isAr ? 'رفض العرض' : 'Reject Offer'}
                     </button>
                   </div>
                 )}
@@ -816,11 +863,14 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
               <form onSubmit={handleCounter} className="space-y-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">{content.dashboard.offers.actions.amount}</label>
-                  <input type="number" value={counterPrice} onChange={e=>setCounterPrice(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981]"/>
+                  <input type="number" value={counterPrice} onChange={e=>setCounterPrice(e.target.value)} disabled={actionLoading} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981] disabled:opacity-60"/>
                 </div>
                 <div className="flex gap-3">
-                  <button type="button" onClick={() => setActionMode('details')} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50">{content.dashboard.offers.actions.cancel}</button>
-                  <button type="submit" className="flex-1 py-3 rounded-xl bg-[#10B981] text-white font-bold">{content.dashboard.offers.actions.submit}</button>
+                  <button type="button" onClick={() => setActionMode('details')} disabled={actionLoading} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50">{content.dashboard.offers.actions.cancel}</button>
+                  <button type="submit" disabled={!counterPrice || actionLoading} className="flex-1 py-3 rounded-xl bg-[#10B981] text-white font-bold disabled:opacity-60 flex items-center justify-center gap-2">
+                    {actionLoading && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>}
+                    {content.dashboard.offers.actions.submit}
+                  </button>
                 </div>
               </form>
             )}
@@ -829,16 +879,19 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
               <form onSubmit={handleMeeting} className="space-y-4">
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">{content.dashboard.offers.actions.meetingDate}</label>
-                  <input type="date" value={meetingDate} onChange={e=>setMeetingDate(e.target.value)} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981]"/>
+                  <input type="date" value={meetingDate} onChange={e=>setMeetingDate(e.target.value)} disabled={actionLoading} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981] disabled:opacity-60"/>
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-2">{content.dashboard.offers.actions.meetingTime}</label>
-                  <input type="time" value={meetingTime} onChange={e=>setMeetingTime(e.target.value)} min="16:30" max="23:00" className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981]"/>
+                  <input type="time" value={meetingTime} onChange={e=>setMeetingTime(e.target.value)} min="16:30" max="23:00" disabled={actionLoading} className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:border-[#10B981] disabled:opacity-60"/>
                   <p className="text-xs text-gray-400 mt-1">{isAr?'المواعيد المتاحة: ٤:٣٠ م – ١١:٠٠ م':'Available: 4:30 PM – 11:00 PM'}</p>
                 </div>
                 <div className="flex gap-3">
-                  <button type="button" onClick={() => setActionMode('details')} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50">{content.dashboard.offers.actions.cancel}</button>
-                  <button type="submit" className="flex-1 py-3 rounded-xl bg-[#111827] text-white font-bold hover:bg-black">{content.dashboard.offers.actions.submit}</button>
+                  <button type="button" onClick={() => setActionMode('details')} disabled={actionLoading} className="flex-1 py-3 rounded-xl border border-gray-200 font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-50">{content.dashboard.offers.actions.cancel}</button>
+                  <button type="submit" disabled={!meetingDate || !meetingTime || actionLoading} className="flex-1 py-3 rounded-xl bg-[#111827] text-white font-bold hover:bg-black disabled:opacity-60 flex items-center justify-center gap-2">
+                    {actionLoading && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"/>}
+                    {content.dashboard.offers.actions.submit}
+                  </button>
                 </div>
               </form>
             )}

@@ -71,6 +71,8 @@ export const BusinessDetails = ({
   // Intent tracker: remembers what the user was trying to do before NDA gate
   // Fix 3: extended to include 'purchase' (Buy Now → isProceedToPay offer)
   const [pendingAction, setPendingAction] = useState<'offer' | 'meeting' | 'purchase' | null>(null);
+  // Prevents double-tap on Buy Now from creating duplicate offers
+  const [purchaseSubmitting, setPurchaseSubmitting] = useState(false);
   // NDA signed state — initialised from backend, then kept in sync locally
   const [ndaSigned, setNdaSigned] = useState(false);
 
@@ -195,12 +197,16 @@ export const BusinessDetails = ({
    */
   const handleActionClick = (action: 'offer' | 'meeting' | 'purchase') => {
     if (!requireLogin()) return;
+    // Guard: prevent double-tap on purchase while mutation is in flight
+    if (action === 'purchase' && purchaseSubmitting) return;
     if (!ndaSigned) {
-      // Fix 4: NDA gate applies to all three actions
+      // NDA gate applies to all three actions
       setPendingAction(action);
       setModalOpen('enda');
     } else {
       if (action === 'purchase') {
+        // await is intentionally dropped here — handlePurchaseAction manages its own
+        // purchaseSubmitting guard and shows toasts; fire-and-forget is safe
         handlePurchaseAction();
       } else {
         setModalOpen(action);
@@ -212,78 +218,100 @@ export const BusinessDetails = ({
 
   const handleOfferSubmit = async (amount: string) => {
     if (!business?.id) return;
-    const { errors } = await createOffer({
-      variables: {
-        input: {
-          businessId: business.id,
-          price: parseFloat(amount),
-          message: '',
-          status: 'PENDING',
-          isProceedToPay: false,
+    try {
+      const { errors } = await createOffer({
+        variables: {
+          input: {
+            businessId: business.id,
+            price: parseFloat(amount),
+            message: '',
+            status: 'PENDING',
+            isProceedToPay: false,
+          },
         },
-      },
-    });
-    if (errors?.length) {
-      const msg = errors[0]?.message ?? '';
-      if (msg.includes('VERIFICATION_REQUIRED')) {
-        toast.error(
-          isAr ? 'يجب التحقق من هويتك أولاً لتقديم عرض' : 'Identity verification required to make an offer',
-          { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onNavigate?.('dashboard:settings:identity') } }
-        );
-      } else if (msg.includes('NDA_NOT_SIGNED')) {
-        // Backend still requires NDA → switch to ENDAModal and remember intent
-        setNdaSigned(false);
-        setPendingAction('offer');
-        setModalOpen('enda');
-      } else if (msg.includes('OFFER_ALREADY_EXISTS')) {
-        toast.error(isAr
-          ? 'لديك عرض نشط بالفعل على هذا الإدراج'
-          : 'You already have an active offer on this listing');
-      } else {
-        toast.error(t.errGeneric);
+      });
+      if (errors?.length) {
+        const msg = errors[0]?.message ?? '';
+        if (msg.includes('VERIFICATION_REQUIRED')) {
+          toast.error(
+            isAr ? 'يجب التحقق من هويتك أولاً لتقديم عرض' : 'Identity verification required to make an offer',
+            { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onNavigate?.('dashboard:settings:identity') } }
+          );
+        } else if (msg.includes('NDA_NOT_SIGNED')) {
+          setNdaSigned(false);
+          setPendingAction('offer');
+          setModalOpen('enda');
+        } else if (msg.includes('OFFER_ALREADY_EXISTS')) {
+          toast.error(isAr
+            ? 'لديك عرض نشط بالفعل على هذا الإدراج'
+            : 'You already have an active offer on this listing');
+        } else {
+          toast.error(t.errGeneric);
+        }
+        return; // OfferModal stays open — amount preserved for retry
       }
-      return;
+      toast.success(t.offerSent);
+      setModalOpen(null);
+    } catch {
+      // Network / Apollo thrown errors (e.g. no connectivity, CORS)
+      // OfferModal stays open because we do NOT call setModalOpen(null) here
+      toast.error(t.errGeneric);
     }
-    toast.success(t.offerSent);
-    setModalOpen(null);
   };
 
-  // Fix 3: Buy Now creates an offer with isProceedToPay = true (direct purchase intent)
+  /**
+   * Buy Now — product intent clarification:
+   * createDeal() requires offerId + meetingId + buyerId and cannot be called here
+   * without an existing offer and a completed meeting. There is no "instant deal"
+   * mutation in the backend schema.
+   *
+   * Buy Now therefore creates an offer with isProceedToPay = true. The seller then
+   * sees this in their Dashboard as a purchase-intent offer and accepts it, at which
+   * point a Deal is created. This is the correct and complete purchase flow.
+   */
   const handlePurchaseAction = async () => {
-    if (!business?.id) return;
-    const { errors } = await createOffer({
-      variables: {
-        input: {
-          businessId: business.id,
-          price: parseFloat(String(business.price ?? 0)),
-          message: '',
-          status: 'PENDING',
-          isProceedToPay: true,
+    if (!business?.id || purchaseSubmitting) return;
+    setPurchaseSubmitting(true);
+    try {
+      const { errors } = await createOffer({
+        variables: {
+          input: {
+            businessId: business.id,
+            price: parseFloat(String(business.price ?? 0)),
+            message: '',
+            status: 'PENDING',
+            isProceedToPay: true,
+          },
         },
-      },
-    });
-    if (errors?.length) {
-      const msg = errors[0]?.message ?? '';
-      if (msg.includes('VERIFICATION_REQUIRED')) {
-        toast.error(
-          isAr ? 'يجب التحقق من هويتك أولاً لإتمام الشراء' : 'Identity verification required to proceed with purchase',
-          { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onNavigate?.('dashboard:settings:identity') } }
-        );
-      } else if (msg.includes('NDA_NOT_SIGNED')) {
-        setNdaSigned(false);
-        setPendingAction('purchase');
-        setModalOpen('enda');
-      } else if (msg.includes('OFFER_ALREADY_EXISTS')) {
-        toast.error(isAr
-          ? 'لديك عرض نشط بالفعل على هذا الإدراج'
-          : 'You already have an active offer on this listing');
-      } else {
-        toast.error(t.errGeneric);
+      });
+      if (errors?.length) {
+        const msg = errors[0]?.message ?? '';
+        if (msg.includes('VERIFICATION_REQUIRED')) {
+          toast.error(
+            isAr ? 'يجب التحقق من هويتك أولاً لإتمام الشراء' : 'Identity verification required to proceed with purchase',
+            { action: { label: isAr ? 'التحقق من الهوية' : 'Verify Identity', onClick: () => onNavigate?.('dashboard:settings:identity') } }
+          );
+        } else if (msg.includes('NDA_NOT_SIGNED')) {
+          setNdaSigned(false);
+          setPendingAction('purchase');
+          setModalOpen('enda');
+        } else if (msg.includes('OFFER_ALREADY_EXISTS')) {
+          toast.error(isAr
+            ? 'لديك عرض نشط بالفعل على هذا الإدراج'
+            : 'You already have an active offer on this listing');
+        } else {
+          toast.error(t.errGeneric);
+        }
+        return;
       }
-      return;
+      toast.success(t.purchaseStarted);
+      setModalOpen(null);
+    } catch {
+      // Network / Apollo thrown errors
+      toast.error(t.errGeneric);
+    } finally {
+      setPurchaseSubmitting(false);
     }
-    toast.success(t.purchaseStarted);
-    setModalOpen(null);
   };
 
   const handleMeetingSubmit = async (data: { date: string; startTime: string; endTime: string }) => {
@@ -663,8 +691,12 @@ export const BusinessDetails = ({
                   )}
                   <button
                     onClick={() => handleActionClick('purchase')}
-                    className="w-full bg-[#10B981] text-white font-bold py-4 rounded-xl hover:bg-[#059669] transition-all shadow-lg shadow-emerald-100"
+                    disabled={purchaseSubmitting}
+                    className="w-full bg-[#10B981] text-white font-bold py-4 rounded-xl hover:bg-[#059669] transition-all shadow-lg shadow-emerald-100 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
+                    {purchaseSubmitting && (
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin shrink-0" />
+                    )}
                     {t.buyNow}
                   </button>
                 </div>
@@ -868,9 +900,12 @@ export const BusinessDetails = ({
             )}
             <button
               onClick={() => handleActionClick('purchase')}
-              className="col-span-1 bg-[#10B981] text-white rounded-xl hover:bg-[#059669] transition-colors flex flex-col items-center justify-center gap-1 py-2"
+              disabled={purchaseSubmitting}
+              className="col-span-1 bg-[#10B981] text-white rounded-xl hover:bg-[#059669] transition-colors flex flex-col items-center justify-center gap-1 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              <ShieldCheck size={18} />
+              {purchaseSubmitting
+                ? <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                : <ShieldCheck size={18} />}
               <span className="text-[10px] font-bold">{t.buy}</span>
             </button>
           </div>
