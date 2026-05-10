@@ -254,7 +254,9 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
     reason: '',
     // Step 4
     crFile: null,
-    otherFiles: []
+    otherFiles: [],
+    // Existing documents from the server (edit mode only) — preserved on submit unless replaced
+    existingDocuments: [] as { title: string; fileName: string; filePath: string; fileType: string; description: string }[],
   };
 
   const [formData, setFormData] = useState(() => {
@@ -319,6 +321,14 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
       growthOpportunities: b.growthOpportunities ?? '',
       supportSessions: b.supportSession ? String(b.supportSession) : '',
       supportDuration: b.supportDuration ? String(b.supportDuration) : '',
+      // Step 4 — keep existing server documents so submit doesn't wipe them
+      existingDocuments: (b.documents ?? []).map((d: any) => ({
+        title: d.title ?? '',
+        fileName: d.fileName ?? '',
+        filePath: d.filePath ?? '',
+        fileType: d.fileType ?? '',
+        description: d.description ?? '',
+      })),
     }));
   }, [editData, mode]);
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -333,14 +343,23 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
       if (!formData.category)    errs.category    = isAr ? 'يرجى اختيار القطاع' : 'Please select a category';
       if (!formData.region)      errs.region      = isAr ? 'يرجى اختيار المنطقة' : 'Please select a region';
       if (!formData.city)        errs.city        = isAr ? 'يرجى اختيار المدينة' : 'Please select a city';
+      // Description field lives on Step 1 — validate here so the user is not surprised on Step 3
+      if (!formData.description) errs.description = isAr ? 'يرجى إدخال وصف الشركة' : 'Please enter a business description';
     }
     if (currentStep === 2) {
       if (!formData.price)   errs.price   = isAr ? 'يرجى إدخال سعر الطلب' : 'Please enter the asking price';
       if (!formData.revenue) errs.revenue = isAr ? 'يرجى إدخال الإيرادات' : 'Please enter revenue';
       if (!formData.profit)  errs.profit  = isAr ? 'يرجى إدخال الأرباح' : 'Please enter profit';
     }
-    if (currentStep === 3) {
-      if (!formData.description) errs.description = isAr ? 'يرجى إدخال وصف الشركة' : 'Please enter a business description';
+    if (currentStep === 4) {
+      // CR is required. In create mode: a new upload is mandatory.
+      // In edit mode: either a new file is uploaded OR an existing CR document is still present.
+      const hasExistingCr = (formData.existingDocuments as any[]).some(
+        d => d.title === 'Commercial Registration'
+      );
+      if (!formData.crFile && !hasExistingCr) {
+        errs.crFile = isAr ? 'يرجى رفع السجل التجاري' : 'Commercial Registration is required';
+      }
     }
 
     if (Object.keys(errs).length > 0) {
@@ -453,10 +472,11 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
           price: parseFloat(String(a.price).replace(/,/g, '')) || 0,
           purchaseYear: new Date().getFullYear(),
         })),
-        documents: [
-          ...(crDocument ? [crDocument] : []),
-          ...otherDocuments,
-        ],
+        // In edit mode only newly uploaded files are sent. The backend appends them to the
+        // listing's existing documents rather than replacing everything. Existing documents
+        // are shown as read-only in the UI and managed server-side; sending them back through
+        // CreateDocumentInput would risk creating duplicate rows via TypeORM cascade.
+        documents: [...(crDocument ? [crDocument] : []), ...otherDocuments],
       };
 
       if (mode === 'create') {
@@ -831,7 +851,7 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
           <div className="flex justify-between items-center">
             <FormLabel>{t.liabilities}</FormLabel>
             <button 
-              onClick={() => setFormData({...formData, liabilities: [...formData.liabilities, {name: '', amount: '', date: ''}]})}
+              onClick={() => setFormData({...formData, liabilities: [...formData.liabilities, {name: '', amount: '', year: ''}]})}
               className="text-[#10B981] text-xs font-bold flex items-center gap-1 hover:bg-[#E6F3EF] px-3 py-1.5 rounded-lg transition-colors"
             >
               <Plus size={14} /> {t.addLiability}
@@ -843,7 +863,7 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
                    <tr>
                       <th className="p-3">{t.liabilityName}</th>
                       <th className="p-3 w-32 md:w-40">{isAr ? 'القيمة (ر.س)' : 'Amount (SAR)'}</th>
-                      <th className="p-3 w-32 md:w-40">{t.liabilityDate}</th>
+                      <th className="p-3 w-32 md:w-40">{isAr ? 'السنة' : 'Year'}</th>
                       <th className="p-3 w-10"></th>
                    </tr>
                 </thead>
@@ -851,7 +871,7 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
                    {formData.liabilities.length === 0 && (
                       <tr><td colSpan={3} className="p-4 text-center text-gray-400 text-xs">{t.noLiabilities}</td></tr>
                    )}
-                   {formData.liabilities.map((item: { name: string; quantity: string; value: string; date: string }, idx: number) => (
+                   {formData.liabilities.map((item: { name: string; amount: string; year: string }, idx: number) => (
                       <tr key={idx}>
                          <td className="p-2"><input className={cn("w-full bg-transparent border-none focus:ring-0 p-0 text-sm placeholder:text-xs text-gray-600", direction === 'rtl' ? "text-right" : "text-left")} placeholder={t.liabilityName} value={item.name} onChange={e => {
                            const newL = [...formData.liabilities]; newL[idx].name = e.target.value; setFormData({...formData, liabilities: newL});
@@ -859,8 +879,8 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
                          <td className="p-2"><input type="number" min="0" className={cn("w-full bg-transparent border-none focus:ring-0 p-0 text-sm placeholder:text-xs text-gray-600", direction === 'rtl' ? "text-right" : "text-left")} placeholder="0" value={item.amount} onChange={e => {
                            const newL = [...formData.liabilities]; newL[idx].amount = e.target.value; setFormData({...formData, liabilities: newL});
                          }} /></td>
-                         <td className="p-2"><input type="date" className={cn("w-full bg-transparent border-none focus:ring-0 p-0 text-sm text-gray-600", direction === 'rtl' ? "text-right" : "text-left")} value={item.date} onChange={e => {
-                           const newL = [...formData.liabilities]; newL[idx].date = e.target.value; setFormData({...formData, liabilities: newL});
+                         <td className="p-2"><input type="number" min="1900" max={new Date().getFullYear()} className={cn("w-full bg-transparent border-none focus:ring-0 p-0 text-sm placeholder:text-xs text-gray-600", direction === 'rtl' ? "text-right" : "text-left")} placeholder="YYYY" value={item.year} onChange={e => {
+                           const newL = [...formData.liabilities]; newL[idx].year = e.target.value; setFormData({...formData, liabilities: newL});
                          }} /></td>
                          <td className="p-2 text-center">
                             <button onClick={() => {
@@ -1005,6 +1025,7 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
       {/* Main Upload - CR */}
       <div className="space-y-3">
         <FormLabel required>{t.cr}</FormLabel>
+        {stepErrors.crFile && <p className="text-xs text-red-500 font-medium">{stepErrors.crFile}</p>}
         {formData.crFile ? (
           <div className="flex items-center justify-between p-4 bg-gray-50 border border-gray-200 rounded-xl">
              <div className="flex items-center gap-3">
@@ -1029,6 +1050,7 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
                onChange={(e) => {
                  const file = e.target.files?.[0] || null;
                  setFormData({ ...formData, crFile: file });
+                 if (file) setStepErrors(p => ({ ...p, crFile: '' }));
                }}
              />
              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4 text-gray-400">
@@ -1042,6 +1064,31 @@ export const ListingWizard = ({ mode = 'create', initialData, onClose, onSuccess
           </label>
         )}
       </div>
+
+      {/* Existing server documents — shown in edit mode so the user knows what's already uploaded */}
+      {mode === 'edit' && (formData.existingDocuments as any[]).length > 0 && (
+        <div className="space-y-2 pt-4 border-t border-gray-100">
+          <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">
+            {isAr ? 'المستندات المرفوعة مسبقاً' : 'Already Uploaded'}
+          </p>
+          <p className="text-xs text-gray-400">
+            {isAr
+              ? 'هذه المستندات مرفوعة مسبقاً. أي مستند جديد سيُضاف بجانبها.'
+              : 'These documents are already on file. Any new uploads will be added alongside them.'}
+          </p>
+          {(formData.existingDocuments as any[]).map((doc, i) => (
+            <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+              <div className="w-8 h-8 bg-[#E6F3EF] text-[#008A66] rounded-lg flex items-center justify-center text-xs font-bold shrink-0">
+                {doc.fileType?.toUpperCase?.()?.slice(0, 3) ?? 'DOC'}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-gray-900 truncate">{doc.title || doc.fileName}</p>
+                <p className="text-xs text-gray-400 truncate">{doc.fileName}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Other Docs */}
       <div className="space-y-3 pt-6 border-t border-gray-100">
