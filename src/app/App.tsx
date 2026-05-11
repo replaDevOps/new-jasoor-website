@@ -26,6 +26,7 @@ const PrivacyPolicy     = lazy(() => import('./pages/PrivacyPolicy').then(m => (
 const Articles          = lazy(() => import('./pages/Articles').then(m => ({ default: m.Articles })));
 // P2-FIX-BUG2: ListingWizard lazy-loaded — it's huge and only used by logged-in sellers
 const ListingWizard     = lazy(() => import('./pages/ListingWizard').then(m => ({ default: m.ListingWizard })));
+const NDAPage           = lazy(() => import('./pages/NDAPage').then(m => ({ default: m.NDAPage })));
 
 // Minimal fallback shown while a lazy chunk is downloading
 const PageLoader = () => (
@@ -50,6 +51,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   terms: '/terms',
   privacy: '/privacy',
   articles: '/articles',
+  nda: '/nda',
   'not-found': '/404',
 };
 
@@ -61,7 +63,7 @@ const PATH_TO_VIEW: Record<string, string> = Object.fromEntries(
 type ViewType =
   | 'home' | 'browse' | 'details' | 'list-business'
   | 'signup' | 'signin' | 'forgot-password' | 'dashboard'
-  | 'about' | 'support' | 'terms' | 'privacy' | 'articles' | 'not-found';
+  | 'about' | 'support' | 'terms' | 'privacy' | 'articles' | 'nda' | 'not-found';
 
 function AppContent() {
   const { isLoggedIn, direction, language } = useApp();
@@ -173,7 +175,7 @@ function AppContent() {
         <Toaster position="top-center" dir={direction} />
 
         {/* Hide navbar on full-screen pages */}
-        {!['dashboard', 'signup', 'signin', 'forgot-password', 'list-business'].includes(view) && (
+        {!['dashboard', 'signup', 'signin', 'forgot-password', 'list-business', 'nda'].includes(view) && (
           <Navbar
             onNavigate={(page) => handleNavigate(page)}
             useLightLogo={['about', 'support', 'browse', 'articles', 'privacy', 'terms'].includes(view)}
@@ -217,6 +219,7 @@ function AppContent() {
           {view === 'terms' && <Terms onNavigate={handleNavigate} />}
           {view === 'privacy' && <PrivacyPolicy onNavigate={handleNavigate} />}
           {view === 'articles' && <Articles onNavigate={handleNavigate} />}
+          {view === 'nda' && <NDAPage onNavigate={handleNavigate} />}
 
           {view === 'signup' && <SignUp onNavigate={handleNavigate} />}
           {view === 'signin' && <SignIn onNavigate={handleNavigate} returnTo={pendingReturn ?? undefined} />}
@@ -258,7 +261,7 @@ function AppContent() {
         )}
 
         {/* Hide footer on full-screen / standalone pages */}
-        {!['dashboard', 'not-found', 'list-business'].includes(view) && (
+        {!['dashboard', 'not-found', 'list-business', 'nda'].includes(view) && (
           <Footer onNavigate={handleNavigate} />
         )}
       </main>

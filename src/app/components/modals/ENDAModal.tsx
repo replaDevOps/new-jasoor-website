@@ -1,19 +1,18 @@
 import React, { useState } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../Button';
-import { Check } from 'lucide-react';
+import { Check, ExternalLink } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
-import { useQuery } from '@apollo/client';
-import { GET_NDA_TERMS } from '../../../graphql/queries/business';
 
 interface ENDAModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  onReadNDA?: () => void;   // opens the full NDA page, preserving return context
   buyerName?: string;
 }
 
-export const ENDAModal = ({ isOpen, onClose, onConfirm, buyerName }: ENDAModalProps) => {
+export const ENDAModal = ({ isOpen, onClose, onConfirm, onReadNDA, buyerName }: ENDAModalProps) => {
   const { language } = useApp();
   const isAr = language === 'ar';
   const [agreements, setAgreements] = useState({
@@ -22,44 +21,20 @@ export const ENDAModal = ({ isOpen, onClose, onConfirm, buyerName }: ENDAModalPr
     commission: false,
   });
 
-  // Load admin-managed E-NDA text. All fields are stored as { content: "<html>" }.
-  const { data: ndaData, loading: ndaLoading } = useQuery(GET_NDA_TERMS, {
-    fetchPolicy: 'cache-first',
-    errorPolicy: 'all',
-  });
-  const ndaTerms: any[] = ndaData?.getNDATerms ?? [];
-  // Find the record that has English content, and the one that has Arabic content.
-  const ndaHtmlEn = ndaTerms.find((t: any) => t.ndaTerm?.content)?.ndaTerm?.content ?? '';
-  const ndaHtmlAr = ndaTerms.find((t: any) => t.arabicNdaTerm?.content)?.arabicNdaTerm?.content ?? '';
-  const ndaHtml = isAr ? ndaHtmlAr : ndaHtmlEn;
-
   const defaultBuyer = isAr ? 'المشتري' : 'Buyer';
   const displayName = buyerName || defaultBuyer;
 
   const t = {
-    title:            isAr ? 'توقيع اتفاقية السرية الإلكترونية' : 'Sign E-NDA',
-    intro:            isAr
-      ? `للمتابعة، يرجى الموافقة على البنود التالية، عزيزي ${displayName}...`
-      : `To proceed, please agree to the following terms, dear ${displayName}...`,
-    // Hardcoded fallback sections shown only when no admin content is available yet
-    section1Title:    isAr ? '١. السرية والخصوصية'              : '1. Confidentiality',
-    section1Body:     isAr
-      ? 'يلتزم الطرف الثاني (المشتري) بالحفاظ على سرية المعلومات المقدمة من الطرف الأول (البائع) وعدم الإفصاح عنها لأي طرف ثالث دون موافقة خطية مسبقة.'
-      : 'The Second Party (Buyer) is committed to maintaining the confidentiality of the information provided by the First Party (Seller) and not disclosing it to any third party without written consent.',
-    section2Title:    isAr ? '٢. عمولة المنصة'                  : '2. Platform Commission',
-    section2Body:     isAr
-      ? 'يوافق المشتري على دفع عمولة منصة جسور المعتمدة في حال إتمام الصفقة، وفقًا لشرائح العمولة السارية على المنصة وقت إبرام الاتفاقية.'
-      : 'The Buyer agrees to pay the applicable Jusoor platform commission in case the deal is finalized, as per the active commission brackets at the time this agreement is signed.',
-    section3Title:    isAr ? '٣. شروط وأحكام جسور'              : '3. Jusoor Terms & Conditions',
-    section3Body:     isAr
-      ? 'بقبول هذه الاتفاقية، تقر بأنك قرأت ووافقت على جميع شروط وأحكام استخدام منصة جسور.'
-      : 'By accepting this agreement, you acknowledge that you have read and agreed to all terms and conditions of using Jusoor platform.',
-    agree1:           isAr ? 'أوافق على بنود اتفاقية السرية الإلكترونية من جسور'    : 'I agree to the Jusoor E-NDA Terms',
-    agree2:           isAr ? 'أقبل شروط وأحكام منصة جسور'                          : 'I accept Jusoor\'s platform Terms and Conditions',
-    agree3:           isAr ? 'أوافق على دفع عمولة المنصة في حال إتمام الصفقة'       : 'I agree to pay the platform commission if a deal is finalized',
-    confirm:          isAr ? 'تأكيد وتوقيع'                                         : 'Confirm & Sign',
-    cancel:           isAr ? 'إلغاء'                                                : 'Cancel',
-    loading:          isAr ? 'جارٍ تحميل بنود الاتفاقية...'                         : 'Loading agreement terms...',
+    title:           isAr ? 'توقيع اتفاقية السرية الإلكترونية' : 'Sign E-NDA',
+    intro:           isAr
+      ? `عزيزي ${displayName}، للمتابعة يرجى الاطلاع على اتفاقية السرية والموافقة على البنود التالية.`
+      : `Dear ${displayName}, to proceed please review the non-disclosure agreement and agree to the terms below.`,
+    readNDA:         isAr ? 'قراءة اتفاقية السرية كاملة'       : 'Read full NDA',
+    agree1:          isAr ? 'أوافق على بنود اتفاقية السرية الإلكترونية من جسور'    : 'I agree to the Jusoor E-NDA Terms',
+    agree2:          isAr ? 'أقبل شروط وأحكام منصة جسور'                          : 'I accept Jusoor\'s platform Terms and Conditions',
+    agree3:          isAr ? 'أوافق على دفع عمولة المنصة في حال إتمام الصفقة'       : 'I agree to pay the platform commission if a deal is finalized',
+    confirm:         isAr ? 'قبول'                                                  : 'Accept',
+    cancel:          isAr ? 'إلغاء'                                                : 'Cancel',
   };
 
   const allAgreed = agreements.nda && agreements.terms && agreements.commission;
@@ -79,38 +54,22 @@ export const ENDAModal = ({ isOpen, onClose, onConfirm, buyerName }: ENDAModalPr
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={t.title} size="lg">
+    <Modal isOpen={isOpen} onClose={onClose} title={t.title}>
       <div className="space-y-6">
-        <p className="text-gray-600 text-sm">{t.intro}</p>
 
-        {/* NDA Contract Text — admin-managed via E-NDA editor, falls back to static copy */}
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 h-56 overflow-y-auto custom-scrollbar text-sm leading-relaxed text-gray-700" dir={isAr ? 'rtl' : 'ltr'}>
-          {ndaLoading ? (
-            <p className="text-gray-400 text-center pt-10">{t.loading}</p>
-          ) : ndaHtml ? (
-            // Admin rich-text content (ReactQuill HTML) — safe source is admin-only editor
-            <div
-              className="prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: ndaHtml }}
-            />
-          ) : (
-            // Fallback: hardcoded static sections when no admin content is available
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-bold text-gray-900 mb-1">{t.section1Title}</h4>
-                <p>{t.section1Body}</p>
-              </div>
-              <div>
-                <h4 className="font-bold text-gray-900 mb-1">{t.section2Title}</h4>
-                <p>{t.section2Body}</p>
-              </div>
-              <div>
-                <h4 className="font-bold text-gray-900 mb-1">{t.section3Title}</h4>
-                <p>{t.section3Body}</p>
-              </div>
-            </div>
-          )}
-        </div>
+        {/* Short intro */}
+        <p className="text-gray-600 text-sm leading-relaxed">{t.intro}</p>
+
+        {/* Read full NDA link */}
+        {onReadNDA && (
+          <button
+            onClick={onReadNDA}
+            className="inline-flex items-center gap-1.5 text-[#008A66] hover:text-[#007053] text-sm font-bold underline underline-offset-2 transition-colors"
+          >
+            <ExternalLink size={14} />
+            {t.readNDA}
+          </button>
+        )}
 
         {/* Checkboxes */}
         <div className="space-y-4 pt-2">

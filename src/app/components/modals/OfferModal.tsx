@@ -48,7 +48,7 @@ export const OfferModal = ({ isOpen, onClose, type, onSubmit }: OfferModalProps)
     commissionNA:      isAr ? 'غير متاح'                         : 'N/A',
     commissionNANote:  isAr ? '* ستُحسب العمولة عند الإرسال'    : '* Commission will be calculated on submit',
     calculating:       isAr ? 'جارٍ الحساب...'                  : 'Calculating...',
-    submit:            isAr ? 'إرسال العرض'                      : 'Submit Offer',
+    submit:            isAr ? 'إرسال'                             : 'Submit',
     submitting:        isAr ? 'جارٍ الإرسال...'                 : 'Submitting...',
     send:              isAr ? 'إرسال'                            : 'Send',
     cancel:            isAr ? 'إلغاء'                            : 'Cancel',

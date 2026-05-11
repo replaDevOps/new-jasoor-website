@@ -4,7 +4,7 @@ import { Button } from './Button';
 import { motion, AnimatePresence } from 'motion/react';
 import { User, Store, FileText, ShieldCheck, Mail, CheckCircle, Search, CreditCard, FileSignature } from 'lucide-react';
 import { Card } from './Card';
-import logoWatermark from '../../assets/logo-watermark.png';
+import logoWatermark from '../../assets/logo-navbar.svg';
 
 export const HowItWorks = ({ onNavigate }: { onNavigate?: (page: string) => void }) => {
   const { content } = useApp();

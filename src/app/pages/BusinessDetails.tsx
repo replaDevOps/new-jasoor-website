@@ -121,6 +121,22 @@ export const BusinessDetails = ({
     if (businessId) { viewBusiness({ variables: { viewBusinessId: String(businessId) } }).catch(() => {}); }
   }, [businessId]);
 
+  // NDA-return: when user comes back from NDAPage, auto-reopen E-NDA modal
+  useEffect(() => {
+    if (!businessId) return;
+    try {
+      const raw = sessionStorage.getItem('nda_return');
+      if (!raw) return;
+      const { businessId: retId, pendingAction: retAction } = JSON.parse(raw);
+      if (String(retId) !== String(businessId)) return;
+      // Matches this listing — clear the key and reopen NDA modal
+      sessionStorage.removeItem('nda_return');
+      if (retAction) setPendingAction(retAction as 'offer' | 'meeting' | 'purchase');
+      setModalOpen('enda');
+    } catch { /* ignore parse errors */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId]);
+
   // ── Labels ──────────────────────────────────────────────────────────────────
   const t = {
     back:            isAr ? 'العودة للقائمة' : 'Back to Listings',
@@ -464,7 +480,7 @@ export const BusinessDetails = ({
 
   // ── Derived display values from real API data ─────────────────────────────────
   const categoryName = isAr ? business.category?.arabicName : business.category?.name;
-  const cityDisplay  = business.city ? (business.district ? `${business.district}, ${business.city}` : business.city) : '';
+  const cityDisplay  = resolveBusinessLocation(business.district, business.city, language as 'ar' | 'en');
   const priceDisplay = business.price ? fmtNum(business.price) : '—';
   const profitDisplay  = business.profit  ? (isAr ? `${t.currency} ${fmtNum(business.profit)}`  : `${fmtNum(business.profit)} ${t.currency}`)  : '—';
   const revenueDisplay = business.revenue ? (isAr ? `${t.currency} ${fmtNum(business.revenue)}` : `${fmtNum(business.revenue)} ${t.currency}`) : '—';
@@ -861,6 +877,17 @@ export const BusinessDetails = ({
         isOpen={modalOpen === 'enda'}
         onClose={() => setModalOpen(null)}
         onConfirm={handleENDAConfirm}
+        onReadNDA={() => {
+          // Persist return context so NDAPage can navigate back here with NDA modal pre-opened
+          try {
+            sessionStorage.setItem('nda_return', JSON.stringify({
+              businessId: String(business?.id ?? businessId),
+              pendingAction,
+            }));
+          } catch { /* sessionStorage blocked */ }
+          onNavigate?.('nda');
+        }}
+        buyerName={undefined}
       />
 
       {/* ── Mobile Sticky Bar ────────────────────────────────────────────────── */}

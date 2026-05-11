@@ -176,9 +176,9 @@ export const CONTENT = {
     faq: {
       headline: "لديك أسئلة؟",
       subheadline: "لدينا الإجابات.",
-      description: "جمعنا لك أهم الأسئلة التي يطرحها المستثمرون والبائعون لمساعدتك في فهم آلية عمل جسور بشكل أفضل.",
+      description: "إجابات على أبرز أسئلة المستثمرين والبائعين.",
       notFound: "لم تجد إجابتك؟ ",
-      cta: "الأسئلة الشائعة الكاملة",
+      cta: "المزيد",
       items: [
         { q: "كيف تضمن جسور سرية المعلومات؟", a: "نستخدم اتفاقيات عدم إفصاح صارمة (NDA) وتشفير للبيانات لضمان سرية جميع الأطراف." },
         { q: "ما هي رسوم استخدام المنصة؟", a: "تختلف الرسوم بناءً على نوع الصفقة وحجمها، يمكنك الاطلاع على صفحة الرسوم للتفاصيل." },
@@ -652,9 +652,9 @@ export const CONTENT = {
     faq: {
       headline: "Have Questions?",
       subheadline: "We have answers.",
-      description: "We've compiled the most asked questions by investors and sellers to help you better understand how Jusoor works.",
+      description: "Answers to the most common questions from investors and sellers.",
       notFound: "Didn't find your answer? ",
-      cta: "Full FAQs",
+      cta: "More",
       items: [
         { q: "How does Jusoor ensure confidentiality?", a: "We use strict NDAs and data encryption to ensure confidentiality for all parties." },
         { q: "What are the platform fees?", a: "Fees vary based on deal type and size. Check our pricing page for details." },
