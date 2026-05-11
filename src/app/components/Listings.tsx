@@ -103,8 +103,8 @@ export const Listings = ({ onViewAll, onNavigate }: { onViewAll?: () => void; on
                     category: language === 'ar' ? b.category?.arabicName || b.category?.name : b.category?.name || '',
                     location: resolveBusinessLocation((b as any).district, (b as any).city, language as 'ar' | 'en'),
 
-                    revenue: fmt(b.revenue) + ' ' + labels.currency,
-                    profit: fmt(b.profit) + ' ' + labels.currency,
+                    revenue: language === 'ar' ? `${labels.currency} ${fmt(b.revenue)}` : `${fmt(b.revenue)} ${labels.currency}`,
+                    profit:  language === 'ar' ? `${labels.currency} ${fmt(b.profit)}`  : `${fmt(b.profit)} ${labels.currency}`,
                     recovery: b.capitalRecovery ? Math.round(b.capitalRecovery) + ' ' + labels.month : '—',
                     refNumber: b.reference ? `#${b.reference}` : '',
                   }}

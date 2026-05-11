@@ -755,7 +755,7 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
                       <DashBadge color={statusColor(o.status)}>{statusLabel(o.status)}</DashBadge>
                     </div>
                     <div className="flex items-center justify-between mt-3">
-                      <span className="text-sm font-black text-[#10B981]">{fmt(o.price)} {content.dashboard.offers.sar}</span>
+                      <span className="text-sm font-black text-[#10B981]">{isAr ? `${content.dashboard.offers.sar} ${fmt(o.price)}` : `${fmt(o.price)} ${content.dashboard.offers.sar}`}</span>
                       <div className="flex items-center gap-3">
                         <span className="text-xs text-gray-400">{fmtDate(o.createdAt)}</span>
                         <button onClick={() => { setSelectedId(o.id); setActionMode('details'); }} className="text-[#10B981] font-bold text-sm flex items-center gap-1">
@@ -798,10 +798,10 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
                           >
                             {o.business?.businessTitle}
                           </button>
-                          <p className="text-xs text-gray-500 mt-0.5">{fmt(o.business?.price)} {content.dashboard.offers.sar}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{isAr ? `${content.dashboard.offers.sar} ${fmt(o.business?.price)}` : `${fmt(o.business?.price)} ${content.dashboard.offers.sar}`}</p>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-[#111827]">{maskName(counterparty)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap"><span className="text-sm font-black text-[#10B981]">{fmt(o.price)} {content.dashboard.offers.sar}</span></td>
+                        <td className="px-6 py-4 whitespace-nowrap"><span className="text-sm font-black text-[#10B981]">{isAr ? `${content.dashboard.offers.sar} ${fmt(o.price)}` : `${fmt(o.price)} ${content.dashboard.offers.sar}`}</span></td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{fmtDate(o.createdAt)}</td>
                         <td className="px-6 py-4 whitespace-nowrap"><DashBadge color={statusColor(o.status)}>{statusLabel(o.status)}</DashBadge></td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -840,8 +840,8 @@ const OffersView = ({ onNavigate, onGoToIdentity }: { onNavigate?: (page: string
               </div>
               {actionMode==='details' && (
                 <div className="flex justify-between mt-4 pt-4 border-t border-gray-200">
-                  <div><p className="text-xs text-gray-500 mb-1">{content.dashboard.offers.table.salePrice}</p><p className="font-bold text-gray-900">{fmt(selectedOffer.business?.price)} {content.dashboard.offers.sar}</p></div>
-                  <div><p className="text-xs text-gray-500 mb-1">{content.dashboard.offers.table.offerAmount}</p><p className="font-black text-[#10B981]">{fmt(selectedOffer.price)} {content.dashboard.offers.sar}</p></div>
+                  <div><p className="text-xs text-gray-500 mb-1">{content.dashboard.offers.table.salePrice}</p><p className="font-bold text-gray-900">{isAr ? `${content.dashboard.offers.sar} ${fmt(selectedOffer.business?.price)}` : `${fmt(selectedOffer.business?.price)} ${content.dashboard.offers.sar}`}</p></div>
+                  <div><p className="text-xs text-gray-500 mb-1">{content.dashboard.offers.table.offerAmount}</p><p className="font-black text-[#10B981]">{isAr ? `${content.dashboard.offers.sar} ${fmt(selectedOffer.price)}` : `${fmt(selectedOffer.price)} ${content.dashboard.offers.sar}`}</p></div>
                 </div>
               )}
             </div>
@@ -1257,9 +1257,9 @@ const DealsView = ({
             </div>
             <DashBadge color={allDone?'gray':'green'}>{allDone?(isAr?'مكتملة':'Completed'):(isAr?'قيد التنفيذ':'In Progress')}</DashBadge>
           </div>
-          <p className="text-3xl font-black text-[#10B981] mb-5">{Number(deal.price ?? deal.offer?.price ?? 0).toLocaleString('en-US')} {isAr ? 'ريال' : 'SAR'}</p>
+          <p className="text-3xl font-black text-[#10B981] mb-5">{isAr ? `ريال ${Number(deal.price ?? deal.offer?.price ?? 0).toLocaleString('en-US')}` : `${Number(deal.price ?? deal.offer?.price ?? 0).toLocaleString('en-US')} SAR`}</p>
           {deal.offer?.commission && (
-            <p className="text-sm text-gray-500 mb-4">{isAr?'العمولة':'Commission'}: <span className="font-bold text-[#111827]">{Number(deal.offer.commission).toLocaleString('en-US')} {isAr ? 'ريال' : 'SAR'}</span></p>
+            <p className="text-sm text-gray-500 mb-4">{isAr?'العمولة':'Commission'}: <span className="font-bold text-[#111827]">{isAr ? `ريال ${Number(deal.offer.commission).toLocaleString('en-US')}` : `${Number(deal.offer.commission).toLocaleString('en-US')} SAR`}</span></p>
           )}
           <div className="space-y-2">
             <div className="flex justify-between text-sm font-bold">

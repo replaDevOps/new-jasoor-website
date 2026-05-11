@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { cn } from '../../lib/utils';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import { TrendingUp, MapPin, ArrowLeft, ArrowRight, Bookmark, Clock } from 'lucide-react';
+import { useApp } from '../../context/AppContext';
 
 type CardVariant = 'feature' | 'info' | 'grid' | 'branded' | 'listing' | 'premium';
 
@@ -68,6 +69,9 @@ export const Card = ({
   isSaved = false,
   onSave,
 }: CardProps & { darkText?: boolean; overlayClass?: string; decorationClass?: string; iconBgClass?: string; watermarkImage?: string }) => {
+
+  const { language } = useApp();
+  const isAr = language === 'ar';
 
   const baseStyles = "bg-white overflow-hidden transition-all duration-300 ease-out";
   
@@ -304,7 +308,10 @@ export const Card = ({
                    <div className="flex flex-col">
                       <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-px">{labels?.askingPrice || "Asking Price"}</span>
                       <div className="text-base font-black text-[#008A66] flex items-baseline gap-1 tracking-tight">
-                         {number} <span className="text-[10px] font-bold text-[#008A66]/70">{labels?.currency || "SAR"}</span>
+                         {isAr
+                           ? <><span className="text-[10px] font-bold text-[#008A66]/70">{labels?.currency || 'ريال'}</span> {number}</>
+                           : <>{number} <span className="text-[10px] font-bold text-[#008A66]/70">{labels?.currency || 'SAR'}</span></>
+                         }
                       </div>
                    </div>
                    

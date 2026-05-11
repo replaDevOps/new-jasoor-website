@@ -536,8 +536,8 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                   listingData={{
                     location: resolveBusinessLocation(listing.district, listing.city, language as 'ar' | 'en'),
                     category: isAr ? (listing.category?.arabicName || listing.category?.name || '') : (listing.category?.name || ''),
-                    revenue: fmt(listing.revenue) + ' ' + t.sar,
-                    profit: fmt(listing.profit) + ' ' + t.sar,
+                    revenue: isAr ? `${t.sar} ${fmt(listing.revenue)}` : `${fmt(listing.revenue)} ${t.sar}`,
+                    profit:  isAr ? `${t.sar} ${fmt(listing.profit)}`  : `${fmt(listing.profit)} ${t.sar}`,
                     recovery: listing.capitalRecovery ? Math.round(listing.capitalRecovery) + ' ' + t.month : '—',
                     refNumber: listing.reference ? `#${listing.reference}` : '',
                   }}

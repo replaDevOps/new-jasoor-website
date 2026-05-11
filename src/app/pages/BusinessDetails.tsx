@@ -466,8 +466,8 @@ export const BusinessDetails = ({
   const categoryName = isAr ? business.category?.arabicName : business.category?.name;
   const cityDisplay  = business.city ? (business.district ? `${business.district}, ${business.city}` : business.city) : '';
   const priceDisplay = business.price ? fmtNum(business.price) : '—';
-  const profitDisplay = business.profit ? `${fmtNum(business.profit)} ${t.currency}` : '—';
-  const revenueDisplay = business.revenue ? `${fmtNum(business.revenue)} ${t.currency}` : '—';
+  const profitDisplay  = business.profit  ? (isAr ? `${t.currency} ${fmtNum(business.profit)}`  : `${fmtNum(business.profit)} ${t.currency}`)  : '—';
+  const revenueDisplay = business.revenue ? (isAr ? `${t.currency} ${fmtNum(business.revenue)}` : `${fmtNum(business.revenue)} ${t.currency}`) : '—';
   const marginDisplay = business.profitMargen ? `${business.profitMargen}%` : '—';
   const employeesDisplay = business.numberOfEmployees || '—';
   const recoveryDisplay = business.capitalRecovery ? `${Math.round(business.capitalRecovery)} ${t.month}` : '—';
@@ -480,7 +480,7 @@ export const BusinessDetails = ({
     (items || []).map(a => ({
       name: a.name,
       quantity: a.quantity,
-      value: `${fmtNum(a.price)} ${t.currency}`,
+      value: isAr ? `${t.currency} ${fmtNum(a.price)}` : `${fmtNum(a.price)} ${t.currency}`,
       date: a.purchaseYear?.toString(),
     }));
 
@@ -660,7 +660,7 @@ export const BusinessDetails = ({
                 <div className="mb-8 space-y-6">
                   <div>
                     <div className="text-sm text-gray-400 font-bold mb-2 uppercase tracking-wide">{t.askingPrice}</div>
-                    <div className="text-4xl font-black text-[#00C995]">{t.currency} {priceDisplay}</div>
+                    <div className="text-4xl font-black text-[#00C995]">{isAr ? `${t.currency} ${priceDisplay}` : `${priceDisplay} ${t.currency}`}</div>
                   </div>
                   <div className="h-px bg-gray-100 w-full" />
                   <div>
@@ -800,8 +800,8 @@ export const BusinessDetails = ({
                         listingData={{
                           category: catName || '',
                           location: resolveBusinessLocation(listing.district, listing.city, language as 'ar' | 'en'),
-                          revenue: `${fmt(listing.revenue)} ${t.currency}`,
-                          profit: `${fmt(listing.profit)} ${t.currency}`,
+                          revenue: isAr ? `${t.currency} ${fmt(listing.revenue)}` : `${fmt(listing.revenue)} ${t.currency}`,
+                          profit:  isAr ? `${t.currency} ${fmt(listing.profit)}`  : `${fmt(listing.profit)} ${t.currency}`,
                           recovery: listing.capitalRecovery ? `${Math.round(listing.capitalRecovery)} ${t.month}` : '—',
                           refNumber: listing.reference ? `#${listing.reference}` : '',
                         }}
@@ -870,7 +870,7 @@ export const BusinessDetails = ({
           <div className="flex items-center justify-between px-1">
             <div className="flex flex-col gap-0.5">
               <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{t.askingPrice}</span>
-              <span className="text-2xl font-black text-[#008A66] leading-none">{t.currency} {priceDisplay}</span>
+              <span className="text-2xl font-black text-[#008A66] leading-none">{isAr ? `${t.currency} ${priceDisplay}` : `${priceDisplay} ${t.currency}`}</span>
             </div>
             <div className="h-8 w-px bg-gray-100" />
             <div className="flex flex-col gap-0.5 items-end">
