@@ -1,4 +1,5 @@
 import React from 'react';
+import DOMPurify from 'dompurify';
 import { useApp } from '../../context/AppContext';
 import { useQuery } from '@apollo/client';
 import { GET_NDA_TERMS } from '../../graphql/queries/business';
@@ -72,7 +73,7 @@ export const NDAPage = ({ onNavigate }: NDAPageProps) => {
             <BackIcon size={18} />
             {t.back}
           </button>
-          <div className={`h-5 w-px bg-white/20 ${isAr ? 'mr-auto' : 'ml-auto'}`} />
+          <div className="flex-1" />
           <div className="text-right">
             <p className="text-xs text-white/50">{t.subtitle}</p>
           </div>
@@ -85,15 +86,15 @@ export const NDAPage = ({ onNavigate }: NDAPageProps) => {
 
         <div className="bg-white rounded-[24px] border border-gray-100 shadow-sm p-6 md:p-10">
           {ndaLoading ? (
-            <div className="flex items-center justify-center py-20">
+            <div className="flex flex-col items-center gap-3 py-20">
               <div className="w-8 h-8 rounded-full border-4 border-[#10B981] border-t-transparent animate-spin" />
-              <span className="ml-3 text-gray-500 text-sm">{t.loading}</span>
+              <span className="text-gray-500 text-sm">{t.loading}</span>
             </div>
           ) : ndaHtml ? (
             <div
               className="prose prose-sm md:prose max-w-none text-gray-700 leading-relaxed"
               dir={isAr ? 'rtl' : 'ltr'}
-              dangerouslySetInnerHTML={{ __html: ndaHtml }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(ndaHtml) }}
             />
           ) : (
             <p className="text-gray-500 text-sm text-center py-10">{t.noContent}</p>

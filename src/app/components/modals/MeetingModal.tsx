@@ -32,8 +32,17 @@ function getAllowedSlots(dateStr: string): string[] {
   return slots;
 }
 
-// Minimum date: today (no past dates)
-const todayISO = (): string => new Date().toISOString().split('T')[0];
+// Minimum date: always today in Asia/Riyadh, regardless of the browser's own timezone.
+// toISOString() is UTC and getTimezoneOffset() cancels out when the browser is already
+// in Riyadh — both approaches return the wrong date between midnight and 03:00 local.
+// Intl.DateTimeFormat with a fixed timeZone is the only reliable cross-timezone solution.
+const todayISO = (): string =>
+  new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Riyadh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date()); // en-CA formats as YYYY-MM-DD natively
 
 export const MeetingModal = ({ isOpen, onClose, onSubmit }: MeetingModalProps) => {
   const { language } = useApp();
