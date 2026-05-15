@@ -144,8 +144,6 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
         variables: {
           input: {
             name: fullName,
-            firstName: fullName.trim().split(/\s+/)[0] || undefined,
-            lastName: fullName.trim().split(/\s+/).slice(1).join(' ') || undefined,
             email,
             phone: (() => {
               const p = phone.replace(/[\s\-]/g, '');
