@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Mail, Phone, ChevronDown, ChevronUp, Send, Twitter, Linkedin, Instagram, MessageCircle } from 'lucide-react';
+import { Mail, ChevronDown, ChevronUp, Send, Twitter, Linkedin, Instagram } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { cn } from '../../lib/utils';
 import { useMutation, useQuery } from '@apollo/client';
@@ -84,7 +84,6 @@ export const Support = ({ onNavigate }: { onNavigate?: (page: string) => void })
     { icon: Instagram, label: 'Instagram', href: '#', color: 'bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 text-white' },
     { icon: Linkedin, label: 'LinkedIn', href: '#', color: 'bg-[#0077b5] text-white' },
     { icon: Mail, label: 'Email', href: 'mailto:info@jusoor.sa', color: 'bg-gray-600 text-white' },
-    { icon: MessageCircle, label: 'WhatsApp', href: '#', color: 'bg-[#25D366] text-white' },
   ];
 
   return (
@@ -149,7 +148,9 @@ export const Support = ({ onNavigate }: { onNavigate?: (page: string) => void })
                      {SOCIALS.map((social, idx) => (
                         <a 
                            key={idx} 
-                           href={social.href} 
+	                           href={social.href} 
+                             target={social.href === '#' ? undefined : '_blank'}
+                             rel={social.href === '#' ? undefined : 'noopener noreferrer'}
                            className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-transform hover:scale-110 shadow-sm", social.color)}
                            title={social.label}
                         >

@@ -29,9 +29,10 @@ export const Footer = ({ onNavigate }: { onNavigate?: (page: string) => void }) 
               {content.footer.about}
             </p>
             <div className="flex gap-4">
-              <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:bg-[#008A66] hover:text-white transition-all duration-300"><Twitter size={18} /></a>
-              <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:bg-[#008A66] hover:text-white transition-all duration-300"><Linkedin size={18} /></a>
-              <a href="#" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:bg-[#008A66] hover:text-white transition-all duration-300"><Instagram size={18} /></a>
+              <a href="#" aria-label="X" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:bg-[#008A66] hover:text-white transition-all duration-300"><Twitter size={18} /></a>
+              <a href="#" aria-label="LinkedIn" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:bg-[#008A66] hover:text-white transition-all duration-300"><Linkedin size={18} /></a>
+              <a href="#" aria-label="Instagram" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:bg-[#008A66] hover:text-white transition-all duration-300"><Instagram size={18} /></a>
+              <a href="mailto:info@jusoor.sa" aria-label="Email" className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-gray-400 hover:bg-[#008A66] hover:text-white transition-all duration-300"><Mail size={18} /></a>
             </div>
           </div>
 
@@ -73,11 +74,16 @@ export const Footer = ({ onNavigate }: { onNavigate?: (page: string) => void }) 
                     {content.nav.articles}
                   </a>
                 </li>
-                <li>
-                  <a href="#" onClick={(e) => handleLinkClick(e, '#', 'terms')} className="text-gray-400 hover:text-[#00C995] transition-colors text-sm font-medium">
-                    {content.footer.resources.links[3].label}
-                  </a>
-                </li>
+	                <li>
+	                  <a href="#" onClick={(e) => handleLinkClick(e, '#', 'terms')} className="text-gray-400 hover:text-[#00C995] transition-colors text-sm font-medium">
+	                    {content.footer.resources.links[3].label}
+	                  </a>
+	                </li>
+	                <li>
+	                  <a href="#" onClick={(e) => handleLinkClick(e, '#', 'privacy')} className="text-gray-400 hover:text-[#00C995] transition-colors text-sm font-medium">
+	                    {language === 'ar' ? 'سياسة الخصوصية' : 'Privacy Policy'}
+	                  </a>
+	                </li>
                 <li>
                   <a href="#" onClick={(e) => handleLinkClick(e, '#', 'support')} className="text-gray-400 hover:text-[#00C995] transition-colors text-sm font-medium">
                     {content.footer.supportHeader}
@@ -117,7 +123,7 @@ export const Footer = ({ onNavigate }: { onNavigate?: (page: string) => void }) 
           </p>
           
           <div className="flex items-center gap-6">
-             <a href="#" onClick={(e) => handleLinkClick(e, '#', 'terms')} className="text-gray-500 hover:text-white text-xs transition-colors">{language === 'ar' ? 'شروط الاستخدام' : 'Terms of Use'}</a>
+             <a href="#" onClick={(e) => handleLinkClick(e, '#', 'terms')} className="text-gray-500 hover:text-white text-xs transition-colors">{language === 'ar' ? 'الشروط والأحكام' : 'Terms & Conditions'}</a>
              <a href="#" onClick={(e) => handleLinkClick(e, '#', 'privacy')} className="text-gray-500 hover:text-white text-xs transition-colors">{language === 'ar' ? 'سياسة الخصوصية' : 'Privacy Policy'}</a>
           </div>
         </div>

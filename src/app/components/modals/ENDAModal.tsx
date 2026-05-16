@@ -7,12 +7,13 @@ import { useApp } from '../../../context/AppContext';
 interface ENDAModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   onReadNDA?: () => void;   // opens the full NDA page, preserving return context
   buyerName?: string;
+  loading?: boolean;
 }
 
-export const ENDAModal = ({ isOpen, onClose, onConfirm, onReadNDA, buyerName }: ENDAModalProps) => {
+export const ENDAModal = ({ isOpen, onClose, onConfirm, onReadNDA, buyerName, loading = false }: ENDAModalProps) => {
   const { language } = useApp();
   const isAr = language === 'ar';
   const [agreements, setAgreements] = useState({
@@ -92,10 +93,10 @@ export const ENDAModal = ({ isOpen, onClose, onConfirm, onReadNDA, buyerName }: 
 
         {/* Actions */}
         <div className="flex gap-3 pt-4 border-t border-gray-100">
-          <Button onClick={onConfirm} disabled={!allAgreed} className="flex-1">
-            {t.confirm}
+          <Button onClick={onConfirm} disabled={!allAgreed || loading} className="flex-1">
+            {loading ? (isAr ? 'جاري التوقيع...' : 'Signing...') : t.confirm}
           </Button>
-          <Button variant="outline" onClick={onClose} className="flex-1">
+          <Button variant="outline" onClick={onClose} disabled={loading} className="flex-1">
             {t.cancel}
           </Button>
         </div>

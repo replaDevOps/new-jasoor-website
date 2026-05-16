@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Button } from '../../components/Button';
-import { Eye, EyeOff, Check, Home } from 'lucide-react';
+import { Eye, EyeOff, Home } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
 import { toast } from 'sonner';
 import logoIcon from '../../../assets/logo-icon.png';
@@ -8,7 +8,6 @@ import logoIcon from '../../../assets/logo-icon.png';
 import { useMutation } from '@apollo/client';
 import { LOGIN } from '../../../graphql/mutations/auth';
 import { setAuthTokens } from '../../../utils/tokenManager';
-import Cookies from 'js-cookie';
 
 interface Errors { identifier?: string; password?: string; }
 
@@ -25,7 +24,6 @@ export const SignIn = ({
   const [identifier, setIdentifier]     = useState('');
   const [password, setPassword]         = useState('');
   const [errors, setErrors]             = useState<Errors>({});
-  const [rememberMe, setRememberMe]     = useState(false);
 
 
   const isAr = language === 'ar';
@@ -74,10 +72,6 @@ export const SignIn = ({
 
       const { token, refreshToken, user } = data.login;
       setAuthTokens(token, refreshToken, user);
-      if (rememberMe) {
-        // Extend session to 30 days when Remember Me is checked
-        try { Cookies.set('_remember', '1', { expires: 30, sameSite: 'Lax' }); } catch {}
-      }
       login();
       toast.success(content.auth.signIn.success);
       // Return to where the user came from (e.g. a listing they were viewing when auth was required)
@@ -173,15 +167,8 @@ export const SignIn = ({
             {errors.password && <p className="text-red-500 text-xs mt-1.5 font-medium">{errors.password}</p>}
           </div>
 
-          {/* Remember me + forgot */}
-          <div className="flex items-center justify-between text-xs md:text-sm">
-            <div className="relative flex items-center gap-2 cursor-pointer group">
-              <input type="checkbox" id="remember" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-gray-300 transition-all checked:border-[#008A66] checked:bg-[#008A66]" />
-              <div className="pointer-events-none absolute left-[2px] top-1/2 -translate-y-1/2 text-white opacity-0 transition-opacity peer-checked:opacity-100">
-                <Check size={14} strokeWidth={3} />
-              </div>
-              <label htmlFor="remember" className="text-gray-600 font-medium cursor-pointer">{content.auth.signIn.rememberMe}</label>
-            </div>
+          {/* Forgot password */}
+          <div className="flex justify-end text-xs md:text-sm">
             <button onClick={() => onNavigate('forgot-password')} className="text-[#008A66] font-bold hover:underline">
               {content.auth.signIn.forgotPassword}
             </button>

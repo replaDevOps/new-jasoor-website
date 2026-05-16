@@ -1,16 +1,16 @@
 import React, { useState, useRef } from 'react';
 import { Button } from '../../components/Button';
-import { ArrowRight, Mail, ShieldCheck, Globe, Home } from 'lucide-react';
+import { ArrowRight, Home, Eye, EyeOff } from 'lucide-react';
 import logoIcon from '../../../assets/logo-icon.png';
 import { inputBase, inputOtp } from '../../../lib/inputStyles';
 import { useApp } from '../../../context/AppContext';
 import { toast } from 'sonner';
 // BUG-08 FIX: wire real GraphQL mutations — was using no state, no handlers, no API calls
 import { useMutation } from '@apollo/client';
-import { REQUEST_PASSWORD_RESET, VERIFY_PASSWORD_RESET_OTP } from '../../../graphql/mutations/auth';
+import { REQUEST_PASSWORD_RESET, VERIFY_PASSWORD_RESET_OTP, RESET_PASSWORD_WITH_TOKEN } from '../../../graphql/mutations/auth';
 export const ForgotPassword = ({ onNavigate }: { onNavigate: (page: string) => void }) => {
   const { content, direction, language, setLanguage } = useApp();
-  const [step, setStep] = useState<'email' | 'otp'>('email');
+  const [step, setStep] = useState<'email' | 'otp' | 'reset'>('email');
   const isAr = language === 'ar';
 
   // BUG-08 FIX: email field had no state — value was never captured
@@ -19,11 +19,18 @@ export const ForgotPassword = ({ onNavigate }: { onNavigate: (page: string) => v
   const [isLoading, setIsLoading]   = useState(false);
 
   // BUG-08 FIX: OTP inputs had no state — digits were never captured
-  const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '']);
+  const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''));
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [resetError, setResetError] = useState('');
 
   const [requestReset] = useMutation(REQUEST_PASSWORD_RESET, { errorPolicy: 'all' });
   const [verifyOTP]    = useMutation(VERIFY_PASSWORD_RESET_OTP, { errorPolicy: 'all' });
+  const [resetPassword] = useMutation(RESET_PASSWORD_WITH_TOKEN, { errorPolicy: 'all' });
 
   const toggleLanguage = () => setLanguage(language === 'ar' ? 'en' : 'ar');
 
@@ -32,7 +39,7 @@ export const ForgotPassword = ({ onNavigate }: { onNavigate: (page: string) => v
     const next = [...otpDigits];
     next[index] = value;
     setOtpDigits(next);
-    if (value && index < 3) otpRefs.current[index + 1]?.focus();
+    if (value && index < otpDigits.length - 1) otpRefs.current[index + 1]?.focus();
   };
 
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
@@ -65,7 +72,7 @@ export const ForgotPassword = ({ onNavigate }: { onNavigate: (page: string) => v
         );
         return;
       }
-      setOtpDigits(['', '', '', '']);
+      setOtpDigits(Array(6).fill(''));
       setStep('otp');
       toast.success(content.auth.forgotPassword.codeSent);
     } catch (err) {
@@ -79,8 +86,8 @@ export const ForgotPassword = ({ onNavigate }: { onNavigate: (page: string) => v
   // BUG-08 FIX: Confirm button now validates digits and calls VERIFY_PASSWORD_RESET_OTP
   const handleConfirmOtp = async () => {
     const otp = otpDigits.join('');
-    if (otp.length < 4) {
-      toast.error(isAr ? 'يرجى إدخال الرمز المكون من 4 أرقام كاملاً' : 'Please enter the complete 4-digit code');
+    if (otp.length < 6) {
+      toast.error(isAr ? 'يرجى إدخال الرمز المكون من 6 أرقام كاملاً' : 'Please enter the complete 6-digit code');
       return;
     }
     setIsLoading(true);
@@ -90,9 +97,17 @@ export const ForgotPassword = ({ onNavigate }: { onNavigate: (page: string) => v
         toast.error(isAr ? 'الرمز غير صحيح أو منتهي الصلاحية' : 'Incorrect or expired code');
         return;
       }
-      // resetToken returned — in future: pass to reset-password page
+      const token = data?.verifyPasswordResetOTP?.resetToken;
+      if (!token) {
+        toast.error(isAr ? 'تعذر إنشاء جلسة إعادة التعيين، أعد المحاولة' : 'Could not start password reset. Please try again');
+        return;
+      }
+      setResetToken(token);
+      setNewPassword('');
+      setConfirmPassword('');
+      setResetError('');
       toast.success(isAr ? 'تم التحقق بنجاح. يمكنك الآن إعادة تعيين كلمة المرور' : 'Verified successfully. You can now reset your password');
-      onNavigate('signin');
+      setStep('reset');
     } catch (err) {
       console.error('VerifyOTP error:', err);
       toast.error(isAr ? 'حدث خطأ أثناء التحقق' : 'Verification failed');
@@ -100,6 +115,53 @@ export const ForgotPassword = ({ onNavigate }: { onNavigate: (page: string) => v
       setIsLoading(false);
     }
   };
+
+  const handleResetPassword = async () => {
+    if (!resetToken) {
+      toast.error(isAr ? 'انتهت جلسة إعادة التعيين. أعد طلب الرمز' : 'Reset session expired. Please request a new code');
+      setStep('email');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setResetError(isAr ? 'كلمة المرور يجب أن تكون 8 أحرف على الأقل' : 'Password must be at least 8 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setResetError(isAr ? 'كلمتا المرور غير متطابقتين' : 'Passwords do not match');
+      return;
+    }
+    setResetError('');
+    setIsLoading(true);
+    try {
+      const { data, errors: gqlErrors } = await resetPassword({
+        variables: { resetToken, newPassword },
+      });
+      if (gqlErrors?.length || !data?.resetPasswordWithToken?.success) {
+        toast.error(data?.resetPasswordWithToken?.message || gqlErrors?.[0]?.message || (isAr ? 'تعذر تحديث كلمة المرور' : 'Could not update password'));
+        return;
+      }
+      toast.success(isAr ? 'تم تغيير كلمة المرور بنجاح' : 'Password reset successfully');
+      onNavigate('signin');
+    } catch (err) {
+      console.error('ResetPassword error:', err);
+      toast.error(isAr ? 'تعذر الاتصال بالخادم' : 'Could not connect to server');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const title =
+    step === 'email'
+      ? content.auth.forgotPassword.titleEmail
+      : step === 'otp'
+        ? content.auth.forgotPassword.titleOtp
+        : (isAr ? 'تعيين كلمة مرور جديدة' : 'Set a New Password');
+  const subtitle =
+    step === 'email'
+      ? content.auth.forgotPassword.subtitleEmail
+      : step === 'otp'
+        ? content.auth.forgotPassword.subtitleOtp
+        : (isAr ? 'أدخل كلمة مرور جديدة لحسابك' : 'Enter a new password for your account');
 
   return (
     <div className={`min-h-screen bg-[#F9FAFB] flex items-center justify-center p-4 py-6 md:py-12 relative ${direction === 'rtl' ? 'dir-rtl' : 'dir-ltr'}`}>
@@ -131,12 +193,10 @@ export const ForgotPassword = ({ onNavigate }: { onNavigate: (page: string) => v
             <img src={logoIcon} alt="Jusoor" className="h-12 md:h-16 w-auto object-contain" />
           </div>
           <h1 className="text-xl md:text-2xl font-bold text-[#111827] mb-2 md:mb-3">
-            {step === 'email' ? content.auth.forgotPassword.titleEmail : content.auth.forgotPassword.titleOtp}
+            {title}
           </h1>
           <p className="text-gray-500 max-w-[90%] md:max-w-[80%] mx-auto leading-relaxed text-sm md:text-base">
-            {step === 'email'
-              ? content.auth.forgotPassword.subtitleEmail
-              : content.auth.forgotPassword.subtitleOtp}
+            {subtitle}
           </p>
         </div>
 
@@ -172,11 +232,11 @@ export const ForgotPassword = ({ onNavigate }: { onNavigate: (page: string) => v
                 </button>
               </div>
             </div>
-          ) : (
+          ) : step === 'otp' ? (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* BUG-08 FIX: OTP inputs now have value, onChange, onKeyDown, and ref */}
               <div className="flex justify-center gap-2 md:gap-3 mb-6 md:mb-8 dir-ltr">
-                {[0,1,2,3].map((i) => (
+                {otpDigits.map((_, i) => (
                   <input
                     key={i}
                     ref={el => { otpRefs.current[i] = el; }}
@@ -216,6 +276,67 @@ export const ForgotPassword = ({ onNavigate }: { onNavigate: (page: string) => v
                   {content.auth.forgotPassword.back || 'Back to email'}
                 </button>
               </div>
+            </div>
+          ) : (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-5">
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1.5 md:mb-2">
+                  {isAr ? 'كلمة المرور الجديدة' : 'New Password'}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={e => { setNewPassword(e.target.value); setResetError(''); }}
+                    className={`${inputBase} ${direction === 'rtl' ? 'pl-11' : 'pr-11'}`}
+                    placeholder="********"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(v => !v)}
+                    className={`absolute top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#008A66] transition-colors ${direction === 'rtl' ? 'left-4' : 'right-4'}`}
+                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1.5 md:mb-2">
+                  {isAr ? 'تأكيد كلمة المرور' : 'Confirm Password'}
+                </label>
+                <div className="relative">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={e => { setConfirmPassword(e.target.value); setResetError(''); }}
+                    className={`${inputBase} ${direction === 'rtl' ? 'pl-11' : 'pr-11'}`}
+                    placeholder="********"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(v => !v)}
+                    className={`absolute top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#008A66] transition-colors ${direction === 'rtl' ? 'left-4' : 'right-4'}`}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                {resetError && <p className="text-red-500 text-xs mt-1.5 font-medium">{resetError}</p>}
+              </div>
+              <Button
+                onClick={handleResetPassword}
+                disabled={isLoading}
+                className="w-full py-3.5 md:py-4 text-base md:text-lg font-bold shadow-lg shadow-[#008A66]/20 hover:shadow-[#008A66]/40 transition-all"
+              >
+                {isLoading ? (isAr ? 'جاري التحديث...' : 'Updating...') : (isAr ? 'تغيير كلمة المرور' : 'Reset Password')}
+              </Button>
+              <button
+                onClick={() => setStep('otp')}
+                className="w-full text-gray-500 hover:text-[#008A66] font-medium text-sm transition-colors py-2"
+              >
+                {isAr ? 'العودة للرمز' : 'Back to code'}
+              </button>
             </div>
           )}
         </div>

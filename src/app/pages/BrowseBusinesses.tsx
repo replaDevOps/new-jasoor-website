@@ -418,22 +418,22 @@ export const BrowseBusinesses = ({ onNavigate }: { onNavigate?: (page: string, i
                     animate={{ y: 0 }}
                     exit={{ y: "100%" }}
                     transition={{ type: "tween", duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
-                    className="fixed bottom-0 left-0 right-0 z-50 bg-white rounded-t-[32px] lg:hidden max-h-[90vh] overflow-y-auto"
-                 >
-                    <div className="sticky top-0 bg-white z-10 rounded-t-[32px] border-b border-gray-100 px-6 pt-3 pb-4">
+                    className="fixed bottom-0 left-0 right-0 z-[60] bg-white rounded-t-[32px] lg:hidden max-h-[calc(100dvh-1rem)] overflow-hidden flex flex-col"
+	                 >
+	                    <div className="bg-white z-10 rounded-t-[32px] border-b border-gray-100 px-6 pt-3 pb-4 flex-shrink-0">
                        <div className="flex justify-center mb-3">
                           <div className="w-10 h-1 rounded-full bg-gray-300" />
                        </div>
                        <div className="flex items-center justify-between">
                           <h3 className="text-lg font-bold text-gray-900">{t.filterTitle}</h3>
-                          <button onClick={() => setIsFilterOpen(false)} className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-700 hover:bg-red-50 hover:text-red-500 transition-colors font-bold shadow-sm">
-                             <X size={20} strokeWidth={2.5} />
-                          </button>
-                       </div>
-                    </div>
-                    <div className="p-6 pb-16">
-                       <FilterContent />
-                    </div>
+	                          <button onClick={() => setIsFilterOpen(false)} className="w-11 h-11 rounded-full bg-gray-100 flex items-center justify-center text-gray-700 hover:bg-red-50 hover:text-red-500 transition-colors font-bold shadow-sm" aria-label={isAr ? 'إغلاق الفلتر' : 'Close filters'}>
+	                             <X size={20} strokeWidth={2.5} />
+	                          </button>
+	                       </div>
+	                    </div>
+	                    <div className="p-6 pb-[calc(4rem+env(safe-area-inset-bottom))] overflow-y-auto">
+	                       <FilterContent />
+	                    </div>
                  </motion.div>
               </>
             )}

@@ -73,6 +73,7 @@ export const BusinessDetails = ({
   const [pendingAction, setPendingAction] = useState<'offer' | 'meeting' | 'purchase' | null>(null);
   // Prevents double-tap on Buy Now from creating duplicate offers
   const [purchaseSubmitting, setPurchaseSubmitting] = useState(false);
+  const [endaSubmitting, setEndaSubmitting] = useState(false);
   // NDA signed state — initialised from backend, then kept in sync locally
   const [ndaSigned, setNdaSigned] = useState(false);
 
@@ -375,6 +376,8 @@ export const BusinessDetails = ({
   const handleENDAConfirm = async () => {
     if (!requireLogin()) return;
     if (!business?.id || !userId) return;
+    if (endaSubmitting) return;
+    setEndaSubmitting(true);
     try {
       const { errors } = await createEnda({
         variables: {
@@ -384,7 +387,7 @@ export const BusinessDetails = ({
             acceptNdaTerms: true,
             acceptPlatformTerms: true,
             acceptCommission: true,
-            commissionRate: '2.5',
+            commissionRate: 2.5,
             signatureText: userId,
           },
         },
@@ -398,8 +401,8 @@ export const BusinessDetails = ({
           );
           return;
         }
-        // Any other error (including "already signed") is fine — backend is idempotent,
-        // treat as success and proceed to open the pending action modal
+        toast.error(msg || t.errGeneric);
+        return;
       }
       // NDA confirmed (new or existing) — cache in session and proceed
       setNdaSigned(true);
@@ -417,9 +420,12 @@ export const BusinessDetails = ({
       } else {
         setModalOpen(null);
       }
-    } catch {
-      toast.error(t.errGeneric);
+    } catch (err: any) {
+      const msg = err?.graphQLErrors?.[0]?.message || err?.message || '';
+      toast.error(msg || t.errGeneric);
       setModalOpen(null);
+    } finally {
+      setEndaSubmitting(false);
     }
   };
 
@@ -877,6 +883,7 @@ export const BusinessDetails = ({
         isOpen={modalOpen === 'enda'}
         onClose={() => setModalOpen(null)}
         onConfirm={handleENDAConfirm}
+        loading={endaSubmitting}
         onReadNDA={() => {
           // Persist return context so NDAPage can navigate back here with NDA modal pre-opened
           try {

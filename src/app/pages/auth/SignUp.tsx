@@ -9,6 +9,7 @@ import { useMutation } from '@apollo/client';
 import { CREATE_USER, VERIFY_EMAIL, VERIFY_EMAIL_OTP } from '../../../graphql/mutations/auth';
 import { UPLOAD_IDENTITY_DOCUMENT } from '../../../graphql/mutations/dashboard';
 import { setAuthTokens } from '../../../utils/tokenManager';
+import { SAUDI_REGIONS } from '../../../data/saudiRegions';
 
 export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) => {
   const { content, direction, language, setLanguage } = useApp();
@@ -28,9 +29,10 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
   const [password, setPassword]           = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   // BUG-07 FIX: OTP digits state — was missing entirely, inputs captured nothing
-  const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '']);
+  const [otpDigits, setOtpDigits] = useState<string[]>(Array(6).fill(''));
   const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const [createUser] = useMutation(CREATE_USER, { errorPolicy: 'all' });
@@ -39,7 +41,6 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
   const [verifyEmailOTP] = useMutation(VERIFY_EMAIL_OTP, { errorPolicy: 'all' });
   const [uploadIdentityDoc] = useMutation(UPLOAD_IDENTITY_DOCUMENT, { errorPolicy: 'all' });
 
-  const regionsList = Object.values(content.auth.signUp.regions);
   // BUG-17 FIX: ID upload field had no state — file was never captured or validated
   const [idFile, setIdFile]           = useState<File | null>(null);
   const [idFileError, setIdFileError] = useState<string>('');
@@ -48,6 +49,7 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
   const [selectedRegion, setSelectedRegion] = useState<string>('');
   // City free-text — separate from region/district
   const [selectedCity, setSelectedCity] = useState<string>('');
+  const selectedRegionRecord = SAUDI_REGIONS.find(region => region.slug === selectedRegion);
 
   // Country code picker
   const [countryCode, setCountryCode]         = useState('+966');
@@ -106,6 +108,10 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
       e.phone = isAr ? 'رقم الجوال مطلوب' : 'Phone number is required';
     else if (!/^\d{4,15}$/.test(phone.replace(/[\s\-]/g,'')))
       e.phone = isAr ? 'أدخل رقم جوال صحيح' : 'Enter a valid phone number';
+    if (!selectedRegion)
+      e.region = isAr ? 'المنطقة مطلوبة' : 'Region is required';
+    if (!selectedCity)
+      e.city = isAr ? 'المدينة مطلوبة' : 'City is required';
     if (!password)
       e.password = isAr ? 'كلمة المرور مطلوبة' : 'Password is required';
     else if (password.length < 8)
@@ -114,6 +120,8 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
       e.confirmPassword = isAr ? 'تأكيد كلمة المرور مطلوب' : 'Please confirm your password';
     else if (password !== confirmPassword)
       e.confirmPassword = isAr ? 'كلمتا المرور غير متطابقتين' : 'Passwords do not match';
+    if (!termsAccepted)
+      e.terms = isAr ? 'يجب الموافقة على الشروط والأحكام وسياسة الخصوصية' : 'You must accept the Terms & Conditions and Privacy Policy';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -126,7 +134,7 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
     const next = [...otpDigits];
     next[index] = value;
     setOtpDigits(next);
-    if (value && index < 4) otpRefs.current[index + 1]?.focus();
+    if (value && index < otpDigits.length - 1) otpRefs.current[index + 1]?.focus();
   };
 
   const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
@@ -153,8 +161,8 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
             })(),
             password,
             // BUG-18 FIX: region now captured and sent to API as district (backend field name)
-            district: selectedRegion || undefined,
-            city: selectedCity || undefined,
+            district: selectedRegionRecord?.en || undefined,
+            city: selectedRegionRecord?.cities.find(city => city.slug === selectedCity)?.en || undefined,
           }
         }
       });
@@ -216,8 +224,8 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
   // BUG-07 FIX: handleOtpVerify now validates digits and calls real VERIFY_EMAIL_OTP mutation
   const handleOtpVerify = async () => {
     const otp = otpDigits.join('');
-    if (otp.length < 5) {
-      toast.error(isAr ? 'يرجى إدخال الرمز المكون من 5 أرقام كاملاً' : 'Please enter the complete 5-digit code');
+    if (otp.length < 6) {
+      toast.error(isAr ? 'يرجى إدخال الرمز المكون من 6 أرقام كاملاً' : 'Please enter the complete 6-digit code');
       return;
     }
     setIsLoading(true);
@@ -312,7 +320,10 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
                   <label className="block text-sm font-bold text-gray-700 mb-1.5 md:mb-2">{content.auth.signUp.phone}</label>
                   {/* Flex-wrapper compound input — immune to RTL overlap; no absolute positioning + dynamic padding */}
                   <div className="relative" ref={countryPickerRef}>
-                    <div className={`flex items-stretch bg-gray-50 border rounded-xl overflow-hidden transition-all focus-within:ring-4 ${errors.phone ? 'border-red-400 focus-within:border-red-400 focus-within:ring-red-400/10' : 'border-gray-200 focus-within:border-[#008A66] focus-within:ring-[#008A66]/10'}`}>
+                    <div
+                      className={`flex items-stretch bg-gray-50 border rounded-xl overflow-hidden transition-all focus-within:ring-4 ${errors.phone ? 'border-red-400 focus-within:border-red-400 focus-within:ring-red-400/10' : 'border-gray-200 focus-within:border-[#008A66] focus-within:ring-[#008A66]/10'}`}
+                      style={{ direction: 'ltr' }}
+                    >
                       {/* Country selector — always LTR, left side */}
                       <button
                         type="button"
@@ -358,12 +369,17 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
                     {/* BUG-18 FIX: select had no state — value was never captured */}
                     <select
                       value={selectedRegion}
-                      onChange={(e) => setSelectedRegion(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedRegion(e.target.value);
+                        setSelectedCity('');
+                        clearError('region');
+                        clearError('city');
+                      }}
                       className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 md:py-3.5 focus:outline-none focus:border-[#008A66] focus:ring-4 focus:ring-[#008A66]/10 transition-all appearance-none text-sm md:text-base"
                     >
                       <option value="">{content.auth.signUp.selectRegion}</option>
-                      {regionsList.map(region => (
-                        <option key={region} value={region}>{region}</option>
+                      {SAUDI_REGIONS.map(region => (
+                        <option key={region.slug} value={region.slug}>{isAr ? region.ar : region.en}</option>
                       ))}
                     </select>
                     <div className={`absolute top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 ${direction === 'rtl' ? 'left-4' : 'right-4'}`}>
@@ -372,21 +388,32 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
                       </svg>
                     </div>
                   </div>
-                  {errors.confirmPassword && <p className="text-red-500 text-xs mt-1.5 font-medium">{errors.confirmPassword}</p>}
+                  {errors.region && <p className="text-red-500 text-xs mt-1.5 font-medium">{errors.region}</p>}
                 </div>
-                {/* City — separate from Region/district, spans full width on desktop */}
+                {/* City — linked to selected region */}
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-gray-700 mb-1.5 md:mb-2">
                     {content.auth.signUp.city}
-                    <span className="text-gray-400 font-normal text-xs ms-1">({isAr ? 'اختياري' : 'Optional'})</span>
                   </label>
-                  <input
-                    type="text"
+                  <div className="relative">
+                  <select
                     value={selectedCity}
-                    onChange={(e) => setSelectedCity(e.target.value)}
-                    placeholder={content.auth.signUp.cityPlaceholder}
-                    className={`w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 md:py-3.5 focus:outline-none focus:border-[#008A66] focus:ring-4 focus:ring-[#008A66]/10 transition-all text-sm md:text-base ${direction === 'rtl' ? 'text-right' : 'text-left'}`}
-                  />
+                    onChange={(e) => { setSelectedCity(e.target.value); clearError('city'); }}
+                    disabled={!selectedRegion}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 md:py-3.5 focus:outline-none focus:border-[#008A66] focus:ring-4 focus:ring-[#008A66]/10 transition-all appearance-none text-sm md:text-base disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <option value="">{content.auth.signUp.cityPlaceholder}</option>
+                    {(selectedRegionRecord?.cities ?? []).map(city => (
+                      <option key={city.slug} value={city.slug}>{isAr ? city.ar : city.en}</option>
+                    ))}
+                  </select>
+                  <div className={`absolute top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 ${direction === 'rtl' ? 'left-4' : 'right-4'}`}>
+                    <svg width="12" height="8" viewBox="0 0 12 8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                  </div>
+                  {errors.city && <p className="text-red-500 text-xs mt-1.5 font-medium">{errors.city}</p>}
                 </div>
               </div>
 
@@ -453,15 +480,26 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
 
               <div className="flex items-start gap-3 bg-gray-50 p-3 md:p-4 rounded-xl border border-gray-100">
                 <div className="relative flex items-center">
-                    <input type="checkbox" id="terms" className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-gray-300 transition-all checked:border-[#008A66] checked:bg-[#008A66]" />
+                    <input
+                      type="checkbox"
+                      id="terms"
+                      checked={termsAccepted}
+                      onChange={(e) => { setTermsAccepted(e.target.checked); clearError('terms'); }}
+                      className="peer h-5 w-5 cursor-pointer appearance-none rounded-md border border-gray-300 transition-all checked:border-[#008A66] checked:bg-[#008A66]"
+                    />
                     <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 transition-opacity peer-checked:opacity-100">
                       <Check size={14} strokeWidth={3} />
                     </div>
-                </div>
-                <label htmlFor="terms" className="text-xs md:text-sm text-gray-600 leading-relaxed cursor-pointer select-none">
-                  {content.auth.signUp.agree} <a href="#" className="text-[#008A66] font-bold hover:underline">{content.auth.signUp.terms}</a> {content.auth.signUp.and} <a href="#" className="text-[#008A66] font-bold hover:underline">{content.auth.signUp.privacy}</a>{content.auth.signUp.agreeConfirm}
-                </label>
-              </div>
+	                </div>
+	                <label htmlFor="terms" className="text-xs md:text-sm text-gray-600 leading-relaxed cursor-pointer select-none">
+	                  {content.auth.signUp.agree}{' '}
+                    <a href="/terms" onClick={(e) => { e.preventDefault(); onNavigate('terms'); }} className="text-[#008A66] font-bold hover:underline">{content.auth.signUp.terms}</a>
+                    {' '}{content.auth.signUp.and}{' '}
+                    <a href="/privacy" onClick={(e) => { e.preventDefault(); onNavigate('privacy'); }} className="text-[#008A66] font-bold hover:underline">{content.auth.signUp.privacy}</a>
+                    {content.auth.signUp.agreeConfirm}
+	                </label>
+	              </div>
+                {errors.terms && <p className="text-red-500 text-xs -mt-3 font-medium">{errors.terms}</p>}
 
               <Button 
                 onClick={handleDetailsSubmit}
@@ -503,7 +541,7 @@ export const SignUp = ({ onNavigate }: { onNavigate: (page: string) => void }) =
             </div>
 
              <div className="flex justify-center gap-2 md:gap-3 mb-6 md:mb-8 dir-ltr">
-               {[0,1,2,3,4].map((i) => (
+	               {otpDigits.map((_, i) => (
                  <input
                    key={i}
                    ref={el => { otpRefs.current[i] = el; }}
